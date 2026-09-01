@@ -51,10 +51,10 @@ modes = ["fast", "full"]
 [policy]
 required_gates = ["verify"]
 max_rework = 2
-# Raised so the stand-in section can issue the L2 grant a supervisor pass needs
+# Raised so the stand-in section can issue the supervised grant a supervisor pass needs
 # to dispatch a metered runner at all. Inert for every other test here: without a
 # grant on the bead, the ceiling this opts into is never reached.
-autonomy = "L2"
+autonomy = "supervised"
 
 [policy.sizing]
 # The fixture's files are tiny; without this floor the sizing governor refuses
@@ -329,13 +329,14 @@ def test_a_decomposed_root_seeds_a_lane_only_under_a_covering_grant(
     A root with children derives ``decompose`` (``loop_state.derive_phase``), and its
     decompose checkpoint is what gates the fan-out — so ``loop supervise <epic>``
     answered ``seed-blocked ... decompose checkpoint awaiting human approval`` and
-    exited non-zero, under a live L3 grant that ``policy.GRANT_COVERAGE`` says
+    exited non-zero, under a live unattended grant that ``policy.GRANT_COVERAGE`` says
     delegates exactly that checkpoint. The operator then hand-drove ``loop run`` once
     per child, on the same root and the same grant, and every one delegated.
 
-    Granted at **L1** rather than at the L3 of the incident, deliberately: L1 is the
+    Granted at **assisted** rather than at the unattended of the incident, deliberately:
     lowest level ``GRANT_COVERAGE`` gives ``decompose``, so a fix that read the level
-    rather than the coverage table would pass at L3 and fail here.
+    assisted is the level the refusal names, so a check reading the level rather than the
+    coverage table would pass at unattended and fail here.
 
     The uncovered leg is the control, and it is what keeps the fix from being a
     widening: with no grant on the root, nothing may be seeded, and the refusal has
@@ -348,7 +349,7 @@ def test_a_decomposed_root_seeds_a_lane_only_under_a_covering_grant(
         issued = policy.issue_grant_guarded(
             harness_repo,
             epic,
-            "L1",
+            "assisted",
             100_000_000,
             load_policy_config(harness_repo),
             interactive=True,
@@ -362,7 +363,7 @@ def test_a_decomposed_root_seeds_a_lane_only_under_a_covering_grant(
     if not granted:
         assert [r.route for r in routed] == ["seed-blocked"], [r.detail for r in routed]
         assert "decompose" in routed[0].detail
-        assert "L1" in routed[0].detail, "the refusal must name the level that would cover it"
+        assert "assisted" in routed[0].detail, "the refusal must name the level that would cover it"
         assert not worktree.list_sessions(harness_repo)
         return
     assert [r.route for r in routed] == ["seeded"], [r.detail for r in routed]

@@ -1422,7 +1422,7 @@ def record_ungranted_refusal(
     detail = (
         f"no grant with a token budget covers {root_issue}, so the {runner_name!r} runner "
         f"has no ceiling to meter {len(lanes)} ready lane(s) against; issue one with "
-        f"`basicly policy grant {root_issue} --level L1 --token-budget N` or switch "
+        f"`basicly policy grant {root_issue} --level assisted --token-budget N` or switch "
         "[runner] default to the manual handoff"
     )
     decisions.enqueue(repo_root, root_issue, "escalation", UNGRANTED_QUESTION, detail)
@@ -1789,9 +1789,9 @@ UNMETERED_QUESTION = (
 #   question the intake corpus can answer.
 DELEGABLE_KINDS = ("escalation", "needs-input")
 
-# L2 is where delegation begins (D3): L0 is task-by-task and L1 only pre-approves
-# the decompose checkpoint at intake.
-_MIN_DELEGATION_LEVEL = "L2"
+# `supervised` is where delegation begins (D3): `attended` is task-by-task and
+# `assisted` only pre-approves the decompose checkpoint at intake.
+_MIN_DELEGATION_LEVEL = "supervised"
 
 
 @dataclass(frozen=True)
@@ -1808,7 +1808,7 @@ class DelegatedDecision:
 
 
 def _delegation_allowed(grant: policy.Grant | None) -> bool:
-    """True when the grant's level reaches L2, where D3 starts delegating."""
+    """True when the grant's level reaches `supervised`, where D3 starts delegating."""
     if grant is None:
         return False
     levels = AUTONOMY_LEVELS

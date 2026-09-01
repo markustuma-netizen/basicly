@@ -10,10 +10,11 @@ The boundary is deliberate and the design's, not an omission: ``git push origin
 release workflow and publishes a GitHub release — so it stays a human step. This
 module refuses to push, and says so in what it prints.
 
-Autonomous invocation (D3) is refused unless the session carries an **L3** grant
+Autonomous invocation (D3) is refused unless the session carries an **unattended** grant
 that is inside its spend ceiling and whose lights-out preconditions are green.
 That is stricter than the rest of the engine on purpose: a release is the one
-action whose blast radius reaches every consumer, so "no grant" and "L1/L2" both
+action whose blast radius reaches every consumer, so "no grant" and anything below
+`unattended` both
 mean a human runs it.
 
 **Everything a gate would reject is refused before the first byte is written.** The
@@ -644,6 +645,11 @@ def blocking_reasons(repo_root: Path, plan: ReleasePlan, *, issue_id: str) -> tu
     return tuple(reasons)
 
 
+# The one autonomy level a release may run under. Named rather than inlined twice,
+# because "exactly this level" is the whole rule and a second literal could drift.
+_RELEASE_LEVEL = "unattended"
+
+
 def autonomy_refusal(
     repo_root: Path,
     root_issue: str,
@@ -651,10 +657,10 @@ def autonomy_refusal(
     *,
     shipping: str | None = None,
 ) -> str | None:
-    """Why an *autonomous* release must refuse, or None when L3 covers it (D3).
+    """Why an *autonomous* release must refuse, or None when `unattended` covers it (D3).
 
     Deliberately stricter than every other delegated action: the grant must be
-    **L3** exactly — L1 and L2 do not escalate to it — it must be inside its spend
+    **unattended** exactly — no lower level escalates to it — it must be inside its spend
     ceiling (the one halt predicate every other delegation consults), and the
     lights-out preconditions must be green, so one rework escalation or one missing
     fact anywhere drops the release back to a human. An interactive caller never
@@ -669,9 +675,9 @@ def autonomy_refusal(
     """
     grant = policy.active_grant(repo_root, root_issue)
     if grant is None:
-        return f"no active autonomy grant on {root_issue}; a release needs L3"
-    if grant.level != "L3":
-        return f"grant on {root_issue} is {grant.level}; a release needs L3"
+        return f"no active autonomy grant on {root_issue}; a release needs unattended"
+    if grant.level != _RELEASE_LEVEL:
+        return f"grant on {root_issue} is {grant.level}; a release needs {_RELEASE_LEVEL}"
     spend = policy.spend_status(repo_root, root_issue, grant=grant)
     if spend.halted:
         return f"grant on {root_issue} is past its spend ceiling: {spend.detail}"
@@ -682,7 +688,7 @@ def autonomy_refusal(
         shipping=shipping or root_issue,
     )
     if violations:
-        return "L3 preconditions not green: " + "; ".join(violations)
+        return f"{_RELEASE_LEVEL} preconditions not green: " + "; ".join(violations)
     return None
 
 

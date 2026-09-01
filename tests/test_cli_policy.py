@@ -152,13 +152,13 @@ def test_ship_challenge_names_the_precondition_the_grant_declined_on(
     # Both seams, or the grant marker below lands on this fake's comment list while
     # `tracker.read_comments` still answers out of the fixture's — one store per read.
     fake_tracker.install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
 
     assert cli.main(["policy", "checkpoint", "basicly-x", "ship", "--approve"]) == 1
 
     err = capsys.readouterr().err
     assert "CONFIRMATION REQUIRED" in err
-    assert "the active L3 grant covers ship but declined it" in err
+    assert "the active unattended grant covers ship but declined it" in err
     assert "required gates not green on basicly-x: verify" in err
     # The code still has to come back: the message is new, the gate is not.
     assert "--confirm cafe1234" in err
@@ -210,7 +210,7 @@ def test_grant_challenge_carries_no_checkpoint_meaning(
     _no_tty(monkeypatch)
     _allow_autonomy(monkeypatch)
     monkeypatch.setattr(policy, "_new_code", lambda: "cafe1234")
-    grant = ["policy", "grant", "basicly-x", "--level", "L2", "--token-budget", "5000"]
+    grant = ["policy", "grant", "basicly-x", "--level", "supervised", "--token-budget", "5000"]
     assert cli.main(grant) == 1
     err = capsys.readouterr().err
     assert "grant: CONFIRMATION REQUIRED" in err
@@ -247,7 +247,7 @@ def _tty(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(cli.sys.stdin, "isatty", lambda: True)
 
 
-def _allow_autonomy(monkeypatch: pytest.MonkeyPatch, level: str = "L3") -> None:
+def _allow_autonomy(monkeypatch: pytest.MonkeyPatch, level: str = "unattended") -> None:
     config = PolicyConfig(required_gates=("verify",), max_rework=2, autonomy=level)
     monkeypatch.setattr(cli, "load_policy_config", lambda _r: config)
 
@@ -258,12 +258,15 @@ def test_grant_issue_interactive_then_show_and_revoke(
     """A TTY caller issues under the ceiling; show reports it; revoke clears it."""
     _tty(monkeypatch)
     _allow_autonomy(monkeypatch)
-    assert cli.main(["policy", "grant", "root", "--level", "L2", "--token-budget", "5000"]) == 0
-    assert "ISSUED L2" in capsys.readouterr().out
+    assert (
+        cli.main(["policy", "grant", "root", "--level", "supervised", "--token-budget", "5000"])
+        == 0
+    )
+    assert "ISSUED supervised" in capsys.readouterr().out
 
     assert cli.main(["policy", "grant", "root"]) == 0
     out = capsys.readouterr().out
-    assert "grant: L2" in out and "token budget 5000" in out
+    assert "grant: supervised" in out and "token budget 5000" in out
 
     assert cli.main(["policy", "grant", "root", "--revoke"]) == 0
     capsys.readouterr()
@@ -276,14 +279,14 @@ def test_grant_issuance_states_how_many_beads_it_covers(
 ) -> None:
     """Issuance and the ledger both report coverage (basicly-jr0l.40).
 
-    An L3 marker with a large ceiling reads as authority over a whole track
+    An unattended marker with a large ceiling reads as authority over a whole track
     whether the session is twenty beads or the one it sits on, so the count is
     the only thing that tells those apart — and the single-leaf case has to name
     itself rather than leave "1" to be read as a rounding of something larger.
     """
     _tty(monkeypatch)
     _allow_autonomy(monkeypatch)
-    grant = ["policy", "grant", "root", "--level", "L2", "--token-budget", "5000"]
+    grant = ["policy", "grant", "root", "--level", "supervised", "--token-budget", "5000"]
 
     # The default fake tracker is an open, childless, ungating root.
     assert cli.main(grant) == 0
@@ -303,21 +306,24 @@ def test_the_ledger_tells_approving_a_checkpoint_from_originating_a_proposal(
     """An operator must not be able to read autonomy the engine lacks (basicly-u6jq.2).
 
     ``delegable: classify, decompose, ship`` reads as "the loop classifies and
-    decomposes for you". It only ever meant the checkpoint approval; L1 is the
+    decomposes for you". It only ever meant the checkpoint approval; assisted is the
     level where the difference is visible on one line — it approves the decompose
     checkpoint and originates nothing.
     """
     _tty(monkeypatch)
-    _allow_autonomy(monkeypatch, "L3")
+    _allow_autonomy(monkeypatch, "unattended")
 
-    assert cli.main(["policy", "grant", "root", "--level", "L1"]) == 0
+    assert cli.main(["policy", "grant", "root", "--level", "assisted"]) == 0
     capsys.readouterr()
     assert cli.main(["policy", "grant", "root"]) == 0
     out = capsys.readouterr().out
     assert "approves checkpoints: decompose" in out
     assert "originates proposals: (nothing)" in out
 
-    assert cli.main(["policy", "grant", "root", "--level", "L3", "--token-budget", "5000"]) == 0
+    assert (
+        cli.main(["policy", "grant", "root", "--level", "unattended", "--token-budget", "5000"])
+        == 0
+    )
     capsys.readouterr()
     assert cli.main(["policy", "grant", "root"]) == 0
     out = capsys.readouterr().out
@@ -332,7 +338,7 @@ def test_grant_issue_non_interactive_challenges(
     _no_tty(monkeypatch)
     _allow_autonomy(monkeypatch)
     monkeypatch.setattr(policy, "_new_code", lambda: "feed5678")
-    rc = cli.main(["policy", "grant", "root", "--level", "L1"])
+    rc = cli.main(["policy", "grant", "root", "--level", "assisted"])
     assert rc == 1
     err = capsys.readouterr().err
     assert "CONFIRMATION REQUIRED" in err
@@ -344,9 +350,9 @@ def test_grant_issue_non_interactive_challenges(
 def test_grant_issue_refused_at_default_ceiling(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """With the default [policy] autonomy = L0 every issuance is refused."""
+    """With the default [policy] autonomy = attended every issuance is refused."""
     _tty(monkeypatch)
-    rc = cli.main(["policy", "grant", "root", "--level", "L1"])
+    rc = cli.main(["policy", "grant", "root", "--level", "assisted"])
     assert rc == 1
     assert "autonomy ceiling" in capsys.readouterr().err
 

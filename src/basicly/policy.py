@@ -40,6 +40,7 @@ from . import base_lock, gate_source, run_record, tracker
 from .config import (
     AUTONOMY_LEVELS,
     CHECKPOINTS,
+    DEFAULT_AUTONOMY,
     DEFAULT_TYPE_SECTIONS,
     ENGINE_GATE_PROVIDERS,
     LOOP_PHASES,
@@ -47,6 +48,7 @@ from .config import (
     SizingConfig,
     load_policy_config,
     load_type_sections,
+    normalize_autonomy,
 )
 from .integrity import VALIDATE_GATE
 from .plan_record import ACCEPTANCE_HEADING, has_heading
@@ -1510,11 +1512,17 @@ def kill_lane(repo_root: Path, issue_id: str, reason: str) -> None:
 # additionally requires the lights-out preconditions (deterministic, checked at
 # approval time).
 GRANT_COVERAGE: dict[str, tuple[str, ...]] = {
-    "L0": (),
-    "L1": ("decompose",),
-    "L2": ("classify", "decompose"),
-    "L3": ("classify", "decompose", "ship"),
+    "attended": (),
+    "assisted": ("decompose",),
+    "supervised": ("classify", "decompose"),
+    "unattended": ("classify", "decompose", "ship"),
 }
+
+# `attended` is the ungranted state, so issuing it would authorise nothing.
+GRANTABLE_LEVELS: tuple[str, ...] = tuple(lvl for lvl in AUTONOMY_LEVELS if lvl != "attended")
+
+# Where a spend ceiling is mandatory (D3): below these a human is in every turn.
+_BUDGETED_LEVELS = ("supervised", "unattended")
 
 _GRANT_PREFIX = f"{MARKER} grant level="
 _REVOKE_MARKER = f"{MARKER} grant revoked"
@@ -1531,8 +1539,8 @@ class Grant:
     """One active autonomy grant: a level and its spend ceiling."""
 
     level: str
-    # Required for L2+ at issuance (unbounded lights-out is unreachable);
-    # None only on an L1 grant.
+    # Required at `supervised` and above (unbounded lights-out is unreachable);
+    # None only on an `assisted` grant.
     token_budget: int | None
     # The session's total run-record spend when this grant was issued, so
     # :func:`spend_status` can meter what *this grant* authorized rather than what
@@ -1589,19 +1597,22 @@ def _parse_grant(text: str) -> Grant | None:
     if not first_line.startswith(_GRANT_PREFIX):
         return None
     tokens = first_line[len(_GRANT_PREFIX) :].split()
-    if not tokens or tokens[0] not in AUTONOMY_LEVELS:
+    # A pre-3iaw0x marker spells `L0`..`L3` in a ledger nothing rewrites, so the
+    # letter is translated here and every consumer downstream sees only the name.
+    level = normalize_autonomy(tokens[0]) if tokens else None
+    if level is None:
         return None
     fields = _grant_fields(tokens[1:])
     if fields is None:
         return None
     budget = fields.get("budget")
-    # Mirror _grant_refusal: an L2+ marker without a positive budget is not a
-    # grant — a hand-written sloppy marker must never be *more* powerful than
-    # a well-formed issued one (unmetered lights-out).
-    if tokens[0] in ("L2", "L3") and not (isinstance(budget, int) and budget > 0):
+    # Mirror _grant_refusal: a supervised-or-higher marker without a positive
+    # budget is not a grant — a hand-written sloppy marker must never be *more*
+    # powerful than a well-formed issued one (unmetered lights-out).
+    if level in _BUDGETED_LEVELS and not (isinstance(budget, int) and budget > 0):
         return None
     return Grant(
-        level=tokens[0],
+        level=level,
         token_budget=budget,
         spent_at_issue=max(0, fields.get("baseline", 0)),
         unmetered_at_issue=max(0, fields.get("unmetered", 0)),
@@ -1612,7 +1623,7 @@ def active_grant(repo_root: Path, root_issue: str) -> Grant | None:
     """The root issue's active grant: the last grant/revocation marker wins.
 
     Grants expire with the session, so a grant on a closed root issue is dead
-    regardless of markers — without this, an old session's L3 grant would stay
+    regardless of markers — without this, an old session's unattended grant would stay
     live forever unless someone remembered to revoke it.
     """
     if _issue_is_closed(repo_root, root_issue):
@@ -1631,21 +1642,24 @@ def active_grant(repo_root: Path, root_issue: str) -> Grant | None:
 def _grant_refusal(level: str, token_budget: int | None, config: PolicyConfig) -> str | None:
     """The deterministic reason issuing this grant must be refused, or None.
 
-    An unknown or L0 level, a level above the repo's ``[policy] autonomy``
-    ceiling, or an L2+ grant without a positive token budget are rejected
-    outright, before any interactivity gate.
+    An unknown or ``attended`` level, a level above the repo's ``[policy]
+    autonomy`` ceiling, or a supervised-or-higher grant without a positive token
+    budget are rejected outright, before any interactivity gate.
     """
-    if level not in AUTONOMY_LEVELS or level == "L0":
-        grantable = [lvl for lvl in AUTONOMY_LEVELS if lvl != "L0"]
-        return f"grant level must be one of {grantable}"
-    if AUTONOMY_LEVELS.index(level) > AUTONOMY_LEVELS.index(config.autonomy):
+    name = normalize_autonomy(level)
+    if name is None or name == "attended":
+        return f"grant level must be one of {list(GRANTABLE_LEVELS)}"
+    # The ceiling is normalized too: it can arrive from a session override file or a
+    # hand-built config that never passed through `config._autonomy_setting`.
+    ceiling = normalize_autonomy(config.autonomy) or DEFAULT_AUTONOMY
+    if AUTONOMY_LEVELS.index(name) > AUTONOMY_LEVELS.index(ceiling):
         return (
-            f"level {level} exceeds the [policy] autonomy ceiling "
-            f"({config.autonomy}); raise it in basicly.toml to opt in"
+            f"level {name} exceeds the [policy] autonomy ceiling "
+            f"({ceiling}); raise it in basicly.toml to opt in"
         )
-    if level in ("L2", "L3") and not (isinstance(token_budget, int) and token_budget > 0):
+    if name in _BUDGETED_LEVELS and not (isinstance(token_budget, int) and token_budget > 0):
         return (
-            f"an {level} grant requires a positive token_budget "
+            f"a {name} grant requires a positive token_budget "
             "(unbounded lights-out is unreachable by design)"
         )
     return None
@@ -1772,8 +1786,8 @@ def _grant_approval(
         # Gates are checked on the node being shipped, not on the grant root
         # (basicly-kjc5.39): an epic's verify gate cannot exist until the epic
         # closes, so a root-scoped check refused every child ship unconditionally
-        # and L3 silently degraded to L2. The session-wide preconditions below it
-        # are unchanged, so any wrinkle anywhere still drops ship to a human.
+        # and `unattended` silently degraded to `supervised`. The session-wide
+        # preconditions are unchanged, so any wrinkle anywhere still drops ship to a human.
         violations = lights_out_violations(
             repo_root, root_issue, config, ids=session_ids, shipping=issue_id
         )
@@ -1817,15 +1831,16 @@ def _grant_approval(
 # dependents it has none of.
 #
 # So the ladder is drawn again for the production half, one level stricter than
-# the approval half: L1 may approve a decompose checkpoint but may not originate
-# the plan it approves, because L2 is where D3 starts delegating judgment at all.
+# the approval half: `assisted` may approve a decompose checkpoint but may not
+# originate the plan it approves, because `supervised` is where D3 starts
+# delegating judgment at all.
 
 # The proposal kinds each level may originate.
 PROPOSAL_COVERAGE: dict[str, tuple[str, ...]] = {
-    "L0": (),
-    "L1": (),
-    "L2": ("work_type", "children"),
-    "L3": ("work_type", "children"),
+    "attended": (),
+    "assisted": (),
+    "supervised": ("work_type", "children"),
+    "unattended": ("work_type", "children"),
 }
 
 
@@ -1856,9 +1871,10 @@ def proposal_delegated(repo_root: Path, issue_id: str, kind: str, root_issue: st
     pass the plan schema and the working-set governor before anything is written,
     so this decides only whether an agent may be *asked*.
     """
-    if kind not in PROPOSAL_COVERAGE["L3"]:
+    if kind not in PROPOSAL_COVERAGE["unattended"]:
         raise ValueError(
-            f"unknown proposal kind {kind!r}; expected one of {list(PROPOSAL_COVERAGE['L3'])}"
+            f"unknown proposal kind {kind!r}; "
+            f"expected one of {list(PROPOSAL_COVERAGE['unattended'])}"
         )
     grant = active_grant(repo_root, root_issue)
     if grant is None:
@@ -1958,7 +1974,7 @@ def session_coverage(repo_root: Path, root_issue: str) -> int:
     """How many beads a grant on *root_issue* would cover, the root included.
 
     Issuance reports this because coverage is not visible from the grant itself:
-    an L3 marker with a 25000000-token ceiling reads as authority over a whole
+    an unattended marker with a 25000000-token ceiling reads as authority over a whole
     release whether its session is twenty beads or the one it sits on
     (basicly-jr0l.40). The count is the only thing that tells those apart, and a
     session of one has to be able to say so before the operator relies on it.
@@ -2025,7 +2041,7 @@ class SpendStatus:
     spent_tokens: int
     # True when a grant with a budget can no longer authorize new spend: either that
     # budget has been reached, or a dispatch under this grant could not be metered so
-    # the remaining budget is unknowable. No grant (or an L1 grant with no budget)
+    # the remaining budget is unknowable. No grant (or an assisted grant with no budget)
     # means there is no ceiling to enforce, not that everything is halted — the
     # session is simply human-driven already.
     halted: bool
@@ -2073,7 +2089,7 @@ def check_pass_spend(forecast_tokens: int, status: SpendStatus) -> str | None:
     working agent — so this runs before dispatch, and in-flight lanes still land
     through the routing layer untouched.
 
-    Returns None when there is no ceiling to enforce, which is the ungranted and L1
+    Returns None when there is no ceiling to enforce, which is the ungranted and assisted
     case that :attr:`SpendStatus.remaining_tokens` already collapses to None.
     """
     remaining = status.remaining_tokens
@@ -2233,7 +2249,7 @@ def record_needs_input(repo_root: Path, issue_id: str, fact: str) -> None:
     """Durably record a needs-input event as a marker comment on *issue_id*.
 
     The sentinel file is consumed when the loop surfaces it, so this marker is
-    the trace the L3 lights-out precondition counts (zero needs-input events in
+    the trace the unattended lights-out precondition counts (zero needs-input events in
     the session — D3).
     """
     _add_comment(repo_root, issue_id, f"{_NEEDS_INPUT_MARKER} {fact}")
@@ -2313,7 +2329,7 @@ def lights_out_violations(
     ids: tuple[str, ...] | None = None,
     shipping: str | None = None,
 ) -> tuple[str, ...]:
-    """The deterministic reasons an L3 ship delegation must refuse (D3).
+    """The deterministic reasons an unattended ship delegation must refuse (D3).
 
     Two preconditions are session-wide — zero *unresolved* rework escalations and
     zero unresolved needs-input events across the session — so any live wrinkle
@@ -2324,8 +2340,8 @@ def lights_out_violations(
 
     Scoping that one check is deliberate (basicly-kjc5.39, owner decision
     2026-07-25). Checking the root's gates could never hold mid-session: an
-    epic's own verify gate is missing until the epic closes, so an L3 grant
-    refused every child ship and degraded to L2 for exactly the long multi-lane
+    epic's own verify gate is missing until the epic closes, so an unattended grant
+    refused every child ship and degraded to supervised for exactly the long multi-lane
     sessions lights-out exists for. It was an accident of scoping, not a safety
     property — the safety comes from the node's own gates being green plus a
     session with no escalations and no missing facts anywhere.

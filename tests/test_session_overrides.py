@@ -22,14 +22,14 @@ CONFIG = """\
 default = "manual"
 
 [policy]
-autonomy = "L0"
+autonomy = "attended"
 max_rework = 2
 """
 
 
 @pytest.fixture
 def repo(tmp_path: Path) -> Path:
-    """A repo whose committed config pins manual/L0, as this repo's does."""
+    """A repo whose committed config pins manual/attended, as this repo's does."""
     (tmp_path / "basicly.toml").write_text(CONFIG, encoding="utf-8")
     return tmp_path
 
@@ -46,8 +46,8 @@ def test_no_override_is_the_default_state() -> None:
 def test_override_pairs_are_sorted_for_diffability() -> None:
     """Two records of the same pair of overrides must render identically."""
     session.set_override("runner", "default", "claude")
-    session.set_override("policy", "autonomy", "L1")
-    assert session.override_pairs() == ("policy.autonomy=L1", "runner.default=claude")
+    session.set_override("policy", "autonomy", "assisted")
+    assert session.override_pairs() == ("policy.autonomy=assisted", "runner.default=claude")
 
 
 def test_a_later_override_of_one_key_replaces_it() -> None:
@@ -59,7 +59,7 @@ def test_a_later_override_of_one_key_replaces_it() -> None:
 
 def test_clear_overrides_restores_the_empty_state() -> None:
     """A session ending must not leave its choices behind for the next one."""
-    session.set_override("policy", "autonomy", "L3")
+    session.set_override("policy", "autonomy", "unattended")
     session.clear_overrides()
     assert session.override_pairs() == ()
 
@@ -70,13 +70,13 @@ def test_clear_overrides_restores_the_empty_state() -> None:
 def test_an_override_wins_over_committed_config(repo: Path) -> None:
     """The point of the bead: one command reconfigures the run, no file edited."""
     assert load_runner_config(repo).default == "manual"
-    assert load_policy_config(repo).autonomy == "L0"
+    assert load_policy_config(repo).autonomy == "attended"
 
     session.set_override("runner", "default", "claude")
-    session.set_override("policy", "autonomy", "L1")
+    session.set_override("policy", "autonomy", "assisted")
 
     assert load_runner_config(repo).default == "claude"
-    assert load_policy_config(repo).autonomy == "L1"
+    assert load_policy_config(repo).autonomy == "assisted"
 
 
 def test_no_committed_file_is_written(repo: Path) -> None:
@@ -97,9 +97,9 @@ def test_clearing_restores_the_committed_value(repo: Path) -> None:
 
 def test_an_override_leaves_sibling_keys_alone(repo: Path) -> None:
     """Key-level merge: overriding autonomy must not drop max_rework."""
-    session.set_override("policy", "autonomy", "L2")
+    session.set_override("policy", "autonomy", "supervised")
     config = load_policy_config(repo)
-    assert config.autonomy == "L2"
+    assert config.autonomy == "supervised"
     assert config.max_rework == 2
 
 
@@ -115,8 +115,8 @@ def _record() -> run_record.RunRecord:
 def test_a_run_record_carries_the_overrides_it_ran_under() -> None:
     """Unrecorded, two different dispatches would be indistinguishable (D9)."""
     session.set_override("runner", "default", "claude")
-    session.set_override("policy", "autonomy", "L1")
-    assert _record().config_overrides == ("policy.autonomy=L1", "runner.default=claude")
+    session.set_override("policy", "autonomy", "assisted")
+    assert _record().config_overrides == ("policy.autonomy=assisted", "runner.default=claude")
 
 
 def test_a_run_record_is_empty_when_config_came_from_files() -> None:
@@ -134,8 +134,8 @@ def _args(runner: str | None = None, autonomy: str | None = None) -> argparse.Na
 
 def test_the_cli_applies_both_flags(repo: Path) -> None:
     """`loop supervise --runner X --autonomy Y` sets both for the session."""
-    applied = cli._apply_session_overrides(repo, _args(runner="claude", autonomy="L1"))
-    assert applied == ("policy.autonomy=L1", "runner.default=claude")
+    applied = cli._apply_session_overrides(repo, _args(runner="claude", autonomy="assisted"))
+    assert applied == ("policy.autonomy=assisted", "runner.default=claude")
     assert load_runner_config(repo).default == "claude"
 
 
@@ -190,10 +190,10 @@ def test_the_supervise_parser_exposes_both_flags() -> None:
         "--runner",
         "claude",
         "--autonomy",
-        "L1",
+        "assisted",
     ])
     assert args.runner == "claude"
-    assert args.autonomy == "L1"
+    assert args.autonomy == "assisted"
 
 
 def test_the_supervise_parser_rejects_an_unknown_level() -> None:
@@ -221,15 +221,15 @@ def _grant_args(**kwargs) -> argparse.Namespace:
 
 def test_the_grant_ceiling_can_be_pinned_for_one_issuance(repo: Path) -> None:
     """A grant is issued by a separate process, so the session pin cannot reach it."""
-    assert load_policy_config(repo).autonomy == "L0"
-    cli._apply_session_overrides(repo, _grant_args(autonomy="L1"))
-    assert load_policy_config(repo).autonomy == "L1"
+    assert load_policy_config(repo).autonomy == "attended"
+    cli._apply_session_overrides(repo, _grant_args(autonomy="assisted"))
+    assert load_policy_config(repo).autonomy == "assisted"
 
 
 def test_the_grant_reads_the_committed_ceiling_without_the_flag(repo: Path) -> None:
     """Unchanged behaviour when the flag is absent — this widens nothing by default."""
-    cli._apply_session_overrides(repo, _grant_args(level="L1"))
-    assert load_policy_config(repo).autonomy == "L0"
+    cli._apply_session_overrides(repo, _grant_args(level="assisted"))
+    assert load_policy_config(repo).autonomy == "attended"
 
 
 def test_the_grant_parser_exposes_the_autonomy_flag() -> None:
@@ -239,13 +239,13 @@ def test_the_grant_parser_exposes_the_autonomy_flag() -> None:
         "grant",
         "basicly-x",
         "--level",
-        "L1",
+        "assisted",
         "--token-budget",
         "1000",
         "--autonomy",
-        "L1",
+        "assisted",
     ])
-    assert args.autonomy == "L1" and args.level == "L1" and args.token_budget == 1000
+    assert args.autonomy == "assisted" and args.level == "assisted" and args.token_budget == 1000
 
 
 def test_the_grant_challenge_reprints_the_autonomy_override(
@@ -267,17 +267,17 @@ def test_the_grant_challenge_reprints_the_autonomy_override(
             "grant",
             "basicly-root",
             "--level",
-            "L1",
+            "assisted",
             "--token-budget",
             "1000000",
             "--autonomy",
-            "L1",
+            "assisted",
         ])
         == 1
     )
 
     rerun = capsys.readouterr().err
-    assert "--autonomy L1" in rerun
+    assert "--autonomy assisted" in rerun
     assert "--confirm cafe1234" in rerun
     assert "--token-budget 1000000" in rerun
 
@@ -297,9 +297,17 @@ def test_every_dispatching_subcommand_accepts_the_session_overrides(command: str
     """
     parser = cli._build_parser()
 
-    args = parser.parse_args(["loop", command, "i-1", "--runner", "manual", "--autonomy", "L1"])
+    args = parser.parse_args([
+        "loop",
+        command,
+        "i-1",
+        "--runner",
+        "manual",
+        "--autonomy",
+        "assisted",
+    ])
 
-    assert (args.runner, args.autonomy) == ("manual", "L1")
+    assert (args.runner, args.autonomy) == ("manual", "assisted")
 
 
 def test_the_runner_override_restores_the_handoff_over_a_committed_agent(
@@ -389,4 +397,4 @@ def test_no_test_inherits_the_process_globals_left_by_another_second_half() -> N
     budget = runner.configure_process_budget(11, 3)
     assert (budget.total, budget.lane_slots) == (11, 3)
 
-    session.set_override("policy", "autonomy", "L3")
+    session.set_override("policy", "autonomy", "unattended")

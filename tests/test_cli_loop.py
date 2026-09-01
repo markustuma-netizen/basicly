@@ -129,14 +129,14 @@ def test_loop_run_prints_each_step_and_the_approvals_between_them(
         monkeypatch,
         loop.CeremonyResult((
             AdvanceResult("basicly-x", "intake", "intake", "blocked", checkpoint="classify"),
-            loop.CheckpointApproval("classify", "delegated under L2 grant"),
+            loop.CheckpointApproval("classify", "delegated under supervised grant"),
             AdvanceResult("basicly-x", "classify", "classify", "blocked", "awaiting the agent"),
         )),
     )
 
     assert cli.main(["loop", "run", "basicly-x"]) == 1
     out = capsys.readouterr().out
-    assert "checkpoint classify: APPROVED (basicly-x) - delegated under L2 grant" in out
+    assert "checkpoint classify: APPROVED (basicly-x) - delegated under supervised grant" in out
     assert out.index("intake -> intake") < out.index("checkpoint classify: APPROVED")
     assert "[blocked]" in out
 
@@ -192,7 +192,7 @@ def test_loop_run_prints_why_a_grant_declined_the_challenge(
             (AdvanceResult("basicly-x", "verify", "verify", "blocked", checkpoint="ship"),),
             challenge=("ship", "c0ffee"),
             challenge_reason=(
-                "the active L3 grant covers ship but declined it: "
+                "the active unattended grant covers ship but declined it: "
                 "rework escalation on basicly-sib (gate verify: 2/2)"
             ),
         ),
@@ -201,7 +201,7 @@ def test_loop_run_prints_why_a_grant_declined_the_challenge(
     assert cli.main(["loop", "run", "basicly-x", "--root", "basicly-epic"]) == 1
 
     err = capsys.readouterr().err
-    assert "the active L3 grant covers ship but declined it" in err
+    assert "the active unattended grant covers ship but declined it" in err
     assert "rework escalation on basicly-sib (gate verify: 2/2)" in err
     assert "--confirm c0ffee" in err
 
@@ -483,7 +483,7 @@ def test_preflight_is_ready_when_nothing_blocks(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """The happy path has to exit 0, or a wrapper gating on it can never proceed."""
-    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="L1", token_budget=10_000)))
+    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="assisted", token_budget=10_000)))
 
     code = cli._cmd_loop_preflight(_preflight_args())
 
@@ -540,7 +540,7 @@ def test_preflight_blocker_names_the_dispatch_that_could_not_be_metered(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=110_000_000),
+            grant=Grant(level="unattended", token_budget=110_000_000),
             halted=True,
             unmetered=("basicly-mcf2uh on claude-sonnet-5",),
         ),
@@ -565,7 +565,7 @@ def test_preflight_sizes_each_candidate_when_none_is_dispatchable_yet(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             admissions={"c.1": _sized("c.1", 95_379, refused=True, violation="above")},
         ),
     )
@@ -594,7 +594,7 @@ def test_preflight_distinguishes_an_admitted_candidate_from_a_refused_one(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             admissions={"c.1": _sized("c.1", 12_884, refused=False)},
         ),
     )
@@ -619,7 +619,7 @@ def test_preflight_separates_an_under_floor_lane_from_one_inside_the_band(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             admissions={"c.1": _sized("c.1", 3_512, refused=False, violation="below")},
         ),
     )
@@ -645,7 +645,7 @@ def test_preflight_leaves_a_deferred_candidate_out_of_the_band_table(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             children=(("c.1", "open"), ("c.2", "deferred")),
             admissions={
                 "c.1": _sized("c.1", 12_884, refused=False),
@@ -676,7 +676,7 @@ def test_preflight_flags_a_candidate_whose_scope_matched_no_file(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             admissions={"c.1": _sized("c.1", 2_693, refused=False, scope_tokens=0)},
         ),
     )
@@ -694,7 +694,7 @@ def test_preflight_names_a_candidate_the_estimator_cannot_size(
     It is the cheapest thing an operator can fix and the largest lever on what a pass
     costs, so a bare tally would hide the one actionable item.
     """
-    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="L1", token_budget=10_000)))
+    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="assisted", token_budget=10_000)))
 
     cli._cmd_loop_preflight(_preflight_args())
 
@@ -716,7 +716,7 @@ def test_preflight_warns_that_a_pass_will_contend_on_an_undeclared_path(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             children=(("c.1", "open"), ("c.2", "open"), ("c.3", "open")),
             append_only=("CHANGELOG.md",),
             scopes={
@@ -743,7 +743,7 @@ def test_preflight_says_the_contention_check_is_inert_when_nothing_is_declared(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             children=(("c.1", "open"), ("c.2", "open")),
         ),
     )
@@ -765,7 +765,7 @@ def test_preflight_reports_the_artifacts_a_landing_rebuilds_instead_of_bouncing(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             children=(("c.1", "open"), ("c.2", "open")),
             generated={
                 ".basicly/generated-manifest.json": ("basicly", "build"),
@@ -792,7 +792,7 @@ def test_preflight_says_the_rebuild_check_is_inert_when_nothing_is_declared(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             children=(("c.1", "open"), ("c.2", "open")),
         ),
     )
@@ -808,7 +808,7 @@ def test_preflight_refuses_a_dirty_base_before_any_lane_runs(
     """A dirty base refuses the landing *after* the lanes have already cost money."""
     _preflight_fixture(
         monkeypatch,
-        _Preflight(dirty="M a.py\nM b.py\n", grant=Grant(level="L1", token_budget=10_000)),
+        _Preflight(dirty="M a.py\nM b.py\n", grant=Grant(level="assisted", token_budget=10_000)),
     )
 
     code = cli._cmd_loop_preflight(_preflight_args())
@@ -831,7 +831,7 @@ def test_preflight_does_not_count_the_trees_the_landing_sweeps(
         monkeypatch,
         _Preflight(
             dirty=" M .basicly/ledger/events-0001.jsonl\n M .basicly/ledger/events-0002.jsonl\n",
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
         ),
     )
 
@@ -863,7 +863,7 @@ def test_preflight_forecasts_a_full_fan_out_when_no_lane_is_dispatchable_yet(
     Sizing a grant is exactly where the old plan went wrong by 2.4x, so the forecast
     has to be available *cold* — with nothing dispatchable yet.
     """
-    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="L1", token_budget=10_000)))
+    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="assisted", token_budget=10_000)))
 
     cli._cmd_loop_preflight(_preflight_args())
 
@@ -887,7 +887,7 @@ def test_preflight_says_the_forecast_is_still_on_seeds(
     recorded and neither was reported, so "is this measured yet?" was answered by reading
     source — a recollection, which is what preflight exists to replace (basicly-p8ck).
     """
-    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="L1", token_budget=10_000)))
+    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="assisted", token_budget=10_000)))
 
     cli._cmd_loop_preflight(_preflight_args())
 
@@ -909,7 +909,7 @@ def test_preflight_names_the_class_whose_spend_stopped_being_a_seed(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             calibration=_calibration(samples={"bug": 12, "task": 2}),
         ),
     )
@@ -928,7 +928,7 @@ def test_preflight_says_when_a_build_factor_was_configured_rather_than_seeded(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             calibration=_calibration(
                 build_factor_sources={
                     "bug": decompose.BUILD_FACTOR_CONFIGURED,
@@ -956,7 +956,7 @@ def test_preflight_says_an_unresolved_model_can_key_no_sample_at_all(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L1", token_budget=10_000),
+            grant=Grant(level="assisted", token_budget=10_000),
             calibration=_calibration(model=None, samples={"task": 0}),
         ),
     )
@@ -981,13 +981,13 @@ def test_preflight_refuses_a_seeding_checkpoint_the_live_grant_does_not_delegate
     checkpoint awaiting human approval`. Checkpoint state was the one precondition
     preflight never looked at (basicly-cdhq).
 
-    The grant is L0 rather than absent, so the *level* is the only variable between this
-    test and the one below: L0 delegates nothing, and the pass really cannot start.
+    The grant is attended rather than absent, so the *level* is the only variable between
+    this test and the one below: attended delegates nothing, and the pass cannot start.
     """
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L0", token_budget=100_000),
+            grant=Grant(level="attended", token_budget=100_000),
             phase="decompose",
             checkpoints=("classify",),
         ),
@@ -1002,14 +1002,14 @@ def test_preflight_refuses_a_seeding_checkpoint_the_live_grant_does_not_delegate
     # not have to be recalled (basicly-p8ck). Both of them, because delegating it is now
     # as real a remedy as approving it (basicly-kjc5.62).
     assert "basicly policy checkpoint epic decompose --approve" in out
-    assert "basicly policy grant epic --level L1" in out
+    assert "basicly policy grant epic --level assisted" in out
     assert "VERDICT:   not ready" in out
 
 
 def test_preflight_reports_a_grant_delegated_seeding_checkpoint_as_no_blocker(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    """AC: the same L3 grant delegates both, so neither refuses the pass.
+    """AC: the same unattended grant delegates both, so neither refuses the pass.
 
     The fixture above with one field changed. Preflight used to call the root's own
     ``decompose`` unservable however high the grant was, and it was right while seeding
@@ -1020,7 +1020,7 @@ def test_preflight_reports_a_grant_delegated_seeding_checkpoint_as_no_blocker(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             phase="decompose",
             checkpoints=("classify",),
         ),
@@ -1030,8 +1030,8 @@ def test_preflight_reports_a_grant_delegated_seeding_checkpoint_as_no_blocker(
 
     out = capsys.readouterr().out
     assert code == 0
-    assert "checkpts:  decompose pending - the live L3 grant delegates it" in out
-    assert "checkpts:  ship pending - the live L3 grant delegates it" in out
+    assert "checkpts:  decompose pending - the live unattended grant delegates it" in out
+    assert "checkpts:  ship pending - the live unattended grant delegates it" in out
     assert "UNAPPROVED" not in out
     assert "VERDICT:   ready" in out
 
@@ -1050,7 +1050,7 @@ def test_preflight_over_a_labelled_cut_reports_it_and_keeps_the_roots_checkpoint
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             phase="decompose",
             checkpoints=("classify",),
         ),
@@ -1070,7 +1070,7 @@ def test_preflight_refuses_a_lane_selector_no_bead_carries(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A mistyped selector is answered, not raised as a traceback over a half-report."""
-    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="L1", token_budget=10_000)))
+    _preflight_fixture(monkeypatch, _Preflight(grant=Grant(level="assisted", token_budget=10_000)))
 
     def _refuse(*_a: object, **_k: object) -> None:
         raise supervise.LaneSelectionError("no bead outside the pass root carries label 'typo'")
@@ -1097,7 +1097,7 @@ def test_preflight_names_a_selected_lane_the_grant_does_not_cover(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             children=(("c.1", "open"), ("origin.7", "open")),
             covered=("epic", "c.1"),
         ),
@@ -1107,7 +1107,7 @@ def test_preflight_names_a_selected_lane_the_grant_does_not_cover(
 
     out = capsys.readouterr().out
     assert code == 0, "an uncovered lane still dispatches, so the verdict stands"
-    assert "coverage:  1 of 2 selected lane(s) outside the L3 grant's session" in out
+    assert "coverage:  1 of 2 selected lane(s) outside the unattended grant's session" in out
     assert "cover each: br dep add epic <id> -t blocks" in out
     assert "uncovered: origin.7" in out
 
@@ -1122,13 +1122,13 @@ def test_preflight_says_when_every_selected_lane_is_covered(
     """
     _preflight_fixture(
         monkeypatch,
-        _Preflight(grant=Grant(level="L3", token_budget=100_000), covered=("epic", "c.1")),
+        _Preflight(grant=Grant(level="unattended", token_budget=100_000), covered=("epic", "c.1")),
     )
 
     cli._cmd_loop_preflight(_preflight_args(label="release-v0.7.0"))
 
     out = capsys.readouterr().out
-    assert "coverage:  all 1 selected lane(s) under the L3 grant" in out
+    assert "coverage:  all 1 selected lane(s) under the unattended grant" in out
 
 
 def test_preflight_is_ready_when_the_blocking_checkpoint_is_approved(
@@ -1142,7 +1142,7 @@ def test_preflight_is_ready_when_the_blocking_checkpoint_is_approved(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             phase="decompose",
             checkpoints=("classify", "decompose"),
         ),
@@ -1169,7 +1169,7 @@ def test_preflight_refuses_a_root_with_no_open_child_left_to_provision(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             children=(("c.1", "closed"), ("c.2", "closed")),
         ),
     )
@@ -1194,7 +1194,7 @@ def test_preflight_refuses_when_every_open_child_is_refused_by_the_band(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             admissions={"c.1": _sized("c.1", 95_379, refused=True, violation="above")},
         ),
     )
@@ -1216,7 +1216,7 @@ def test_preflight_still_prices_a_childless_root_as_its_own_lane(
     the leaf case in the name of fixing the epic one.
     """
     _preflight_fixture(
-        monkeypatch, _Preflight(grant=Grant(level="L3", token_budget=100_000), children=())
+        monkeypatch, _Preflight(grant=Grant(level="unattended", token_budget=100_000), children=())
     )
 
     code = cli._cmd_loop_preflight(_preflight_args())
@@ -1240,7 +1240,7 @@ def test_preflight_forecast_never_prices_more_lanes_than_there_are_children(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             children=(("c.1", "open"), ("c.2", "open")),
         ),
     )
@@ -1269,7 +1269,7 @@ def test_preflight_prices_a_sized_candidate_at_its_own_estimate_not_the_bound(
     _preflight_fixture(
         monkeypatch,
         _Preflight(
-            grant=Grant(level="L3", token_budget=100_000),
+            grant=Grant(level="unattended", token_budget=100_000),
             children=(("c.1", "open"), ("c.2", "open")),
             admissions={
                 "c.1": _sized("c.1", 9_000, refused=False),

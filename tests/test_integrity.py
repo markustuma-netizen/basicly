@@ -20,32 +20,32 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # itself still has to agree with the surfaces §9 of the implementation plan names.
 PATH_LEVELS = (
     # The five frozen consumer surfaces.
-    ("src/basicly/cli.py", "L3", "cli-surface"),
-    ("src/basicly/config.py", "L3", "config-surface"),
-    ("basicly.toml", "L3", "config-surface"),
-    ("basicly.local.toml", "L3", "config-surface"),
-    ("src/basicly/schema.py", "L3", "catalog-source-schemas"),
-    (".basicly/core/schemas/skill.schema.json", "L3", "catalog-source-schemas"),
-    ("src/basicly/projection.py", "L3", "generated-file-contract"),
-    ("src/basicly/renderers/claude.py", "L3", "generated-file-contract"),
-    (".basicly/core/templates/claude/skill.md.j2", "L3", "generated-file-contract"),
-    ("src/basicly/run_record.py", "L3", "ledger-format"),
+    ("src/basicly/cli.py", "consumer-surface", "cli-surface"),
+    ("src/basicly/config.py", "consumer-surface", "config-surface"),
+    ("basicly.toml", "consumer-surface", "config-surface"),
+    ("basicly.local.toml", "consumer-surface", "config-surface"),
+    ("src/basicly/schema.py", "consumer-surface", "catalog-source-schemas"),
+    (".basicly/core/schemas/skill.schema.json", "consumer-surface", "catalog-source-schemas"),
+    ("src/basicly/projection.py", "consumer-surface", "generated-file-contract"),
+    ("src/basicly/renderers/claude.py", "consumer-surface", "generated-file-contract"),
+    (".basicly/core/templates/claude/skill.md.j2", "consumer-surface", "generated-file-contract"),
+    ("src/basicly/run_record.py", "consumer-surface", "ledger-format"),
     # Engine code carrying none of them.
-    ("src/basicly/loop.py", "L2", "engine-internal"),
-    ("src/basicly/loader.py", "L2", "engine-internal"),
-    ("src/basicly/integrity.py", "L2", "engine-internal"),
-    (".scripts/wired_or_deleted.py", "L2", "engine-internal"),
+    ("src/basicly/loop.py", "engine", "engine-internal"),
+    ("src/basicly/loader.py", "engine", "engine-internal"),
+    ("src/basicly/integrity.py", "engine", "engine-internal"),
+    (".scripts/wired_or_deleted.py", "engine", "engine-internal"),
     # Prose and tests.
-    ("docs/architecture/status.md", "L1", "docs-and-tests"),
-    ("tests/test_integrity.py", "L1", "docs-and-tests"),
-    ("README.md", "L1", "docs-and-tests"),
-    ("site/index.html", "L1", "docs-and-tests"),
+    ("docs/architecture/status.md", "docs-and-tests", "docs-and-tests"),
+    ("tests/test_integrity.py", "docs-and-tests", "docs-and-tests"),
+    ("README.md", "docs-and-tests", "docs-and-tests"),
+    ("site/index.html", "docs-and-tests", "docs-and-tests"),
     # A document under src/ is still a document: the engine clause excludes it.
-    ("src/basicly/notes.md", "L1", "docs-and-tests"),
+    ("src/basicly/notes.md", "docs-and-tests", "docs-and-tests"),
     # Neither engine nor consumer surface nor prose.
-    ("pyproject.toml", "L2", "unclassified"),
-    (".github/workflows/ci.yml", "L2", "unclassified"),
-    (".basicly/core/skills/tool-tracker.yaml", "L2", "unclassified"),
+    ("pyproject.toml", "engine", "unclassified"),
+    (".github/workflows/ci.yml", "engine", "unclassified"),
+    (".basicly/core/skills/tool-tracker.yaml", "engine", "unclassified"),
 )
 
 
@@ -63,33 +63,33 @@ def test_path_resolves_to_its_named_clause(path: str, level: str, rule: str) -> 
 )
 def test_path_spelling_does_not_change_the_level(spelling: str) -> None:
     """A Windows separator, a leading ./ or a leading / is spelling, not meaning."""
-    assert integrity.assign([spelling]).level == "L3"
+    assert integrity.assign([spelling]).level == "consumer-surface"
 
 
 def test_scope_takes_the_highest_level_any_declared_path_holds() -> None:
     """One consumer surface in the scope makes the whole package a consumer change."""
     assignment = integrity.assign(["docs/architecture/conventions.md", "src/basicly/cli.py"])
-    assert assignment.level == "L3"
+    assert assignment.level == "consumer-surface"
     assert assignment.rule == "cli-surface"
     assert "src/basicly/cli.py" in assignment.reason
 
 
-def test_a_wildcard_scope_that_covers_a_consumer_surface_is_l3() -> None:
+def test_a_wildcard_scope_that_covers_a_consumer_surface_is_the_top_level() -> None:
     """`src/basicly/*.py` can edit cli.py, so it classifies as the CLI surface."""
-    assert integrity.assign(["src/basicly/*.py"]).level == "L3"
+    assert integrity.assign(["src/basicly/*.py"]).level == "consumer-surface"
 
 
-def test_a_scope_of_engine_files_stays_l2() -> None:
+def test_a_scope_of_engine_files_stays_engine() -> None:
     """The same wildcard narrowed away from the surfaces does not escalate."""
     assignment = integrity.assign(["src/basicly/loop.py", "tests/test_loop.py"])
-    assert assignment.level == "L2"
+    assert assignment.level == "engine"
     assert assignment.rule == "engine-internal"
 
 
 def test_an_undeclared_scope_resolves_through_the_fallback() -> None:
     """A hand-filed bead declares no scope; that is not an error and not an escalation."""
     assignment = integrity.assign([])
-    assert assignment.level == "L2"
+    assert assignment.level == "engine"
     assert assignment.rule == "unclassified"
     assert "no scope declared" in assignment.reason
 
@@ -133,36 +133,41 @@ diff --git a/.basicly/core/schemas/skill.schema.json b/.basicly/core/schemas/ski
 """
 
 
-def test_downgrade_moves_a_small_signature_preserving_l3_change_to_l2() -> None:
+def test_downgrade_moves_a_small_signature_preserving_surface_change_to_engine() -> None:
     """The path says consumer surface; the change says two edited lines inside it."""
     assignment = integrity.assign(["src/basicly/cli.py"], patch=_SMALL_PYTHON_PATCH)
-    assert assignment.level == "L2"
+    assert assignment.level == "engine"
     assert assignment.rule == "downgrade"
-    assert assignment.selection == integrity.selection_for("L2")
+    assert assignment.selection == integrity.selection_for("engine")
 
 
 def test_downgrade_records_its_reason() -> None:
     """The record says what it was, what it became, and on which two facts."""
     assignment = integrity.assign(["src/basicly/cli.py"], patch=_SMALL_PYTHON_PATCH)
-    assert "downgraded from L3" in assignment.reason
+    assert "downgraded from consumer-surface" in assignment.reason
     assert "2 changed lines" in assignment.reason
     assert "no public signature changed" in assignment.reason
 
 
 def test_downgrade_is_refused_when_a_public_signature_changed() -> None:
     """A two-line diff is still a contract change when the two lines are a def."""
-    assert integrity.assign(["src/basicly/cli.py"], patch=_SIGNATURE_PATCH).level == "L3"
+    assert (
+        integrity.assign(["src/basicly/cli.py"], patch=_SIGNATURE_PATCH).level == "consumer-surface"
+    )
 
 
 def test_downgrade_ignores_a_private_signature() -> None:
-    """An underscored name is not the surface, so editing it does not hold L3."""
+    """An underscored name is not the surface, so editing it does not hold the top level."""
     assignment = integrity.assign(["src/basicly/cli.py"], patch=_PRIVATE_SIGNATURE_PATCH)
-    assert assignment.level == "L2"
+    assert assignment.level == "engine"
 
 
 def test_downgrade_is_refused_for_a_non_python_consumer_surface() -> None:
     """A schema file *is* the contract, so no edit to one is a small edit."""
-    assert integrity.assign([".basicly/core/schemas/**"], patch=_SCHEMA_PATCH).level == "L3"
+    assert (
+        integrity.assign([".basicly/core/schemas/**"], patch=_SCHEMA_PATCH).level
+        == "consumer-surface"
+    )
 
 
 def test_downgrade_is_refused_at_or_above_the_configured_line_threshold() -> None:
@@ -170,26 +175,26 @@ def test_downgrade_is_refused_at_or_above_the_configured_line_threshold() -> Non
     body = "".join(f"+    line_{n} = {n}\n" for n in range(6))
     patch = f"--- a/src/basicly/cli.py\n+++ b/src/basicly/cli.py\n@@ -1,1 +1,6 @@\n{body}"
     scope = ["src/basicly/cli.py"]
-    assert integrity.assign(scope, patch=patch, downgrade_max_lines=6).level == "L3"
-    assert integrity.assign(scope, patch=patch, downgrade_max_lines=7).level == "L2"
+    assert integrity.assign(scope, patch=patch, downgrade_max_lines=6).level == "consumer-surface"
+    assert integrity.assign(scope, patch=patch, downgrade_max_lines=7).level == "engine"
 
 
 def test_downgrade_is_refused_for_a_diff_over_the_default_threshold() -> None:
-    """A signature-free but large edit to a consumer surface keeps the L3 budget."""
+    """A signature-free but large edit to a consumer surface keeps that budget."""
     body = "".join(f"+    line_{n} = {n}\n" for n in range(integrity.DEFAULT_DOWNGRADE_MAX_LINES))
     patch = f"--- a/src/basicly/cli.py\n+++ b/src/basicly/cli.py\n@@ -1,1 +1,20 @@\n{body}"
-    assert integrity.assign(["src/basicly/cli.py"], patch=patch).level == "L3"
+    assert integrity.assign(["src/basicly/cli.py"], patch=patch).level == "consumer-surface"
 
 
 def test_downgrade_needs_a_patch_to_read() -> None:
     """With no change to read, the path rule stands alone."""
-    assert integrity.assign(["src/basicly/cli.py"]).level == "L3"
+    assert integrity.assign(["src/basicly/cli.py"]).level == "consumer-surface"
 
 
-def test_downgrade_never_applies_below_l3() -> None:
-    """L1 and L2 are not downgraded: the mechanism exists to stop over-classifying L3."""
+def test_downgrade_never_applies_below_the_top_level() -> None:
+    """The lower two are not downgraded: the mechanism exists to stop over-classifying."""
     assignment = integrity.assign(["src/basicly/loop.py"], patch=_SMALL_PYTHON_PATCH)
-    assert assignment.level == "L2"
+    assert assignment.level == "engine"
     assert assignment.rule == "engine-internal"
 
 
@@ -199,9 +204,15 @@ def test_downgrade_never_applies_below_l3() -> None:
 @pytest.mark.parametrize(
     ("level", "gates", "tier", "rework", "ship"),
     [
-        ("L1", ("fast",), "medium", 1, "delegable"),
-        ("L2", ("full",), "high", 2, "delegable"),
-        ("L3", ("full", "validate-as-consumer", "evidence-binding"), "maximum", 2, "human"),
+        ("docs-and-tests", ("fast",), "medium", 1, "delegable"),
+        ("engine", ("full",), "high", 2, "delegable"),
+        (
+            "consumer-surface",
+            ("full", "validate-as-consumer", "evidence-binding"),
+            "maximum",
+            2,
+            "human",
+        ),
     ],
 )
 def test_selects_the_gate_set_tier_and_rework_allowance(
@@ -288,8 +299,8 @@ def test_total_the_fallback_is_the_middle_level() -> None:
     """An unrecognised path is neither fast-gated nor sent to a human."""
     unrecognised = "vendor/third-party/thing.rb"
     assert integrity.claiming_rules(unrecognised) == ()
-    assert integrity.assign([unrecognised]).level == "L2"
-    assert integrity.LEVELS.index("L2") == 1
+    assert integrity.assign([unrecognised]).level == "engine"
+    assert integrity.LEVELS.index("engine") == 1
 
 
 def test_downgrade_is_refused_for_a_patch_with_no_file_header() -> None:
@@ -299,4 +310,4 @@ def test_downgrade_is_refused_for_a_patch_with_no_file_header() -> None:
     empty must not be spendable as a discount on the gates.
     """
     headerless = "@@ -1,2 +1,2 @@\n-    x = 1\n+    x = 2\n"
-    assert integrity.assign(["src/basicly/cli.py"], patch=headerless).level == "L3"
+    assert integrity.assign(["src/basicly/cli.py"], patch=headerless).level == "consumer-surface"

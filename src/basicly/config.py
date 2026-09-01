@@ -402,8 +402,29 @@ LOOP_PHASES = ("intake", "classify", "decompose", "build", "verify", "validate",
 # Autonomy levels for the session grant ledger (factory design D3,
 # basicly-kjc5.3), lowest to highest. [policy] autonomy is the repo's grantable
 # ceiling; the default keeps every checkpoint human (today's behavior).
-AUTONOMY_LEVELS = ("L0", "L1", "L2", "L3")
-DEFAULT_AUTONOMY = "L0"
+# The names say how much a human watches, and none reuses a phase, command or gate
+# name (`architecture.md` §9.1, D31).
+AUTONOMY_LEVELS = ("attended", "assisted", "supervised", "unattended")
+DEFAULT_AUTONOMY = "attended"
+
+# Read-only, for the three frozen surfaces basicly-3iaw0x could not rewrite:
+# `[policy] autonomy`, a `--level`/`--autonomy` argument, a grant marker in the ledger.
+LEGACY_AUTONOMY_LEVELS: dict[str, str] = dict(
+    zip(("L0", "L1", "L2", "L3"), AUTONOMY_LEVELS, strict=True)
+)
+
+
+def normalize_autonomy(level: str) -> str | None:
+    """*level* as one of :data:`AUTONOMY_LEVELS`, translating a letter, or None.
+
+    None rather than a raise: each caller reads config or a marker it did not write
+    and already has its own answer for unreadable.
+    """
+    text = level.strip()
+    if text in AUTONOMY_LEVELS:
+        return text
+    return LEGACY_AUTONOMY_LEVELS.get(text)
+
 
 # Runaway-loop guard for the decider agent (factory design §6, basicly-kjc5.4):
 # delegated answers per session beyond this are human-only.
@@ -1158,6 +1179,37 @@ def _parse_verify_check(entry: object) -> VerifyCheck:
     )
 
 
+@cache
+def _say_autonomy_deprecated(legacy: str, name: str) -> None:
+    """Say once per process that ``[policy] autonomy`` carries a retired letter.
+
+    Cached on the pair rather than flag-guarded so "once" is a property of the call:
+    every command loads this section (the ``[policy.type_sections]`` fallback below is
+    the same shape for the same reason).
+    """
+    ui.warn(
+        f"[policy] autonomy = {legacy!r} is the retired lettered spelling; it still "
+        f"applies as {name!r}. Write autonomy = {name!r} in basicly.toml."
+    )
+
+
+def _autonomy_setting(raw: object, fallback: str) -> str:
+    """The ``[policy] autonomy`` ceiling *raw* declares, or *fallback*.
+
+    A retired letter is honoured and says so once: the key is a frozen consumer
+    surface, so the rename owes a deprecation window (D31). An unreadable value falls
+    back silently, as every other key in this section already does.
+    """
+    if not isinstance(raw, str):
+        return fallback
+    name = normalize_autonomy(raw)
+    if name is None:
+        return fallback
+    if raw.strip() != name:
+        _say_autonomy_deprecated(raw.strip(), name)
+    return name
+
+
 @dataclass(frozen=True)
 class PolicyConfig:
     """Loop gate/checkpoint policy settings."""
@@ -1202,11 +1254,7 @@ def load_policy_config(repo_root: Path) -> PolicyConfig:
     if not (isinstance(max_rework, int) and not isinstance(max_rework, bool) and max_rework >= 0):
         max_rework = defaults.max_rework
 
-    autonomy = section.get("autonomy")
-    if not (isinstance(autonomy, str) and autonomy.strip() in AUTONOMY_LEVELS):
-        autonomy = DEFAULT_AUTONOMY
-    else:
-        autonomy = autonomy.strip()
+    autonomy = _autonomy_setting(section.get("autonomy"), defaults.autonomy)
 
     raw_notify = section.get("notify_command")
     notify_command: tuple[str, ...] = ()

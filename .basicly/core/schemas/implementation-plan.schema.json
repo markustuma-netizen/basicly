@@ -82,6 +82,9 @@
           },
           "integrity": {
             "enum": [
+              "docs-and-tests",
+              "engine",
+              "consumer-surface",
               "L1",
               "L2",
               "L3"

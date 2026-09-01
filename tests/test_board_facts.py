@@ -248,22 +248,23 @@ def test_a_mapped_phase_is_the_engine_derivation_on_a_unit_owing_validation(
 ) -> None:
     """The map calls `loop_state.derive_phase`, and this is the case that proves which one.
 
-    An L3 unit whose verify gate is green and whose validate gate is not is in ``validate``,
+    A consumer-surface unit whose verify gate is green and whose validate gate is not is in
+    ``validate``,
     and only a reader that knows the recorded level can say so - the kit ships a phase
     derivation folded out of the ledger alone, which reads ``verify`` here and renders
-    identically. The L2 repo beside it is the control: same gate, same binding, no level
-    marker, and the answer has to differ or the marker is not being read at all.
+    identically. The unmarked repo beside it is the control: same gate, same binding, no
+    level marker, and the answer has to differ or the marker is not being read at all.
 
     Both are also checked against `read_node_state`, the per-record route this replaces -
     measured on this repository's own log, 236 active records agreed on both paths, 128.1 s
     against 0.125 s.
     """
-    l3 = _seeded(_owned_repo(tmp_path / "l3", "bd-1"), level="L3")
-    l2 = _seeded(_owned_repo(tmp_path / "l2", "bd-1"), level="")
+    marked = _seeded(_owned_repo(tmp_path / "marked", "bd-1"), level="consumer-surface")
+    unmarked = _seeded(_owned_repo(tmp_path / "unmarked", "bd-1"), level="")
 
-    assert loop_state.phase_map(l3)["bd-1"] == "validate"
-    assert loop_state.phase_map(l2)["bd-1"] == "verify"
-    for repo in (l3, l2):
+    assert loop_state.phase_map(marked)["bd-1"] == "validate"
+    assert loop_state.phase_map(unmarked)["bd-1"] == "verify"
+    for repo in (marked, unmarked):
         assert loop_state.phase_map(repo)["bd-1"] == loop_state.read_node_state(repo, "bd-1").phase
 
 
@@ -276,10 +277,10 @@ def test_visible_asks_matches_each_acceptance_case() -> None:
     """basicly-0i86tl AC1-4: a delegated or closed checkpoint drops; a decision never does."""
     filt, both = board_facts._visible_asks, frozenset({"bd-1", "bd-2"})
     classify, decision = _ask("checkpoint", "bd-1", "classify"), _ask("decision", "bd-2")
-    assert [a["issue"] for a in filt([classify, decision], both, "L3")] == ["bd-2"]  # AC1
+    assert [a["issue"] for a in filt([classify, decision], both, "unattended")] == ["bd-2"]  # AC1
     assert filt([classify], frozenset({"bd-2"}), "") == []  # AC2
-    assert filt([classify], both, "L1") == [classify]  # AC3
-    assert filt([decision], both, "L3") == [decision]  # AC4
+    assert filt([classify], both, "assisted") == [classify]  # AC3
+    assert filt([decision], both, "unattended") == [decision]  # AC4
 
 
 def test_hide_unanswerable_reads_the_grant_and_the_units_off_the_document() -> None:
@@ -287,7 +288,7 @@ def test_hide_unanswerable_reads_the_grant_and_the_units_off_the_document() -> N
     built = {
         "asks": [_ask("checkpoint", "bd-1", "classify"), _ask("decision", "bd-2")],
         "units": [{"id": "bd-1"}, {"id": "bd-2"}],
-        "session": {"grant_level": "L3"},
+        "session": {"grant_level": "unattended"},
     }
     board_facts._hide_unanswerable(built)
     assert [a["issue"] for a in built["asks"]] == ["bd-2"]

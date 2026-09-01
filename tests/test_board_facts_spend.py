@@ -47,14 +47,14 @@ def _owned_repo(root: Path, *records: str) -> Path:
 
 
 def _granted(root: Path, record: str, budget: int) -> policy.Grant:
-    """*record* open in a fresh ledger, carrying an L3 grant of *budget*."""
+    """*record* open in a fresh ledger, carrying an unattended grant of *budget*."""
     _owned_repo(root, record)
     policy.issue_grant_guarded(
         root,
         record,
-        "L3",
+        "unattended",
         budget,
-        PolicyConfig(required_gates=(), max_rework=2, autonomy="L3"),
+        PolicyConfig(required_gates=(), max_rework=2, autonomy="unattended"),
         interactive=True,
     )
     grant = policy.active_grant(root, record)

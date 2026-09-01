@@ -101,7 +101,7 @@ def test_a_created_child_records_its_plan_fields_in_its_body(
     decompose.decompose(tmp_path, "feat", children)
 
     recorded = plan_record.parse_plan_section(fake.created[1][2])
-    assert recorded.integrity == "L2"
+    assert recorded.integrity == "engine"
     assert recorded.budget_tokens == 40_000
     assert recorded.depends_on == ("a",)
     assert recorded.scope == ("src/b.py",)

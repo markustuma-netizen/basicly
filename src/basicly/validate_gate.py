@@ -1,11 +1,11 @@
 """Which gates a unit's recorded integrity level makes required (basicly-u2hl.54.1).
 
-VALIDATE is a state every unit passes through and a gate only L3 units owe — the
+VALIDATE is a state every unit passes through and a gate only the top level owes — the
 split that let the phase be added without refusing work already in flight.
 
 Only ``validate-as-consumer`` is promoted, never ``evidence-binding``: ``full`` is a
 ``basicly verify`` mode and nothing in this tree records an ``evidence-binding``
-result, so requiring it would rest every L3 unit against a gate with no producer.
+result, so requiring it would rest every such unit against a gate with no producer.
 basicly-u2hl.54.3 wires the promoted gate's producer.
 
 Kept out of :mod:`basicly.policy`: ``gate_status`` classifies rows against a
@@ -59,7 +59,8 @@ def level_in(texts: Iterable[str]) -> str | None:
 
     Read back from the marker, never re-derived from scope, which would disagree
     with the record whenever the path rules changed after classify ran. Markers
-    arrive oldest-first, so the last one is the standing verdict.
+    arrive oldest-first, so the last one is the standing verdict; a pre-3iaw0x marker
+    spells `L1`..`L3`, in a ledger nothing rewrites.
     """
     level: str | None = None
     for body in texts:
@@ -70,7 +71,7 @@ def level_in(texts: Iterable[str]) -> str | None:
             if field.startswith(_LEVEL_FIELD):
                 level = field[len(_LEVEL_FIELD) :]
     # Unreadable reads as unmarked, not an error: the alternative wedges the unit.
-    return level if level in integrity.LEVELS else None
+    return integrity.normalize_level(level) if level is not None else None
 
 
 def requires_validation(level: str | None) -> bool:
@@ -81,7 +82,7 @@ def requires_validation(level: str | None) -> bool:
 
 
 def required_in(texts: Iterable[str], config: PolicyConfig) -> PolicyConfig:
-    """*config* with ``validate-as-consumer`` required when *texts* records L3 (pure).
+    """*config* with ``validate-as-consumer`` required when *texts* records that level.
 
     *config* itself back where nothing is promoted, so a caller can still tell the two
     apart by identity — which `test_validate_gate` asserts, because a fresh equal copy
@@ -95,7 +96,7 @@ def required_in(texts: Iterable[str], config: PolicyConfig) -> PolicyConfig:
 
 
 def required_config(repo_root: Path, issue_id: str, config: PolicyConfig) -> PolicyConfig:
-    """*config* with ``validate-as-consumer`` required when *issue_id* recorded L3."""
+    """``validate-as-consumer`` required when *issue_id* recorded the top level."""
     return required_in(_texts(repo_root, issue_id), config)
 
 

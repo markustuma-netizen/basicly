@@ -214,12 +214,14 @@ def test_the_engine_carries_every_marker_family_with_br_absent(tmp_path: Path) -
     per-bead assertion below would not notice.
     """
     repo = _owned_repo(tmp_path, "seam-0001", "seam-0002")
-    config = PolicyConfig(required_gates=("verify",), max_rework=2, autonomy="L3")
+    config = PolicyConfig(required_gates=("verify",), max_rework=2, autonomy="unattended")
 
     policy.approve_checkpoint(repo, "seam-0001", "ship")
     assert policy.spend_gate_override(repo, "seam-0001", "verify") is True
     policy.record_unreliable_gate(repo, "seam-0001", "verify", "passed unchanged")
-    grant = policy.issue_grant_guarded(repo, "seam-0001", "L3", 8_000_000, config, interactive=True)
+    grant = policy.issue_grant_guarded(
+        repo, "seam-0001", "unattended", 8_000_000, config, interactive=True
+    )
     charged = policy.record_rework(repo, "seam-0001", "verify")
     ident = run_record.record_marker(repo, "seam-0001", _run("a", tokens=1234))
     other = run_record.record_marker(repo, "seam-0002", _run("c", tokens=99))
@@ -230,7 +232,7 @@ def test_the_engine_carries_every_marker_family_with_br_absent(tmp_path: Path) -
     assert grant.status == "approved"
     active = policy.active_grant(repo, "seam-0001")
     assert active is not None
-    assert (active.level, active.token_budget) == ("L3", 8_000_000)
+    assert (active.level, active.token_budget) == ("unattended", 8_000_000)
     assert charged == 1
     assert policy.rework_charged(repo, "seam-0001", "verify") == 1
     assert ident is not None and other is not None

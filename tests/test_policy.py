@@ -878,7 +878,7 @@ def test_check_working_set_floor_skips_greenfield_scope() -> None:
 # --- Autonomy grants: session-scoped ledger (basicly-kjc5.3, design D3) --------
 
 
-L3_CONFIG = PolicyConfig(required_gates=("verify",), max_rework=2, autonomy="L3")
+UNATTENDED_CONFIG = PolicyConfig(required_gates=("verify",), max_rework=2, autonomy="unattended")
 # The engine's own provider, because these tests stand in for a gate the engine
 # recorded; a foreign provider no longer counts toward a required gate
 # (basicly-jr0l.51).
@@ -893,15 +893,58 @@ def test_active_grant_last_marker_wins_and_revocation_turns_it_off(
     _install(monkeypatch, fake)
     assert policy.active_grant(tmp_path, "root") is None
 
-    fake.comments.append("[harness-policy] grant level=L1")
-    fake.comments.append("[harness-policy] grant level=L2 budget=100")
-    assert policy.active_grant(tmp_path, "root") == policy.Grant(level="L2", token_budget=100)
+    fake.comments.append("[harness-policy] grant level=assisted")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100")
+    assert policy.active_grant(tmp_path, "root") == policy.Grant(
+        level="supervised", token_budget=100
+    )
 
     policy.revoke_grant(tmp_path, "root")
     assert policy.active_grant(tmp_path, "root") is None
 
-    fake.comments.append("[harness-policy] grant level=L1")
-    assert policy.active_grant(tmp_path, "root") == policy.Grant(level="L1", token_budget=None)
+    fake.comments.append("[harness-policy] grant level=assisted")
+    assert policy.active_grant(tmp_path, "root") == policy.Grant(
+        level="assisted", token_budget=None
+    )
+
+
+@pytest.mark.parametrize(
+    ("marker", "level"),
+    [
+        ("[harness-policy] grant level=L1", "assisted"),
+        ("[harness-policy] grant level=L2 budget=100", "supervised"),
+        ("[harness-policy] grant level=L3 budget=100", "unattended"),
+    ],
+)
+def test_a_grant_marker_written_before_the_rename_still_reads(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, marker: str, level: str
+) -> None:
+    """A live grant sits in a ledger nothing may rewrite (basicly-3iaw0x).
+
+    The letter is translated on read, so the level a caller compares against is the
+    name — `release.autonomy_refusal` and `supervise._delegation_allowed` both do.
+    """
+    fake = _FakeBr()
+    _install(monkeypatch, fake)
+    fake.comments.append(marker)
+    grant = policy.active_grant(tmp_path, "root")
+    assert grant is not None
+    assert grant.level == level
+
+
+def test_a_retired_letter_still_issues_a_grant_at_the_named_level(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """`--level L2` keeps working, and what it records is the name."""
+    fake = _FakeBr()
+    _install(monkeypatch, fake)
+    result = policy.issue_grant_guarded(
+        tmp_path, "root", "L2", 50_000, UNATTENDED_CONFIG, interactive=True
+    )
+    assert result.status == "approved"
+    assert policy.active_grant(tmp_path, "root") == policy.Grant(
+        level="supervised", token_budget=50_000
+    )
 
 
 def test_parse_grant_skips_malformed_markers(
@@ -912,9 +955,9 @@ def test_parse_grant_skips_malformed_markers(
     _install(monkeypatch, fake)
     fake.comments += [
         "[harness-policy] grant level=L9",
-        "[harness-policy] grant level=L2 budget=lots",
-        "[harness-policy] grant level=L3",  # unmetered L2+ must not parse
-        "[harness-policy] grant level=L2 budget=-5",
+        "[harness-policy] grant level=supervised budget=lots",
+        "[harness-policy] grant level=unattended",  # unmetered supervised+ must not parse
+        "[harness-policy] grant level=supervised budget=-5",
         "plain comment",
     ]
     assert policy.active_grant(tmp_path, "root") is None
@@ -926,30 +969,34 @@ def test_issue_grant_interactive_records_the_marker(
     """A TTY caller under the config ceiling issues directly."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    result = policy.issue_grant_guarded(tmp_path, "root", "L2", 50_000, L3_CONFIG, interactive=True)
+    result = policy.issue_grant_guarded(
+        tmp_path, "root", "supervised", 50_000, UNATTENDED_CONFIG, interactive=True
+    )
     assert result.status == "approved"
-    assert policy.active_grant(tmp_path, "root") == policy.Grant(level="L2", token_budget=50_000)
+    assert policy.active_grant(tmp_path, "root") == policy.Grant(
+        level="supervised", token_budget=50_000
+    )
 
 
 def test_issue_grant_refuses_above_the_autonomy_ceiling(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """[policy] autonomy is the opt-in ceiling; the default L0 makes grants unissuable."""
+    """[policy] autonomy is the opt-in ceiling; attended by default makes grants unissuable."""
     _install(monkeypatch, _FakeBr())
     l0 = PolicyConfig(required_gates=("verify",), max_rework=2)
-    result = policy.issue_grant_guarded(tmp_path, "root", "L1", None, l0, interactive=True)
+    result = policy.issue_grant_guarded(tmp_path, "root", "assisted", None, l0, interactive=True)
     assert result.status == "rejected"
     assert "autonomy ceiling" in result.detail
 
 
-def test_issue_grant_refuses_l2_plus_without_token_budget(
+def test_issue_grant_refuses_supervised_and_above_without_token_budget(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """Unbounded lights-out must be unreachable: L2+ needs a positive budget."""
+    """Unbounded lights-out must be unreachable: supervised and above need a budget."""
     _install(monkeypatch, _FakeBr())
-    for level in ("L2", "L3"):
+    for level in ("supervised", "unattended"):
         result = policy.issue_grant_guarded(
-            tmp_path, "root", level, None, L3_CONFIG, interactive=True
+            tmp_path, "root", level, None, UNATTENDED_CONFIG, interactive=True
         )
         assert result.status == "rejected"
         assert "token_budget" in result.detail
@@ -962,29 +1009,33 @@ def test_issue_grant_non_interactive_needs_a_relayed_code(
     fake = _FakeBr()
     _install(monkeypatch, fake)
     _pin_code(monkeypatch, "cafe0123")
-    first = policy.issue_grant_guarded(tmp_path, "root", "L1", None, L3_CONFIG, interactive=False)
+    first = policy.issue_grant_guarded(
+        tmp_path, "root", "assisted", None, UNATTENDED_CONFIG, interactive=False
+    )
     assert first.status == "challenge" and first.code == "cafe0123"
     assert policy.active_grant(tmp_path, "root") is None
 
     second = policy.issue_grant_guarded(
-        tmp_path, "root", "L1", None, L3_CONFIG, interactive=False, confirm="cafe0123"
+        tmp_path, "root", "assisted", None, UNATTENDED_CONFIG, interactive=False, confirm="cafe0123"
     )
     assert second.status == "approved"
-    assert policy.active_grant(tmp_path, "root") == policy.Grant(level="L1", token_budget=None)
+    assert policy.active_grant(tmp_path, "root") == policy.Grant(
+        level="assisted", token_budget=None
+    )
 
 
 def test_grant_delegates_only_covered_checkpoints(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """An L2 grant approves classify/decompose non-interactively; ship still challenges."""
+    """A supervised grant approves classify/decompose non-interactively; ship still challenges."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
     for name in ("classify", "decompose"):
         result = policy.approve_checkpoint_guarded(tmp_path, "i", name, interactive=False)
         assert result.status == "approved"
-        assert "delegated under L2 grant" in result.detail
+        assert "delegated under supervised grant" in result.detail
         assert policy.checkpoint_approved(tmp_path, "i", name)
 
     result = policy.approve_checkpoint_guarded(tmp_path, "i", "ship", interactive=False)
@@ -1000,14 +1051,14 @@ def test_a_grant_that_approves_the_checkpoint_may_not_originate_the_proposal(
 ) -> None:
     """The two gates, told apart at the level that has exactly one of them.
 
-    An L1 grant approves the decompose *checkpoint* and always could; what it may
+    An assisted grant approves the decompose *checkpoint* and always could; what it may
     not do is originate the child plan that checkpoint approves. Reading the first
     as the second is what let an operator conclude the factory was autonomous at a
     phase whose input nothing produced.
     """
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L1")
+    fake.comments.append("[harness-policy] grant level=assisted")
 
     approval = policy.approve_checkpoint_guarded(tmp_path, "i", "decompose", interactive=False)
     proposal = policy.proposal_delegated(tmp_path, "i", "children", "i")
@@ -1017,15 +1068,17 @@ def test_a_grant_that_approves_the_checkpoint_may_not_originate_the_proposal(
     assert "approves the checkpoint but does not originate" in proposal.reason
 
 
-def test_l2_originates_both_proposals(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    """L2 is where D3 starts delegating judgment, so it is where a proposer may run."""
+def test_supervised_originates_both_proposals(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Supervised is where D3 starts delegating judgment, so a proposer may run there."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
     for kind in ("work_type", "children"):
         verdict = policy.proposal_delegated(tmp_path, "i", kind, "i")
-        assert verdict.allowed and verdict.level == "L2"
+        assert verdict.allowed and verdict.level == "supervised"
 
 
 def test_no_grant_originates_nothing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
@@ -1043,7 +1096,7 @@ def test_a_spend_halted_grant_originates_nothing(
     """D3's one halt predicate reaches the proposer too — a proposal costs real tokens."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100")
     entry = run_record.build_record(
         agent="t", handoff=False, returncode=0, duration_s=1.0, command=("t",), tokens=150
     )
@@ -1061,7 +1114,7 @@ def test_a_grant_originates_nothing_outside_its_own_session(
     """Same session boundary a delegated approval holds: a caller names the root."""
     fake = _FakeBr(records={"root": {"status": "open", "dependents": []}})
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=100000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=100000")
 
     verdict = policy.proposal_delegated(tmp_path, "stranger", "children", "root")
 
@@ -1083,7 +1136,7 @@ def test_grant_spend_halt_drops_delegation_to_human(
     """Run-record spend at the budget refuses delegation (human-only until re-granted)."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100")
     entry = run_record.build_record(
         agent="t", handoff=False, returncode=0, duration_s=1.0, command=("t",), tokens=150
     )
@@ -1103,7 +1156,7 @@ def test_spend_status_is_the_one_halt_predicate(
     """D3's ceiling as a value, so approval, dispatch, and delegation share one rule."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100")
     for tokens in (60, 30):
         run_record.record(
             tmp_path,
@@ -1137,7 +1190,7 @@ def test_spend_status_is_the_one_halt_predicate(
 def test_spend_status_without_a_budget_is_never_halted(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """No grant, and an L1 grant with no budget, mean no ceiling - not a halt.
+    """No grant, and an assisted grant with no budget, mean no ceiling - not a halt.
 
     A halt-by-default would freeze every ungranted (human-driven) session the
     moment any run recorded a token.
@@ -1155,10 +1208,10 @@ def test_spend_status_without_a_budget_is_never_halted(
     ungranted = policy.spend_status(tmp_path, "root")
     assert (ungranted.grant, ungranted.halted) == (None, False)
 
-    fake.comments.append("[harness-policy] grant level=L1")
+    fake.comments.append("[harness-policy] grant level=assisted")
     unbudgeted = policy.spend_status(tmp_path, "root")
     assert unbudgeted.grant is not None
-    assert (unbudgeted.grant.level, unbudgeted.halted) == ("L1", False)
+    assert (unbudgeted.grant.level, unbudgeted.halted) == ("assisted", False)
 
 
 def test_session_spend_sums_the_children_too(
@@ -1242,17 +1295,17 @@ def test_the_session_walk_takes_a_population_the_caller_already_read(
     assert policy.session_issue_ids(tmp_path, "root", population=population) == ("root", "root.1")
 
 
-def test_l3_ship_delegates_only_when_preconditions_hold(
+def test_unattended_ship_delegates_only_when_preconditions_hold(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Lights-out ship needs green gates, no rework escalation, no needs-input (D3)."""
     fake = _FakeBr(gates=_VERIFY_GREEN)
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
 
     result = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
     assert result.status == "approved"
-    assert "delegated under L3 grant" in result.detail
+    assert "delegated under unattended grant" in result.detail
 
 
 def test_a_grant_delegated_ship_settles_the_ask_attributed_to_the_grant(
@@ -1267,7 +1320,7 @@ def test_a_grant_delegated_ship_settles_the_ask_attributed_to_the_grant(
     """
     fake = _FakeBr(gates=_VERIFY_GREEN)
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
     item = _queued_ship_ask(tmp_path, "root")
 
     result = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
@@ -1275,15 +1328,17 @@ def test_a_grant_delegated_ship_settles_the_ask_attributed_to_the_grant(
     assert result.status == "approved"
     settled = decisions.get(tmp_path, item.decision_id)
     assert settled is not None and not settled.pending
-    assert settled.answered_by == "grant:L3"
+    assert settled.answered_by == "grant:unattended"
 
 
-def test_l3_ship_refuses_on_any_wrinkle(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+def test_unattended_ship_refuses_on_any_wrinkle(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     """Any precondition violation drops ship back to human (challenge, no marker)."""
     # A needs-input event recorded in the session.
     fake = _FakeBr(gates=_VERIFY_GREEN)
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
     policy.record_needs_input(tmp_path, "root", "which API version")
     result = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
     assert result.status == "challenge"
@@ -1291,7 +1346,7 @@ def test_l3_ship_refuses_on_any_wrinkle(monkeypatch: pytest.MonkeyPatch, tmp_pat
     # A rework escalation (attempts at the cap).
     fake = _FakeBr(gates=_VERIFY_GREEN)
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
     fake.comments += ["[harness-policy] rework gate=verify"] * 2
     result = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
     assert result.status == "challenge"
@@ -1299,7 +1354,7 @@ def test_l3_ship_refuses_on_any_wrinkle(monkeypatch: pytest.MonkeyPatch, tmp_pat
     # Required gate not green.
     fake = _FakeBr(gates=[])
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
     result = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
     assert result.status == "challenge"
 
@@ -1318,29 +1373,29 @@ def _open_epic_with_green_child(**gates: object) -> _FakeBr:
     )
 
 
-def test_l3_delegates_a_green_childs_ship_while_the_root_is_open(
+def test_unattended_delegates_a_green_childs_ship_while_the_root_is_open(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The case lights-out exists for (basicly-kjc5.39, owner decision 2026-07-25).
 
     Scoped to the grant root's gates this refused unconditionally - an epic's own
-    verify gate is missing until the epic closes - so L3 degraded to L2 for every
+    verify gate is missing until the epic closes - so unattended degraded to supervised for every
     multi-lane session.
     """
     fake = _open_epic_with_green_child()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
 
     result = policy.approve_checkpoint_guarded(
         tmp_path, "root.1", "ship", interactive=False, grant_root="root"
     )
 
     assert result.status == "approved"
-    assert "delegated under L3 grant" in result.detail
+    assert "delegated under unattended grant" in result.detail
     assert policy.checkpoint_approved(tmp_path, "root.1", "ship")
 
 
-def test_l3_still_refuses_a_child_whose_own_gates_are_not_green(
+def test_unattended_still_refuses_a_child_whose_own_gates_are_not_green(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """Scoping the check moved it to the shipped node; it did not remove it."""
@@ -1349,7 +1404,7 @@ def test_l3_still_refuses_a_child_whose_own_gates_are_not_green(
         gates_by_issue={"root": _VERIFY_GREEN, "root.1": []},
     )
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
 
     result = policy.approve_checkpoint_guarded(
         tmp_path, "root.1", "ship", interactive=False, grant_root="root"
@@ -1359,13 +1414,13 @@ def test_l3_still_refuses_a_child_whose_own_gates_are_not_green(
     assert not policy.checkpoint_approved(tmp_path, "root.1", "ship")
 
 
-def test_l3_child_ship_still_refuses_on_a_session_wide_wrinkle(
+def test_unattended_child_ship_still_refuses_on_a_session_wide_wrinkle(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """The other two preconditions stay session-wide: a wrinkle anywhere drops ship."""
     fake = _open_epic_with_green_child()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
     # Recorded on the ROOT, not on the child being shipped.
     policy.record_needs_input(tmp_path, "root", "which API version")
 
@@ -1401,7 +1456,7 @@ class _PerIssueBr(_FakeBr):
 def _epic_with_a_wrinkled_sibling(
     *, sibling_status: str = "open", wrinkle: str = "[harness-policy] rework gate=verify"
 ) -> _PerIssueBr:
-    """An L3-granted epic, a green child to ship, and a wrinkle on its sibling.
+    """An unattended-granted epic, a green child to ship, and a wrinkle on its sibling.
 
     *sibling_status* is the basicly-i1s8 distinction: the same two markers are live
     while root.2 is open and history once closed. *wrinkle* swaps the carrier.
@@ -1412,7 +1467,7 @@ def _epic_with_a_wrinkled_sibling(
     ]
     return _PerIssueBr(
         {
-            "root": ["[harness-policy] grant level=L3 budget=1000000"],
+            "root": ["[harness-policy] grant level=unattended budget=1000000"],
             "root.2": [wrinkle] * 2,
         },
         records={
@@ -1439,7 +1494,7 @@ def test_a_declined_child_ship_names_the_precondition_and_its_sibling_bead(
     )
 
     assert result.status == "challenge"
-    assert "the active L3 grant covers ship but declined it" in result.detail
+    assert "the active unattended grant covers ship but declined it" in result.detail
     assert "lights-out preconditions across session root" in result.detail
     # The wrinkle is on a sibling, not on the node being shipped: naming the bead
     # is the whole point of the message.
@@ -1471,7 +1526,7 @@ def test_a_granted_allowance_discounts_the_escalation_like_every_other_consumer(
     """The escalation counts charged rework, not raw markers (basicly-54t8w5).
 
     Two attempts plus one `--allow-retry` allowance is one charged of two allowed;
-    counting raw read `2/2` and degraded L3 to L2 for the whole session.
+    counting raw read `2/2` and degraded unattended to supervised for the whole session.
     """
     fake = _epic_with_a_wrinkled_sibling()
     fake.per_issue["root.2"].append("[harness-policy] rework-allowance gate=verify")
@@ -1552,7 +1607,7 @@ def test_an_answered_wrinkle_lets_the_grant_delegate_the_child_ship(
     )
 
     assert result.status == "approved"
-    assert result.detail == "delegated under L3 grant"
+    assert result.detail == "delegated under unattended grant"
     assert policy.checkpoint_approved(tmp_path, "root.1", "ship")
 
 
@@ -1578,7 +1633,7 @@ def test_a_fact_that_blocks_again_after_an_answer_counts_as_live(
 def test_a_closed_siblings_escalation_lets_the_grant_delegate_the_child_ship(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """The consequence the fix exists for: L3 stops degrading to L2 for the epic's life."""
+    """The consequence the fix exists for: unattended stops degrading for the epic's life."""
     _install(monkeypatch, _epic_with_a_wrinkled_sibling(sibling_status="closed"))
 
     result = policy.approve_checkpoint_guarded(
@@ -1586,7 +1641,7 @@ def test_a_closed_siblings_escalation_lets_the_grant_delegate_the_child_ship(
     )
 
     assert result.status == "approved"
-    assert result.detail == "delegated under L3 grant"
+    assert result.detail == "delegated under unattended grant"
     assert policy.checkpoint_approved(tmp_path, "root.1", "ship")
 
 
@@ -1608,7 +1663,7 @@ def test_a_spend_halted_grant_says_so_on_the_challenge(
     """A halt is the other silent decline: it quotes spend_status's own wording."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100")
     run_record.record(
         tmp_path,
         "root",
@@ -1622,22 +1677,22 @@ def test_a_spend_halted_grant_says_so_on_the_challenge(
     )
 
     assert result.status == "challenge"
-    assert "the active L2 grant covers classify but declined it" in result.detail
+    assert "the active supervised grant covers classify but declined it" in result.detail
     assert "token_budget spent (150/100 tokens" in result.detail
 
 
 def test_a_grant_that_does_not_delegate_the_checkpoint_says_which_level_it_is(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """An L2 grant and a ship ask: the operator is told the level, not left guessing."""
+    """A supervised grant and a ship ask: the operator is told the level, not left guessing."""
     fake = _FakeBr(gates=_VERIFY_GREEN)
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
     result = policy.approve_checkpoint_guarded(tmp_path, "i", "ship", interactive=False)
 
     assert result.status == "challenge"
-    assert "the active L2 grant on i does not delegate ship" in result.detail
+    assert "the active supervised grant on i does not delegate ship" in result.detail
 
 
 def test_a_grant_outside_its_session_says_the_issue_is_not_in_the_tree(
@@ -1646,14 +1701,14 @@ def test_a_grant_outside_its_session_says_the_issue_is_not_in_the_tree(
     """The foreign-issue refusal is silent too, and reads as "no grant" without this."""
     fake = _FakeBr()  # no dependents: the session is just "root"
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
     result = policy.approve_checkpoint_guarded(
         tmp_path, "unrelated", "classify", interactive=False, grant_root="root"
     )
 
     assert result.status == "challenge"
-    assert "the active L2 grant on root does not cover unrelated" in result.detail
+    assert "the active supervised grant on root does not cover unrelated" in result.detail
     assert "not in that session's issue tree" in result.detail
 
 
@@ -1692,7 +1747,7 @@ def test_grant_never_authorizes_outside_its_session(
     """grant_root is caller-supplied: a grant covers only its own session tree."""
     fake = _FakeBr()  # no dependents: the session is just "root"
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
     foreign = policy.approve_checkpoint_guarded(
         tmp_path, "unrelated", "classify", interactive=False, grant_root="root"
@@ -1713,7 +1768,7 @@ def test_active_grant_expires_with_a_closed_root(
     """A grant on a closed session root is dead without an explicit revocation."""
     fake = _FakeBr(status="closed")
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L1")
+    fake.comments.append("[harness-policy] grant level=assisted")
     assert policy.active_grant(tmp_path, "root") is None
 
 
@@ -1780,13 +1835,13 @@ def test_a_grant_covers_a_track_assembled_from_gating_edges(
         # issue, so a previous approval's marker would read as "already approved".
         fake = _gating_track()
         _install(monkeypatch, fake)
-        fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+        fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
         result = policy.approve_checkpoint_guarded(
             tmp_path, issue, "classify", interactive=False, grant_root="root"
         )
         assert result.status == "approved", issue
-        assert "delegated under L2 grant" in result.detail
+        assert "delegated under supervised grant" in result.detail
 
 
 def test_a_gating_dependent_stays_outside_the_session(
@@ -1808,7 +1863,7 @@ def test_a_gating_dependent_stays_outside_the_session(
         }
     )
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
 
     result = policy.approve_checkpoint_guarded(
         tmp_path, "downstream", "classify", interactive=False, grant_root="root"
@@ -1849,21 +1904,35 @@ def test_grant_confirm_code_binds_level_and_budget(
     _install(monkeypatch, fake)
     _pin_code(monkeypatch, "beef4242")
     challenge = policy.issue_grant_guarded(
-        tmp_path, "root", "L2", 5_000, L3_CONFIG, interactive=False
+        tmp_path, "root", "supervised", 5_000, UNATTENDED_CONFIG, interactive=False
     )
     assert challenge.status == "challenge"
 
     swapped = policy.issue_grant_guarded(
-        tmp_path, "root", "L2", 999_999, L3_CONFIG, interactive=False, confirm="beef4242"
+        tmp_path,
+        "root",
+        "supervised",
+        999_999,
+        UNATTENDED_CONFIG,
+        interactive=False,
+        confirm="beef4242",
     )
     assert swapped.status == "rejected"
     assert policy.active_grant(tmp_path, "root") is None
 
     exact = policy.issue_grant_guarded(
-        tmp_path, "root", "L2", 5_000, L3_CONFIG, interactive=False, confirm="beef4242"
+        tmp_path,
+        "root",
+        "supervised",
+        5_000,
+        UNATTENDED_CONFIG,
+        interactive=False,
+        confirm="beef4242",
     )
     assert exact.status == "approved"
-    assert policy.active_grant(tmp_path, "root") == policy.Grant(level="L2", token_budget=5_000)
+    assert policy.active_grant(tmp_path, "root") == policy.Grant(
+        level="supervised", token_budget=5_000
+    )
 
 
 # --- Forgiving a flake without hiding it (basicly-55yh) ----------------------
@@ -2372,7 +2441,7 @@ def test_a_fresh_grant_admits_dispatch_on_a_historically_expensive_session(
     """The reported defect: 30.7M of history halted a 5M grant before it dispatched once."""
     _install(monkeypatch, _FakeBr())
     _with_spend(monkeypatch, 30_705_839)
-    grant = policy.Grant(level="L1", token_budget=5_000_000, spent_at_issue=30_705_839)
+    grant = policy.Grant(level="assisted", token_budget=5_000_000, spent_at_issue=30_705_839)
 
     status = policy.spend_status(tmp_path, "root", grant=grant)
 
@@ -2385,7 +2454,7 @@ def test_the_budget_halts_once_spend_under_this_grant_reaches_it(
     """It is still a real ceiling — only the baseline moved."""
     _install(monkeypatch, _FakeBr())
     _with_spend(monkeypatch, 30_705_839 + 5_000_000)
-    grant = policy.Grant(level="L1", token_budget=5_000_000, spent_at_issue=30_705_839)
+    grant = policy.Grant(level="assisted", token_budget=5_000_000, spent_at_issue=30_705_839)
 
     status = policy.spend_status(tmp_path, "root", grant=grant)
 
@@ -2400,7 +2469,7 @@ def test_a_grant_without_a_baseline_keeps_the_strict_lifetime_behaviour(
     """A marker issued before this existed must not become quietly unbounded."""
     _install(monkeypatch, _FakeBr())
     _with_spend(monkeypatch, 6_000_000)
-    grant = policy.Grant(level="L1", token_budget=5_000_000)
+    grant = policy.Grant(level="assisted", token_budget=5_000_000)
 
     assert grant.spent_at_issue == 0
     assert policy.spend_status(tmp_path, "root", grant=grant).halted is True
@@ -2412,7 +2481,7 @@ def test_lost_run_records_cannot_buy_extra_budget(
     """Spend below the baseline clamps at zero rather than crediting the session."""
     _install(monkeypatch, _FakeBr())
     _with_spend(monkeypatch, 1_000)  # records pruned since issuance
-    grant = policy.Grant(level="L1", token_budget=5_000, spent_at_issue=30_000)
+    grant = policy.Grant(level="assisted", token_budget=5_000, spent_at_issue=30_000)
 
     status = policy.spend_status(tmp_path, "root", grant=grant)
 
@@ -2429,7 +2498,7 @@ def test_the_baseline_round_trips_through_the_grant_marker(
         policy, "session_spend", lambda *_a, **_k: policy.SpendMeter(30_705_839, 0, 0)
     )
     result = policy.issue_grant_guarded(
-        tmp_path, "root", "L1", 5_000_000, L3_CONFIG, interactive=True
+        tmp_path, "root", "assisted", 5_000_000, UNATTENDED_CONFIG, interactive=True
     )
     assert result.status == "approved"
 
@@ -2445,7 +2514,9 @@ def test_a_grant_with_no_prior_spend_records_no_baseline(
     """A clean session's marker stays exactly as it was before this change."""
     _install(monkeypatch, _FakeBr())
     monkeypatch.setattr(policy, "session_spend", lambda *_a, **_k: policy.SpendMeter(0, 0, 0))
-    policy.issue_grant_guarded(tmp_path, "root", "L1", 5_000_000, L3_CONFIG, interactive=True)
+    policy.issue_grant_guarded(
+        tmp_path, "root", "assisted", 5_000_000, UNATTENDED_CONFIG, interactive=True
+    )
 
     assert "baseline=" not in policy._write.comments[-1]  # type: ignore[attr-defined]
 
@@ -2512,7 +2583,7 @@ def test_an_unmeterable_dispatch_halts_instead_of_metering_its_estimate(
     """The reported defect: a chars/4 floor was counted as if it were spend."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
     _dispatch(tmp_path, 24_210, estimated=False)
     _dispatch(tmp_path, 1_378, estimated=True)
 
@@ -2533,7 +2604,7 @@ def test_a_fully_measured_session_meters_exactly_as_before(
     """The other half: with every sample measured, nothing about the ceiling moves."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100")
     _dispatch(tmp_path, 60, estimated=False)
     _dispatch(tmp_path, 30, estimated=False)
 
@@ -2558,7 +2629,7 @@ def test_a_legacy_record_with_no_usage_provenance_still_meters(
     """
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L2 budget=100000")
+    fake.comments.append("[harness-policy] grant level=supervised budget=100000")
     run_record.record(
         tmp_path,
         "root",
@@ -2575,14 +2646,14 @@ def test_a_legacy_record_with_no_usage_provenance_still_meters(
 def test_without_a_ceiling_an_unmeterable_dispatch_halts_nothing(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """No grant, and an L1 grant with no budget, have no ceiling for this to protect."""
+    """No grant, and an assisted grant with no budget, have no ceiling to protect."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
     _dispatch(tmp_path, 1_378, estimated=True)
 
     assert policy.spend_status(tmp_path, "root").halted is False
 
-    fake.comments.append("[harness-policy] grant level=L1")
+    fake.comments.append("[harness-policy] grant level=assisted")
     assert policy.spend_status(tmp_path, "root").halted is False
 
 
@@ -2598,7 +2669,9 @@ def test_re_granting_answers_for_the_dispatches_already_unmetered(
     _install(monkeypatch, fake)
     _dispatch(tmp_path, 1_378, estimated=True)
 
-    policy.issue_grant_guarded(tmp_path, "root", "L1", 5_000_000, L3_CONFIG, interactive=True)
+    policy.issue_grant_guarded(
+        tmp_path, "root", "assisted", 5_000_000, UNATTENDED_CONFIG, interactive=True
+    )
     assert "unmetered=1" in fake.comments[-1]
 
     grant = policy.active_grant(tmp_path, "root")
@@ -2617,7 +2690,9 @@ def test_a_session_with_nothing_unmetered_records_no_unmetered_baseline(
     _install(monkeypatch, fake)
     _dispatch(tmp_path, 24_210, estimated=False)
 
-    policy.issue_grant_guarded(tmp_path, "root", "L1", 5_000_000, L3_CONFIG, interactive=True)
+    policy.issue_grant_guarded(
+        tmp_path, "root", "assisted", 5_000_000, UNATTENDED_CONFIG, interactive=True
+    )
 
     assert "unmetered=" not in fake.comments[-1]
 
@@ -2636,7 +2711,7 @@ def test_a_dispatch_that_never_started_an_agent_does_not_halt_the_grant(
     """No process ran, so no spend hides under the floor and the remainder is known."""
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=60000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=60000000")
     _dispatch(tmp_path, 16_561_474, estimated=False)
     _dispatch(tmp_path, 182, estimated=True, started=False)
 
@@ -2660,7 +2735,7 @@ def test_the_two_unmeasured_shapes_are_not_one_shape(
     """
     fake = _FakeBr()
     _install(monkeypatch, fake)
-    fake.comments.append("[harness-policy] grant level=L3 budget=60000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=60000000")
     unstarted = tmp_path / "unstarted"
     ran = tmp_path / "ran"
     for root in (unstarted, ran):
@@ -2678,7 +2753,7 @@ def test_the_two_unmeasured_shapes_are_not_one_shape(
 def test_the_forward_gate_calls_the_remainder_unknown_not_spent() -> None:
     """A pass refused for an unmeterable dispatch must not read as an exhausted budget."""
     status = policy.SpendStatus(
-        grant=policy.Grant(level="L2", token_budget=100_000),
+        grant=policy.Grant(level="supervised", token_budget=100_000),
         spent_tokens=0,
         halted=True,
         unmetered_dispatches=1,
@@ -2760,7 +2835,7 @@ def test_a_covering_grant_records_no_wait_because_it_removed_it(
     fake = _FakeBr(gates=_VERIFY_GREEN)
     _install(monkeypatch, fake)
     _pin_clocks(monkeypatch, fake, waited_s=600)
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
 
     approved = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
 
@@ -2781,12 +2856,12 @@ def test_a_grant_that_ends_an_open_wait_is_recorded_as_delegated(
     # Asked first (no grant yet), then a grant arrives and disposes of it.
     asked = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
     assert asked.status == "challenge"
-    fake.comments.append("[harness-policy] grant level=L3 budget=1000000")
+    fake.comments.append("[harness-policy] grant level=unattended budget=1000000")
     approved = policy.approve_checkpoint_guarded(tmp_path, "root", "ship", interactive=False)
     assert approved.status == "approved"
 
     (event,) = policy.wait_events(tmp_path, "root")
-    assert (event.answered_by, event.delegated, event.waited_s) == ("grant:L3", True, 900)
+    assert (event.answered_by, event.delegated, event.waited_s) == ("grant:unattended", True, 900)
     summary = policy.session_wait_summary(tmp_path, "root")
     assert (summary.human_wait_s, summary.delegated_wait_s) == (0, 900)
 
@@ -3165,7 +3240,7 @@ def test_record_scope_violation_records_a_changed_finding_again(
 
 
 def _status(budget: int | None, spent: int, *, baseline: int = 0) -> policy.SpendStatus:
-    grant = policy.Grant(level="L3", token_budget=budget, spent_at_issue=baseline)
+    grant = policy.Grant(level="unattended", token_budget=budget, spent_at_issue=baseline)
     return policy.SpendStatus(grant=grant, spent_tokens=spent, halted=False)
 
 
@@ -3189,7 +3264,7 @@ def test_remaining_tokens_ignores_spend_below_the_grant_baseline() -> None:
 
 
 def test_remaining_tokens_is_none_without_a_ceiling() -> None:
-    """No grant and an L1 grant with no budget both mean there is nothing to enforce."""
+    """No grant and an assisted grant with no budget both mean nothing to enforce."""
     ungranted = policy.SpendStatus(grant=None, spent_tokens=5_000, halted=False)
     assert ungranted.remaining_tokens is None
     assert _status(None, 5_000).remaining_tokens is None

@@ -66,7 +66,7 @@ def _seeded(tmp_path: Path) -> Path:
                 "id": "basicly-ccc",
                 "status": "open",
                 "title": "the granted root",
-                "comments": [{"text": f"{policy.MARKER} grant level=L3 budget=1000000"}],
+                "comments": [{"text": f"{policy.MARKER} grant level=unattended budget=1000000"}],
             },
         ],
     )
@@ -159,7 +159,7 @@ def test_a_grant_on_a_closed_root_is_not_live(
                 "id": "basicly-ddd",
                 "status": "closed",
                 "title": "the finished root",
-                "comments": [{"text": f"{policy.MARKER} grant level=L3 budget=1000000"}],
+                "comments": [{"text": f"{policy.MARKER} grant level=unattended budget=1000000"}],
             }
         ],
     )
@@ -198,7 +198,7 @@ def test_the_remaining_budget_is_the_budget_less_what_this_checkout_recorded(
     grant = json.loads(capsys.readouterr().out)["grants"]["records"][0]
     assert grant == {
         "record": "basicly-ccc",
-        "level": "L3",
+        "level": "unattended",
         "budget": 1_000_000,
         "spent": 250_000,
         "remaining": 750_000,

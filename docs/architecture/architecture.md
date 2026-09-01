@@ -444,12 +444,13 @@ The two are independent. A typo fix in the tutorial, run under a grant that need
 human, is `docs-and-tests` integrity at `unattended` autonomy.
 
 Both scales once used the letter `L`. Autonomy ran `L0` to `L3` and integrity ran `L1`
-to `L3`, so a bare `L2` named neither one. Each level now has a name. The `Code today`
-column below carries the identifier the engine still writes.
+to `L3`, so a bare `L2` named neither one. Each level now has a name, and the name is what
+the engine writes. The `Retired` column below carries the spelling it accepts on input for
+the deprecation window basicly-3iaw0x opened.
 
 ### 9.1 Autonomy: how much the engine may approve alone
 
-| Name | Code today | The engine may approve | A human must still approve |
+| Name | Retired | The engine may approve | A human must still approve |
 | --- | --- | --- | --- |
 | `attended` | `L0` | nothing | classify, decompose, ship |
 | `assisted` | `L1` | decompose | classify, ship |
@@ -472,7 +473,7 @@ be one word with two meanings. Four rejected name sets are in
 
 ### 9.2 Integrity: how far a defect reaches
 
-| Name | Code today | Paths it claims | Verify mode | Extra gates | Model tier | Rework | Ship |
+| Name | Retired | Paths it claims | Verify mode | Extra gates | Model tier | Rework | Ship |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | `docs-and-tests` | `L1` | documentation, tests, the site, changelog fragments, every `.md` file | fast | — | medium | 1 | may be delegated |
 | `engine` | `L2` | engine code, the scripts, and every path no clause claims | full | — | high | 2 | may be delegated |
@@ -480,19 +481,22 @@ be one word with two meanings. Four rejected name sets are in
 
 Sources: `integrity.LEVELS`, `integrity._RULES`, `integrity._SELECTIONS`.
 
-**Each name is the rule clause that assigns the level.** The code already calls them
-`docs-and-tests`, `engine-internal` and the five `*-surface` clauses. The names are read
-off the tree rather than invented, so a verdict a reader sees printed and a name they
+**Each name is the rule clause that assigns the level.** The code calls the clauses
+`docs-and-tests`, `engine-internal` and the five `*-surface` names. The level names are
+read off the tree rather than invented, so a verdict a reader sees printed and a name they
 read here are the same word.
 
 **The three names widen outward.** A `docs-and-tests` defect stops inside this
 repository. An `engine` defect changes how the tool behaves. A `consumer-surface` defect
 breaks something a consumer's own code or configuration is pinned to.
 
-**The engine still writes `L0` to `L3`** in the classification marker, in the plan
-gate's vocabulary check, in `basicly.toml` and in every `--autonomy` flag value. Those
-spellings are a frozen consumer surface, so a rename needs a deprecation window. The
-rename is filed as basicly-3iaw0x.
+**The engine writes the names and accepts the letters.** `L0` to `L3` still load from
+`[policy] autonomy`, from a `--level`/`--autonomy` argument, from a grant marker already in
+the ledger, from a recorded `## Plan` block and from a `[harness-classification]` marker
+already written — those spellings are a frozen consumer surface, so the rename carries a
+deprecation window (basicly-3iaw0x). `[policy] autonomy` is the one that says so out loud,
+with a line naming the replacement; the rest translate silently, because the records they
+read are history nothing may rewrite. Nothing writes a letter.
 
 [36.5](#365-integrity-assignment) covers the rule that assigns a level and how much of
 the assignment anything reads back.
@@ -4560,8 +4564,9 @@ Integrity levels are `docs-and-tests`, `engine`, `consumer-surface`.
 | `fast` / `full` / `full-plus` | integrity | Those are the three verify **mode** names |
 | `local` / `engine` / `contract` | integrity | `local` already names the per-machine overlay, `.basicly-local` and `basicly.local.toml` |
 
-**Consequence.** The engine still writes `L0` to `L3` on a frozen consumer surface, so the
-rename in code needs a deprecation window. It is filed as basicly-3iaw0x.
+**Consequence.** The letters reached frozen consumer surfaces, so the rename landed with a
+deprecation window rather than a cutover (basicly-3iaw0x): the engine writes only names, and
+every reader still accepts a letter. §9 lists the five surfaces that carry one.
 
 ### D-32 · Pre-commit rather than a compiled hook runner
 

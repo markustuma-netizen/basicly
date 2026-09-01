@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://basicly.dev/schemas/classification.schema.json",
   "title": "basicly classification handoff artifact",
-  "description": "What CLASSIFY hands DECOMPOSE (factory loop requirements 8). One artifact per classified unit, recorded on that unit; the decider writes it at L2 and above, and the path rule alone writes it below. It carries the level, the loop depth and the rule that produced them, plus what the level selects - the same four things integrity.Selection already computes and the [harness-classification] marker already persists, so DECOMPOSE reads the gate set, tier and rework allowance it is held to instead of re-deriving them from the letter.",
+  "description": "What CLASSIFY hands DECOMPOSE (factory loop requirements 8). One artifact per classified unit, recorded on that unit; the decider writes it at `supervised` autonomy and above, and the path rule alone writes it below. It carries the level, the loop depth and the rule that produced them, plus what the level selects - the same four things integrity.Selection already computes and the [harness-classification] marker already persists, so DECOMPOSE reads the gate set, tier and rework allowance it is held to instead of re-deriving them from the level name.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -26,6 +26,9 @@
     },
     "level": {
       "enum": [
+        "docs-and-tests",
+        "engine",
+        "consumer-surface",
         "L1",
         "L2",
         "L3"

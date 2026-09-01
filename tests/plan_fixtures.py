@@ -92,7 +92,7 @@ def planned(title: str, *scope: str, **overrides: object) -> ChildSpec:
         "scope": scope or (f"src/{title}.py",),
         "depends_on": (),
         "budget_tokens": 40_000,
-        "integrity": "L2",
+        "integrity": "engine",
         "demonstration": DEMONSTRATION,
     }
     fields.update(overrides)
@@ -112,7 +112,7 @@ def child_payload(title: str, **overrides: object) -> dict:
         "scope": [f"src/{title}.py"],
         "depends_on": [],
         "budget_tokens": 40_000,
-        "integrity": "L2",
+        "integrity": "engine",
         "demonstration": DEMONSTRATION,
     }
     payload.update(overrides)
@@ -132,7 +132,7 @@ def recorded_body(**overrides: object) -> str:
         "scope": ("src/a.py",),
         "depends_on": (),
         "budget_tokens": 40_000,
-        "integrity": "L2",
+        "integrity": "engine",
     }
     fields.update(overrides)
     sections = []

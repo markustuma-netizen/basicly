@@ -1116,21 +1116,58 @@ def test_sizing_config_context_ceiling_unusable_values_fall_back(tmp_path: Path)
 # --- [policy] autonomy ceiling (basicly-kjc5.3, D3) ---------------------------
 
 
-def test_policy_config_autonomy_defaults_to_l0(tmp_path: Path) -> None:
+def test_policy_config_autonomy_defaults_to_attended(tmp_path: Path) -> None:
     """Factory autonomy is opt-in: the default ceiling keeps grants unissuable."""
-    assert load_policy_config(tmp_path).autonomy == "L0"
+    assert load_policy_config(tmp_path).autonomy == "attended"
 
 
 def test_policy_config_autonomy_parses_valid_levels(tmp_path: Path) -> None:
-    """A configured ceiling in the L0-L3 vocabulary lands on the config."""
-    (tmp_path / CONFIG_FILE).write_text('[policy]\nautonomy = "L2"\n', encoding="utf-8")
-    assert load_policy_config(tmp_path).autonomy == "L2"
+    """A configured ceiling in the named vocabulary lands on the config."""
+    (tmp_path / CONFIG_FILE).write_text('[policy]\nautonomy = "supervised"\n', encoding="utf-8")
+    assert load_policy_config(tmp_path).autonomy == "supervised"
 
 
 def test_policy_config_autonomy_unknown_value_falls_back(tmp_path: Path) -> None:
-    """A typo must fail closed to L0, never open autonomy by accident."""
+    """A typo must fail closed to attended, never open autonomy by accident."""
     (tmp_path / CONFIG_FILE).write_text('[policy]\nautonomy = "L9"\n', encoding="utf-8")
-    assert load_policy_config(tmp_path).autonomy == "L0"
+    assert load_policy_config(tmp_path).autonomy == "attended"
+
+
+@pytest.mark.parametrize(
+    ("legacy", "name"),
+    [("L0", "attended"), ("L1", "assisted"), ("L2", "supervised"), ("L3", "unattended")],
+)
+def test_policy_config_autonomy_accepts_a_retired_letter(
+    tmp_path: Path, legacy: str, name: str
+) -> None:
+    """A basicly.toml written before basicly-3iaw0x still loads, at the same level."""
+    config._say_autonomy_deprecated.cache_clear()
+    (tmp_path / CONFIG_FILE).write_text(f'[policy]\nautonomy = "{legacy}"\n', encoding="utf-8")
+    assert load_policy_config(tmp_path).autonomy == name
+
+
+def test_policy_config_autonomy_names_the_new_spelling_for_a_retired_letter(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The deprecation line has to say what to write instead, and say it once."""
+    config._say_autonomy_deprecated.cache_clear()
+    (tmp_path / CONFIG_FILE).write_text('[policy]\nautonomy = "L3"\n', encoding="utf-8")
+    assert load_policy_config(tmp_path).autonomy == "unattended"
+    said = capsys.readouterr().err
+    assert "L3" in said
+    assert "unattended" in said
+    assert load_policy_config(tmp_path).autonomy == "unattended"
+    assert capsys.readouterr().err == ""
+
+
+def test_policy_config_autonomy_says_nothing_for_a_named_level(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Only the retired spelling warns; the ceiling this repo writes today is silent."""
+    config._say_autonomy_deprecated.cache_clear()
+    (tmp_path / CONFIG_FILE).write_text('[policy]\nautonomy = "unattended"\n', encoding="utf-8")
+    assert load_policy_config(tmp_path).autonomy == "unattended"
+    assert capsys.readouterr().err == ""
 
 
 # --- [policy] scope_collision (basicly-jr0l.44) -------------------------------

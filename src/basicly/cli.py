@@ -84,6 +84,7 @@ from .config import (
     load_technology_selection,
     load_verify_config,
     load_worktree_config,
+    normalize_autonomy,
     record_technology_selection,
     unknown_config_keys,
 )
@@ -803,7 +804,7 @@ _DECISION_ROW = re.compile(r"^\| (D-\d+) \| (.+?) \| (.+?) \| (.+?) \|[ \t]*$", 
 # which is what a session about to change the tree needs in front of it.
 DECISION_IN_FORCE = "accepted"
 
-# Deliberately wider than either grant marker (`... grant level=L3`, `... grant revoked`):
+# Deliberately wider than either grant marker (`... grant level=unattended`, `... grant revoked`):
 # this only chooses which records `policy.active_grant` is then asked about, so a filter
 # that is too wide costs one comment walk and one that is too narrow hides a live grant.
 _GRANT_MARKER = f"{policy.MARKER} grant"
@@ -2811,7 +2812,7 @@ def _coverage_phrase(repo_root: Path, issue: str) -> str:
     """How many beads the session rooted at *issue* covers, in words.
 
     Printed on issuance and on the ledger read, because a grant's marker says
-    nothing about its reach: an L3 with a large ceiling reads as authority over
+    nothing about its reach: an unattended one with a large ceiling reads as authority over
     a whole track even when the session is the single bead it sits on
     (basicly-jr0l.40). The single-leaf case names itself rather than leaving
     "covers 1 bead" to be read as a rounding of something larger.
@@ -2834,12 +2835,12 @@ def _report_active_grant(repo_root: Path, issue: str) -> int:
     decompose, ship`` reads as "the loop classifies and decomposes for you"; it
     only ever meant the *checkpoint approval* over those phases, while the input
     each phase needs had no producer at all. So approving and originating are
-    named separately, and an L1 grant — which approves the decompose checkpoint but
+    named separately, and an assisted grant — which approves the decompose checkpoint but
     may not propose the plan it would approve — says so out loud.
     """
     grant = policy.active_grant(repo_root, issue)
     if grant is None:
-        print(f"grant: NONE ({issue}) - every checkpoint is human (L0)")
+        print(f"grant: NONE ({issue}) - every checkpoint is human (attended)")
         return 1
     budget = f", token budget {grant.token_budget}" if grant.token_budget is not None else ""
     covers = ", ".join(policy.GRANT_COVERAGE[grant.level]) or "(nothing)"
@@ -2861,7 +2862,7 @@ def _cmd_policy_grant(args: argparse.Namespace) -> int:
     ``--autonomy`` raises the grantable ceiling for this one issuance
     (basicly-jr0l.15). The session pin ``loop supervise --autonomy`` cannot reach
     here: a grant is issued by this separate command in a separate process, so
-    without the flag a session could be pinned above L0 and still be unable to
+    without the flag a session could be pinned above `attended` and still be unable to
     obtain the grant it needs — which also means no token budget, since a spend
     ceiling exists only on a grant.
 
@@ -3383,7 +3384,7 @@ def _print_preflight_checkpoints(
 ) -> list[str]:
     """Report the root's own unapproved checkpoints; return the ones that refuse a pass.
 
-    Observed 2026-08-04: a clean base, a live L3 grant, a funded forecast and five
+    Observed 2026-08-04: a clean base, a live unattended grant, a funded forecast and five
     in-band lanes preflighted as ready, and the pass it green-lit dispatched nothing —
     ``seed-blocked ... decompose checkpoint awaiting human approval``. Checkpoint state
     was the one precondition the report omitted, and ``loop status`` reconstructs it
@@ -3781,9 +3782,10 @@ def _apply_session_overrides(repo_root: Path, args: argparse.Namespace) -> tuple
             raise ValueError(f"unknown runner {runner_name!r}; configured: {sorted(known)}")
         pending.append(("runner", "default", runner_name))
     if autonomy := getattr(args, "autonomy", None):
-        if autonomy not in AUTONOMY_LEVELS:
+        name = normalize_autonomy(autonomy)
+        if name is None:
             raise ValueError(f"unknown autonomy level {autonomy!r}; one of {list(AUTONOMY_LEVELS)}")
-        pending.append(("policy", "autonomy", autonomy))
+        pending.append(("policy", "autonomy", name))
     if tier := getattr(args, "tier", None):
         if tier not in MODEL_TIERS:
             raise ValueError(f"unknown model tier {tier!r}; one of {list(MODEL_TIERS)}")
@@ -5147,12 +5149,12 @@ def _add_release_parser(subparsers: argparse._SubParsersAction) -> None:
     release_parser.add_argument(
         "--autonomous",
         action="store_true",
-        help="Non-interactive invocation: refused unless --root carries a green L3 grant",
+        help="Non-interactive invocation: refused unless --root carries a green unattended grant",
     )
     release_parser.add_argument(
         "--root",
         metavar="ISSUE",
-        help="Session root issue the L3 grant is checked against (requires --autonomous)",
+        help="Session root issue the unattended grant is checked against (requires --autonomous)",
     )
     release_parser.add_argument(
         "--shipping",
@@ -5160,6 +5162,17 @@ def _add_release_parser(subparsers: argparse._SubParsersAction) -> None:
         help="Node whose required gates must be green for --autonomous "
         "(default: --root; an open epic's own verify gate is never green, kjc5.39)",
     )
+
+
+def _autonomy_argument(value: str) -> str:
+    """An ``--autonomy``/``--level`` argument, translating a retired letter.
+
+    An argparse ``type`` rather than a widened ``choices`` list, so ``--help``
+    advertises only the names `architecture.md` §9.1 gives while a script still passing
+    ``L3`` keeps working through the deprecation window (D31). An unrecognised
+    value is handed back untouched for argparse's own choices error to report.
+    """
+    return normalize_autonomy(value) or value
 
 
 def _add_policy_parser(subparsers: argparse._SubParsersAction) -> None:
@@ -5197,21 +5210,26 @@ def _add_policy_parser(subparsers: argparse._SubParsersAction) -> None:
         help="One-time code from a prior non-interactive --approve (required off a TTY)",
     )
     p_gr = policy_sub.add_parser(
-        "grant", help="Show, issue, or revoke a session autonomy grant (L1-L3)"
+        "grant",
+        help="Show, issue, or revoke a session autonomy grant (assisted/supervised/unattended)",
     )
     p_gr.add_argument("issue", help="The session root issue carrying the grant ledger")
     p_gr.add_argument(
-        "--level", choices=[lvl for lvl in AUTONOMY_LEVELS if lvl != "L0"], help="Level to issue"
+        "--level",
+        type=_autonomy_argument,
+        choices=policy.GRANTABLE_LEVELS,
+        help="Level to issue",
     )
     p_gr.add_argument(
         "--token-budget",
         type=int,
         metavar="TOKENS",
-        help="Session spend ceiling in run-record tokens (required for L2+)",
+        help="Session spend ceiling in run-record tokens (required at supervised and above)",
     )
     p_gr.add_argument("--revoke", action="store_true", help="Revoke the active grant")
     p_gr.add_argument(
         "--autonomy",
+        type=_autonomy_argument,
         choices=AUTONOMY_LEVELS,
         help="Grantable ceiling for this issuance only, overriding [policy] autonomy "
         "without editing any committed config (still gated by the confirm challenge)",
@@ -5269,6 +5287,7 @@ def _add_session_override_args(parser: argparse.ArgumentParser) -> None:
     )
     parser.add_argument(
         "--autonomy",
+        type=_autonomy_argument,
         choices=AUTONOMY_LEVELS,
         help="Grantable autonomy ceiling for this invocation only, overriding "
         "[policy] autonomy without editing any committed config",

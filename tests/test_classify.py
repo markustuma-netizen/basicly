@@ -119,10 +119,12 @@ def test_classify_assigns_and_records_the_integrity_level(
     fake = _FakeBr()
     _install(monkeypatch, fake)
     result = classify.classify(tmp_path, "i", "task", ("src/basicly/cli.py",))
-    assert result.level == "L3"
+    assert result.level == "consumer-surface"
     assert len(fake.comments) == 1
     body = fake.comments[0]
-    assert body.startswith(f"{classify.CLASSIFICATION_MARKER} level=L3 rule=cli-surface")
+    assert body.startswith(
+        f"{classify.CLASSIFICATION_MARKER} level=consumer-surface rule=cli-surface"
+    )
     assert "gates=full,validate-as-consumer,evidence-binding" in body
     assert "tier=maximum" in body
     assert "rework=2" in body
@@ -147,7 +149,7 @@ def test_classify_without_a_scope_still_assigns_a_level(
     fake = _FakeBr()
     _install(monkeypatch, fake)
     result = classify.classify(tmp_path, "i", "task")
-    assert result.level == "L2"
+    assert result.level == "engine"
     assert "reason=no scope declared" in fake.comments[0]
 
 
@@ -175,7 +177,7 @@ def test_the_type_and_the_marker_land_in_the_owned_ledger_with_br_absent(
     assert record["issue_type"] == "task"
     assert result.dor.ready is True
     marker = tracker.read_comments(repo, "seam-1")[0]["text"]
-    assert marker.startswith(f"{classify.CLASSIFICATION_MARKER} level=L2")
+    assert marker.startswith(f"{classify.CLASSIFICATION_MARKER} level=engine")
 
 
 def test_the_dor_verdict_comes_out_of_the_owned_record_with_br_absent(

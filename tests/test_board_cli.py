@@ -210,14 +210,17 @@ def test_the_caller_supplies_every_derivation_the_producer_refuses(tmp_path: Pat
         repo, "bd-1", "checkpoint", "approve the ship checkpoint for bd-1?", human_required=False
     )
     config = loop_state.load_policy_config(repo)
-    # An explicit ceiling rather than the checkout's: `[policy] autonomy` defaults below L3, so
+    # An explicit ceiling rather than the checkout's: `[policy] autonomy` defaults low, so
     # a grant issued under the loaded config is refused before any interactivity gate.
-    lights_out = policy.PolicyConfig(required_gates=("verify",), max_rework=2, autonomy="L3")
-    # L2, not L3: `policy.GRANT_COVERAGE["L3"]` delegates `ship` itself, and basicly-0i86tl's
-    # filter then drops this very ask - L2 covers `classify`/`decompose` but not `ship`, so
+    lights_out = policy.PolicyConfig(
+        required_gates=("verify",), max_rework=2, autonomy="unattended"
+    )
+    # supervised, not unattended: `GRANT_COVERAGE["unattended"]` delegates `ship` itself and
+    # basicly-0i86tl's filter then drops this very ask - supervised covers
+    # `classify`/`decompose` but not `ship`, so
     # the wording pairing below still has an ask to pair against.
     granted = policy.issue_grant_guarded(
-        repo, "bd-1", "L2", 8_000_000, lights_out, interactive=True
+        repo, "bd-1", "supervised", 8_000_000, lights_out, interactive=True
     )
     assert granted.status == "approved"
     _lock(repo, "bd-1")
@@ -231,7 +234,7 @@ def test_the_caller_supplies_every_derivation_the_producer_refuses(tmp_path: Pat
     assert document["asks"][0]["wait_id"] == "bd-1#wait-ship"
     assert document["asks"][0]["question"] == "approve the ship checkpoint for bd-1?"
     assert document["asks"][0]["waiting_s"] >= 0
-    assert document["session"]["grant_level"] == "L2"
+    assert document["session"]["grant_level"] == "supervised"
     assert document["session"]["token_budget"] == 8_000_000
     # No run-record file, so the spend this checkout can see is not zero - it is unknown.
     assert "spent_tokens" not in document["session"]

@@ -1,4 +1,4 @@
-"""VALIDATE as a real loop phase, gated at the recorded L3 level (basicly-u2hl.54.1)."""
+"""VALIDATE as a loop phase, gated at the recorded top level (basicly-u2hl.54.1)."""
 
 from __future__ import annotations
 
@@ -17,8 +17,12 @@ from tests import fake_tracker
 CONFIG = PolicyConfig(required_gates=("verify",), max_rework=2)
 GATE = validate_gate.VALIDATE_GATE
 
-L3_MARKER = "[harness-classification] level=L3 rule=cli-surface gates=full tier=maximum"
-L2_MARKER = "[harness-classification] level=L2 rule=engine gates=full tier=high"
+SURFACE_MARKER = (
+    "[harness-classification] level=consumer-surface rule=cli-surface gates=full tier=maximum"
+)
+ENGINE_MARKER = "[harness-classification] level=engine rule=engine-internal gates=full tier=high"
+# What classify wrote before basicly-3iaw0x, still in this repo's own ledger.
+LEGACY_SURFACE_MARKER = SURFACE_MARKER.replace("consumer-surface", "L3")
 
 
 class _Proc:
@@ -69,7 +73,7 @@ def _engine_gate(gate: str, passed: bool) -> dict:
 
 
 def _gates(*, verify: bool = True, validate: bool | None = None) -> GateStatus:
-    """A GateStatus as ``gate_status`` would build one for an L3 unit."""
+    """A GateStatus as ``gate_status`` would build one for a consumer-surface unit."""
     passed = ("verify",) if verify else ()
     missing = () if verify else ("verify",)
     failed: tuple[str, ...] = ()
@@ -115,13 +119,15 @@ def test_a_unit_resting_in_validate_counts_as_downstream_wip() -> None:
 @pytest.mark.parametrize(
     ("comments", "expected"),
     [
-        ([L3_MARKER], "L3"),
-        ([L2_MARKER], "L2"),
+        ([SURFACE_MARKER], "consumer-surface"),
+        ([ENGINE_MARKER], "engine"),
+        # A marker written before the rename still reads back, translated.
+        ([LEGACY_SURFACE_MARKER], "consumer-surface"),
         ([], None),
         (["some unrelated comment"], None),
         # Latest wins: classify rewrites its marker when the assignment changes.
-        ([L2_MARKER, L3_MARKER], "L3"),
-        ([L3_MARKER, L2_MARKER], "L2"),
+        ([ENGINE_MARKER, SURFACE_MARKER], "consumer-surface"),
+        ([SURFACE_MARKER, ENGINE_MARKER], "engine"),
         # A level outside the vocabulary reads as unmarked rather than raising —
         # the documented fail-open, because the alternative wedges the unit.
         (["[harness-classification] level=L9 rule=x"], None),
@@ -141,25 +147,25 @@ def test_the_recorded_level_is_read_from_the_standing_marker(
 def test_l3_promotes_the_consumer_gate_and_nothing_else(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """L3's selection names three entries; exactly one of them is a gate to require.
+    """The top selection names three entries; exactly one of them is a gate to require.
 
     ``full`` is a ``basicly verify`` mode, and ``evidence-binding`` has no producer
-    anywhere in this tree — requiring it would rest every L3 unit in VALIDATE against
+    anywhere in this tree — requiring it would rest every such unit in VALIDATE against
     a gate nothing can ever record.
     """
-    _install(monkeypatch, _FakeBr(comments=[L3_MARKER]))
+    _install(monkeypatch, _FakeBr(comments=[SURFACE_MARKER]))
     required = validate_gate.required_config(tmp_path, "i", CONFIG).required_gates
     assert required == ("verify", GATE)
-    assert "evidence-binding" in integrity.selection_for("L3").gates
+    assert "evidence-binding" in integrity.selection_for("consumer-surface").gates
     assert "evidence-binding" not in required
     assert "full" not in required
 
 
-@pytest.mark.parametrize("comments", [[L2_MARKER], []])
+@pytest.mark.parametrize("comments", [[ENGINE_MARKER], []])
 def test_a_unit_below_l3_owes_no_validation(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, comments: list[str]
 ) -> None:
-    """L1/L2 and every issue predating the marker keep the required set they had."""
+    """The lower levels, and every issue predating the marker, keep the set they had."""
     _install(monkeypatch, _FakeBr(comments=comments))
     assert validate_gate.required_config(tmp_path, "i", CONFIG) is CONFIG
 
@@ -168,7 +174,7 @@ def test_a_repo_already_requiring_the_gate_is_not_given_it_twice(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     """A repo declaring the gate itself is left alone, not handed a duplicate."""
-    _install(monkeypatch, _FakeBr(comments=[L3_MARKER]))
+    _install(monkeypatch, _FakeBr(comments=[SURFACE_MARKER]))
     declared = PolicyConfig(required_gates=("verify", GATE), max_rework=2)
     assert validate_gate.required_config(tmp_path, "i", declared) is declared
 
@@ -218,7 +224,7 @@ def test_validation_outstanding_on_an_unbuilt_unit_does_not_reach_validate() -> 
 
 @pytest.mark.parametrize("checkpoints", [(), ("ship",)])
 def test_a_unit_below_l3_derives_the_phase_it_always_did(checkpoints: tuple[str, ...]) -> None:
-    """L1/L2 carry no validate gate at all, so their ladder is untouched."""
+    """The lower levels carry no validate gate at all, so their ladder is untouched."""
     gates = GateStatus(True, ("verify",), (), (), ())
     expected = "ship" if checkpoints else "verify"
     bound = WorktreeBinding("n", "b")
@@ -235,7 +241,7 @@ def test_an_l3_issue_reconstructs_into_the_validate_phase(
     _install(
         monkeypatch,
         _FakeBr(
-            comments=[L3_MARKER],
+            comments=[SURFACE_MARKER],
             gates=[_engine_gate("verify", True)],
             external_ref=loop_state.format_worktree_ref("feat", "harness/feat"),
         ),
@@ -255,7 +261,7 @@ def test_an_l2_issue_reconstructs_into_verify_as_before(
     _install(
         monkeypatch,
         _FakeBr(
-            comments=[L2_MARKER],
+            comments=[ENGINE_MARKER],
             gates=[_engine_gate("verify", True)],
             external_ref=loop_state.format_worktree_ref("feat", "harness/feat"),
         ),
@@ -272,7 +278,7 @@ def test_a_foreign_validation_result_does_not_satisfy_the_gate(
     _install(
         monkeypatch,
         _FakeBr(
-            comments=[L3_MARKER],
+            comments=[SURFACE_MARKER],
             gates=[
                 _engine_gate("verify", True),
                 {"gate": GATE, "provider": "some-agent", "passed": True},
@@ -386,8 +392,8 @@ def test_the_gate_name_is_spelled_once_in_the_engine() -> None:
 
     It was spelled three times: `dispatch_brief` held a copy with no consumer at all,
     `validate_gate` held the one every consumer reads, and `integrity` spelled it a
-    third time inside L3's gate tuple. That third one is the expensive copy — a rename
-    that reached `validate_gate` and not `integrity` leaves
+    third time inside the top selection's gate tuple. That third one is the expensive
+    copy — a rename that reached `validate_gate` and not `integrity` leaves
     :func:`~basicly.validate_gate.requires_validation` silently not requiring
     validation, which is a fail-open on the gate itself.
     """

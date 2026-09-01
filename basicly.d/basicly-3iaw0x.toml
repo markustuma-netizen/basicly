@@ -1,0 +1,65 @@
+# The two ladders carry the names architecture §9 gives them (basicly-3iaw0x).
+#
+# Autonomy is now `attended`/`assisted`/`supervised`/`unattended` and integrity is
+# `docs-and-tests`/`engine`/`consumer-surface`. The retired `L0`..`L3` are accepted on every
+# input boundary for a deprecation window: `[policy] autonomy`, a `--level`/`--autonomy`
+# argument, a grant marker already in the ledger, a recorded `## Plan` block, and a
+# `[harness-classification]` marker. Nothing writes a letter any more.
+#
+# ## module_size: two rebaselines, both the deprecation window itself
+#
+# `config.py` 24048 -> 24516 against a baseline of 24203, and `policy.py` 33113 -> 33287
+# against 33113 — exactly its baseline, with nowhere to put anything.
+#
+# What grew, in `config.py`: `LEGACY_AUTONOMY_LEVELS`, `normalize_autonomy`, and the pair
+# that honours a retired letter and says so once (`_autonomy_setting`,
+# `_say_autonomy_deprecated`). That pair *is* the acceptance criterion — accept the old
+# value, name the new spelling — so it cannot be smaller than a parse, a comparison and a
+# message. In `policy.py`: `GRANTABLE_LEVELS` and `_BUDGETED_LEVELS`, which replace the
+# `!= "L0"` and `in ("L2", "L3")` literals a rename would otherwise have left as four
+# inlined names, plus the letter translation in `_parse_grant`.
+#
+# The rest of both deltas is the rename paying for itself in characters: `unattended` is
+# nine tokens' worth more than `L3` wherever a key, a message or a refusal spells it, and
+# `policy.py` alone spells a level in 30 places.
+#
+# Banked rather than absorbed by cutting prose, which is the cheapest way to clear this gate
+# and the reason the comment rule exists. Both modules are far over the 4000 cap for reasons
+# that predate this change and have a decomposition track of their own. Prose was trimmed
+# first where it was mine and restated the code: `integrity.py` 60.4% -> 59.9% and
+# `validate_gate.py` 50.2% -> 50.0%, so `comment_density` needed neither a waiver nor a
+# rebaseline.
+# ## module_size: seven rebaselines, all the same two causes
+#
+# Two engine modules and five test modules, and every token is either the deprecation
+# window or the names being longer than the letters. `tests/test_validate_gate.py` is the
+# one that crosses the 4000 cap rather than rising off a baseline: it stood 7 tokens under
+# it, and the closed frozen list has no room for a subject, so the declared-and-counted
+# `rebaselined` route is the one the gate's own refusal names.
+[ratchet.module_size]
+rebaseline_reason = "the L0-L3 deprecation window: config.py gains the legacy map and the accept-and-warn pair the acceptance criterion names, policy.py gains the grant-marker translation, the tests gain the regression cases for both, and every level spelling is longer than the letter it replaces"
+
+[ratchet.module_size.rebaselined]
+"src/basicly/config.py" = 313
+"src/basicly/policy.py" = 228
+"tests/test_config.py" = 420
+"tests/test_policy.py" = 617
+"tests/test_release.py" = 19
+"tests/test_supervise.py" = 59
+"tests/test_validate_gate.py" = 4112
+
+# ## spend_accuracy: one record banked, and it is not this lane's
+#
+# `basicly-rv7q88` spent 1,025,735 tokens against a recorded forecast of 11,610,753
+# (0.088x). It is a sibling lane's record, not this change: its dispatch ended at 20:26 on
+# 2026-09-01 and wrote the actual into the run-record store every worktree shares through
+# `.basicly/ledger/redirect`, which turned this gate red for every lane at once. It is
+# banked here because this lane is the one the refusal stopped and `rv7q88` had already
+# committed with a clean tree; whichever landing goes first owes the entry, and a second
+# copy in `rv7q88`'s own fragment would double the count and should be dropped rather than
+# added. The forecast is history and cannot change, so the entry is permanent.
+[ratchet.spend_accuracy]
+count_delta = 1
+
+[ratchet.spend_accuracy.frozen]
+"basicly-rv7q88" = 1

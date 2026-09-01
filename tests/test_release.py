@@ -821,7 +821,7 @@ def test_the_pin_pattern_matches_prose_and_not_a_longer_version() -> None:
     assert not pattern.search("v0.5.11")
 
 
-# --- D3: autonomous invocation needs a green L3 grant -------------------------
+# --- D3: autonomous invocation needs a green unattended grant ------------------
 
 
 def _patch_grant(
@@ -850,12 +850,16 @@ def _patch_grant(
 
 @pytest.mark.parametrize(
     ("level", "expected"),
-    [(None, "no active autonomy grant"), ("L1", "is L1"), ("L2", "is L2")],
+    [
+        (None, "no active autonomy grant"),
+        ("assisted", "is assisted"),
+        ("supervised", "is supervised"),
+    ],
 )
-def test_an_autonomous_release_is_refused_below_l3(
+def test_an_autonomous_release_is_refused_below_unattended(
     repo: Path, monkeypatch: pytest.MonkeyPatch, level: str | None, expected: str
 ) -> None:
-    """A release reaches every consumer, so nothing short of L3 delegates it."""
+    """A release reaches every consumer, so nothing short of unattended delegates it."""
     _patch_grant(monkeypatch, level)
     plan = release.plan_release(repo, "0.6.0", date="2026-07-26")
 
@@ -870,7 +874,9 @@ def test_an_autonomous_release_is_refused_when_l3_preconditions_are_not_green(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """One escalation anywhere in the session drops the release back to a human."""
-    _patch_grant(monkeypatch, "L3", violations=("rework escalation on epic.2 (gate verify: 2/2)",))
+    _patch_grant(
+        monkeypatch, "unattended", violations=("rework escalation on epic.2 (gate verify: 2/2)",)
+    )
     plan = release.plan_release(repo, "0.6.0", date="2026-07-26")
 
     result = release.run_release(
@@ -885,7 +891,7 @@ def test_an_autonomous_release_needs_a_root_to_check_the_grant_against(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """Omitting the root must refuse, never silently skip the D3 check."""
-    _patch_grant(monkeypatch, "L3")
+    _patch_grant(monkeypatch, "unattended")
     plan = release.plan_release(repo, "0.6.0", date="2026-07-26")
 
     result = release.run_release(repo, plan, issue_id="fx-1", autonomous=True, dry_run=True)
@@ -896,8 +902,8 @@ def test_an_autonomous_release_needs_a_root_to_check_the_grant_against(
 def test_a_green_l3_grant_permits_an_autonomous_release(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The positive half: L3 with green preconditions is not refused."""
-    _patch_grant(monkeypatch, "L3")
+    """The positive half: unattended with green preconditions is not refused."""
+    _patch_grant(monkeypatch, "unattended")
     plan = release.plan_release(repo, "0.6.0", date="2026-07-26")
 
     result = release.run_release(

@@ -1425,7 +1425,7 @@ def test_a_lane_that_dies_before_its_agent_starts_never_halts_the_grant(
     status = policy.spend_status(
         tmp_path,
         "epic",
-        grant=policy.Grant(level="L3", token_budget=60_000_000),
+        grant=policy.Grant(level="unattended", token_budget=60_000_000),
         ids=("epic.1",),
     )
     assert (status.halted, status.unmetered_dispatches) == (False, 0)
@@ -1547,7 +1547,9 @@ def test_route_green_lane_lands_and_ships_under_a_grant(
     monkeypatch.setattr(
         supervise.policy,
         "approve_checkpoint_guarded",
-        lambda *_a, **_k: policy.ApprovalResult("approved", detail="delegated under L3 grant"),
+        lambda *_a, **_k: policy.ApprovalResult(
+            "approved", detail="delegated under unattended grant"
+        ),
     )
     grants: list[object] = []
 
@@ -1563,7 +1565,7 @@ def test_route_green_lane_lands_and_ships_under_a_grant(
 
     assert [r.route for r in routed] == ["shipped"]
     assert routed[0].progressed
-    assert grants == ["epic"]  # an L3 unit rests in validate here, so that dispatch is metered
+    assert grants == ["epic"]  # a top-level unit rests in validate, so that dispatch is metered
 
 
 def test_route_green_lane_without_a_grant_queues_the_ship_checkpoint(
@@ -1618,7 +1620,7 @@ def test_a_queued_ship_item_carries_why_the_grant_declined(
         lambda *_a, **_k: policy.ApprovalResult(
             "challenge",
             code="abc",
-            detail="the active L3 grant covers ship but declined it: escalation on epic.2",
+            detail="the active unattended grant covers ship but declined it: escalation on epic.2",
         ),
     )
     details: list[str] = []
@@ -1634,7 +1636,7 @@ def test_a_queued_ship_item_carries_why_the_grant_declined(
     supervise.route_outcomes(tmp_path, _session(_lane("epic.1")), (_executed_outcome("epic.1"),))
 
     assert details == [
-        "landed; the active L3 grant covers ship but declined it: escalation on epic.2"
+        "landed; the active unattended grant covers ship but declined it: escalation on epic.2"
     ]
 
 
@@ -1708,7 +1710,9 @@ def test_route_salvaged_timeout_lands_so_the_verify_gate_judges_the_rescued_diff
     monkeypatch.setattr(
         supervise.policy,
         "approve_checkpoint_guarded",
-        lambda *_a, **_k: policy.ApprovalResult("approved", detail="delegated under L3 grant"),
+        lambda *_a, **_k: policy.ApprovalResult(
+            "approved", detail="delegated under unattended grant"
+        ),
     )
     monkeypatch.setattr(
         supervise.loop,
@@ -3167,7 +3171,7 @@ def test_observe_reports_the_holder_lanes_decisions_and_spend(
             ),
             "epic.2": _issue("epic.2", "closed"),
         },
-        comments={"epic": [_grant_comment("L2", 5000)]},
+        comments={"epic": [_grant_comment("supervised", 5000)]},
     )
     _attach_br(monkeypatch, fake)
     _fake_sessions(monkeypatch, {"epic-1"})
@@ -3220,7 +3224,7 @@ def test_observe_reports_the_holder_lanes_decisions_and_spend(
         ),
     )
     assert [item.decision_id for item in view.pending_decisions] == [queued.decision_id]
-    assert (view.grant_level, view.token_budget, view.spent_tokens) == ("L2", 5000, 1200)
+    assert (view.grant_level, view.token_budget, view.spent_tokens) == ("supervised", 5000, 1200)
     # Where the wall clock went, reported beside the compute and never folded in.
     assert (view.human_wait_s, view.delegated_wait_s, view.dispatch_s) == (1_800, 0, 12.5)
 
@@ -3329,7 +3333,7 @@ def test_dispatch_lanes_halts_when_the_grant_budget_is_spent(
     monkeypatch.setattr(supervise.decisions, "enqueue", fake_enqueue)
 
     outcomes = supervise.dispatch_lanes(
-        Path(), _session(_lane("epic.1")), admission=_granted("L2", 5000, 5000)
+        Path(), _session(_lane("epic.1")), admission=_granted("supervised", 5000, 5000)
     )
 
     assert outcomes == ()
@@ -3360,7 +3364,7 @@ def test_dispatch_lanes_admits_a_grant_still_inside_its_budget(
     )
 
     outcomes = supervise.dispatch_lanes(
-        Path(), _session(_lane("epic.1")), admission=_granted("L2", 5000, 4000)
+        Path(), _session(_lane("epic.1")), admission=_granted("supervised", 5000, 4000)
     )
 
     assert [o.issue_id for o in outcomes] == ["epic.1"]
@@ -3373,7 +3377,7 @@ def test_dispatch_lanes_reads_the_ceiling_when_no_admission_is_passed(
     _patch_readiness(monkeypatch, ranked=((1, "epic.1"),))
     monkeypatch.setattr(supervise.runner, "select_runner", lambda *_a, **_k: _MANUAL_SPEC)
     monkeypatch.setattr(
-        supervise.policy, "spend_status", lambda *_a, **_k: _granted("L3", 100, 100)
+        supervise.policy, "spend_status", lambda *_a, **_k: _granted("unattended", 100, 100)
     )
     monkeypatch.setattr(
         supervise,
@@ -3392,7 +3396,7 @@ def test_dispatch_halt_is_one_idempotent_queue_item(
     fake = _FakeBr({"epic": _issue("epic")})
     fake_tracker.install(monkeypatch, fake)
     monkeypatch.setattr(decisions, "_notify", lambda *_a, **_k: None)
-    admission = _granted("L2", 5000, 6000)
+    admission = _granted("supervised", 5000, 6000)
 
     first = supervise.record_dispatch_halt(tmp_path, "epic", admission)
     second = supervise.record_dispatch_halt(tmp_path, "epic", admission)
@@ -3413,12 +3417,15 @@ def test_an_unmeterable_halt_asks_its_own_question(
     fake = _FakeBr({"epic": _issue("epic")})
     fake_tracker.install(monkeypatch, fake)
     monkeypatch.setattr(decisions, "_notify", lambda *_a, **_k: None)
-    spent = _granted("L2", 5000, 6000)
+    spent = _granted("supervised", 5000, 6000)
     unmetered = policy.SpendStatus(
-        grant=policy.Grant(level="L2", token_budget=5000),
+        grant=policy.Grant(level="supervised", token_budget=5000),
         spent_tokens=0,
         halted=True,
-        detail="L2 grant cannot be metered: 1 dispatch(es) under it reported no measurable usage",
+        detail=(
+            "supervised grant cannot be metered: 1 dispatch(es) under it "
+            "reported no measurable usage"
+        ),
         unmetered_dispatches=1,
     )
 
@@ -3463,7 +3470,7 @@ def _item(decision_id: str, kind: str, *, answer: str | None = None) -> decision
 
 
 def test_delegate_decisions_answers_the_delegable_kinds(monkeypatch: pytest.MonkeyPatch) -> None:
-    """The autonomous path: an L2 grant hands needs-input and escalation to the decider."""
+    """The autonomous path: an supervised grant hands needs-input and escalation to the decider."""
     needs = _item("epic.1#a", "needs-input")
     esc = _item("epic.1#b", "escalation")
     offered = _delegation_env(
@@ -3476,7 +3483,7 @@ def test_delegate_decisions_answers_the_delegable_kinds(monkeypatch: pytest.Monk
     )
 
     delegated = supervise.delegate_decisions(
-        Path(), _session(_lane("epic.1")), admission=_granted("L2", 5000, 10)
+        Path(), _session(_lane("epic.1")), admission=_granted("supervised", 5000, 10)
     )
 
     assert offered == ["epic.1#a", "epic.1#b"]
@@ -3503,16 +3510,21 @@ def test_delegate_decisions_never_offers_a_checkpoint_validate_or_stall(
     offered = _delegation_env(monkeypatch, pending=items, outcomes={})
 
     delegated = supervise.delegate_decisions(
-        Path(), _session(_lane("epic.1")), admission=_granted("L3", 5000, 10)
+        Path(), _session(_lane("epic.1")), admission=_granted("unattended", 5000, 10)
     )
 
     assert offered == []
     assert delegated == ()
 
 
-@pytest.mark.parametrize("level", ["L0", "L1"])
-def test_delegate_decisions_needs_an_l2_grant(monkeypatch: pytest.MonkeyPatch, level: str) -> None:
-    """Below L2 nothing delegates: L0 is task-by-task and L1 only pre-approves decompose."""
+@pytest.mark.parametrize("level", ["attended", "assisted"])
+def test_delegate_decisions_needs_a_supervised_grant(
+    monkeypatch: pytest.MonkeyPatch, level: str
+) -> None:
+    """Below supervised nothing delegates.
+
+    `attended` is task-by-task and `assisted` only pre-approves decompose.
+    """
     offered = _delegation_env(monkeypatch, pending=(_item("epic.1#a", "needs-input"),), outcomes={})
 
     assert (
@@ -3540,7 +3552,7 @@ def test_delegate_decisions_stops_at_the_spend_ceiling(monkeypatch: pytest.Monke
 
     assert (
         supervise.delegate_decisions(
-            Path(), _session(_lane("epic.1")), admission=_granted("L2", 100, 100)
+            Path(), _session(_lane("epic.1")), admission=_granted("supervised", 100, 100)
         )
         == ()
     )
@@ -3558,7 +3570,7 @@ def test_delegate_decisions_reports_an_abstention_as_still_the_humans(
     )
 
     delegated = supervise.delegate_decisions(
-        Path(), _session(_lane("epic.1")), admission=_granted("L2", 5000, 10)
+        Path(), _session(_lane("epic.1")), admission=_granted("supervised", 5000, 10)
     )
 
     assert [(d.answered, d.detail) for d in delegated] == [(False, "not in the corpus")]
@@ -3579,7 +3591,7 @@ def test_delegate_decisions_contains_one_broken_invocation(
     monkeypatch.setattr(supervise.decisions, "invoke_decider", flaky)
 
     delegated = supervise.delegate_decisions(
-        Path(), _session(_lane("epic.1")), admission=_granted("L2", 5000, 10)
+        Path(), _session(_lane("epic.1")), admission=_granted("supervised", 5000, 10)
     )
 
     assert [(d.decision_id, d.answered) for d in delegated] == [
@@ -3605,7 +3617,7 @@ def test_delegate_decisions_beats_the_lock_between_invocations(
         beats["n"] += 1
 
     supervise.delegate_decisions(
-        Path(), _session(_lane("epic.1")), beat=beat, admission=_granted("L2", 5000, 10)
+        Path(), _session(_lane("epic.1")), beat=beat, admission=_granted("supervised", 5000, 10)
     )
 
     assert beats["n"] == 2
@@ -4365,7 +4377,7 @@ def test_pass_is_refused_when_its_forecast_exceeds_the_remaining_budget(
     outcomes = supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1"), _lane("epic.2")),
-        admission=_granted("L3", 10_000, 5_000),
+        admission=_granted("unattended", 10_000, 5_000),
     )
 
     assert outcomes == ()  # no lane started, so no money was spent
@@ -4454,7 +4466,7 @@ def test_pass_is_admitted_when_its_forecast_fits_the_remainder(
     outcomes = supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1"), _lane("epic.2")),
-        admission=_granted("L3", 10_000, 5_000),
+        admission=_granted("unattended", 10_000, 5_000),
     )
 
     assert sorted(o.issue_id for o in outcomes) == ["epic.1", "epic.2"]
@@ -4482,14 +4494,14 @@ def test_a_lane_queued_behind_the_cap_does_not_start_once_the_budget_is_gone(
         forecasts={"epic.1": 1_000, "epic.2": 1_000},
     )
     # The grant is intact when the first lane starts and gone by the second's turn.
-    readings = iter([_granted("L3", 10_000, 0), _granted("L3", 10_000, 10_000)])
+    readings = iter([_granted("unattended", 10_000, 0), _granted("unattended", 10_000, 10_000)])
     monkeypatch.setattr(supervise.policy, "spend_status", lambda *_a, **_k: next(readings))
 
     outcomes = supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1"), _lane("epic.2")),
         cap=1,
-        admission=_granted("L3", 10_000, 0),
+        admission=_granted("unattended", 10_000, 0),
     )
 
     assert [outcome.issue_id for outcome in outcomes] == ["epic.1", "epic.2"]
@@ -4517,7 +4529,7 @@ def test_pass_forecast_ignores_a_lane_the_band_already_refuses(
     outcomes = supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1"), _lane("epic.2")),
-        admission=_granted("L3", 10_000, 5_000),
+        admission=_granted("unattended", 10_000, 5_000),
     )
 
     # The in-band lane still runs: 4000 fits the 5000 remainder on its own.
@@ -4547,7 +4559,7 @@ def test_pass_names_the_lanes_it_could_not_forecast(
         supervise.dispatch_lanes(
             Path(),
             _session(_lane("epic.1"), _lane("epic.2")),
-            admission=_granted("L3", 10_000, 5_000),
+            admission=_granted("unattended", 10_000, 5_000),
         )
         == ()
     )
@@ -4580,7 +4592,7 @@ def test_an_unsizeable_lane_is_bounded_rather_than_waved_through(
 
     assert (
         supervise.dispatch_lanes(
-            Path(), _session(_lane("epic.1")), admission=_granted("L3", 10_000, 9_999)
+            Path(), _session(_lane("epic.1")), admission=_granted("unattended", 10_000, 9_999)
         )
         == ()
     )
@@ -4608,7 +4620,7 @@ def test_an_unsizeable_lane_still_dispatches_when_the_budget_covers_its_bound(
     )
 
     outcomes = supervise.dispatch_lanes(
-        Path(), _session(_lane("epic.1")), admission=_granted("L3", 10_000, 0)
+        Path(), _session(_lane("epic.1")), admission=_granted("unattended", 10_000, 0)
     )
 
     assert [o.issue_id for o in outcomes] == ["epic.1"]
@@ -4631,7 +4643,7 @@ def test_the_pass_reports_its_spend_coverage_even_when_it_admits(
     supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1")),
-        admission=_granted("L3", 10_000, 0),
+        admission=_granted("unattended", 10_000, 0),
         report=lines.append,
     )
 
@@ -4660,7 +4672,7 @@ def test_the_pass_reports_which_lanes_the_band_never_checked(
     supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1"), _lane("epic.2")),
-        admission=_granted("L3", 100_000, 0),
+        admission=_granted("unattended", 100_000, 0),
         report=lines.append,
     )
 
@@ -4720,7 +4732,7 @@ def test_pass_sizes_each_lane_exactly_once(
     supervise.dispatch_lanes(
         Path(),
         _session(_lane("epic.1"), _lane("epic.2")),
-        admission=_granted("L3", 10_000, 0),
+        admission=_granted("unattended", 10_000, 0),
         cap=1,
     )
 
@@ -5008,8 +5020,8 @@ def test_a_seeding_refusal_names_the_level_that_would_delegate_the_checkpoint(
 
     assert [r.route for r in routed] == ["seed-blocked"]
     assert "no grant covers the decompose checkpoint" in routed[0].detail
-    assert "an L1 grant delegates it" in routed[0].detail
-    assert "basicly policy grant epic --level L1" in routed[0].detail
+    assert "an assisted grant delegates it" in routed[0].detail
+    assert "basicly policy grant epic --level assisted" in routed[0].detail
     assert "A1B2C3" not in routed[0].detail, "a one-time code is not routing detail"
 
 
@@ -5027,14 +5039,16 @@ def test_a_grant_that_declined_the_checkpoint_says_so_rather_than_asking_for_a_h
         steps=(_step("blocked", to_phase="decompose"),),
         stop=loop.CeremonyResult(
             challenge=("decompose", "A1B2C3"),
-            challenge_reason="the active L1 grant on epic does not cover epic.9",
+            challenge_reason="the active assisted grant on epic does not cover epic.9",
         ),
     )
 
     routed = supervise.seed_lanes(tmp_path, _cold_session())
 
     assert [r.route for r in routed] == ["seed-blocked"]
-    assert "the decompose checkpoint was not delegated: the active L1 grant" in routed[0].detail
+    assert (
+        "the decompose checkpoint was not delegated: the active assisted grant" in routed[0].detail
+    )
     assert "no grant covers" not in routed[0].detail
 
 
@@ -5202,7 +5216,7 @@ def test_a_metered_dispatch_proceeds_once_a_budget_covers_it(
     )
 
     outcomes = supervise.dispatch_lanes(
-        tmp_path, _session(_lane("epic.1")), admission=_granted("L2", 5_000, 0)
+        tmp_path, _session(_lane("epic.1")), admission=_granted("supervised", 5_000, 0)
     )
 
     assert [o.issue_id for o in outcomes] == ["epic.1"]
@@ -5320,7 +5334,7 @@ def test_a_running_lane_reports_its_elapsed_time_while_it_runs(
     supervise.dispatch_lanes(
         tmp_path,
         _session(_lane("epic.1")),
-        admission=_granted("L2", 5_000, 0),
+        admission=_granted("supervised", 5_000, 0),
         report=lines.append,
     )
 
@@ -5525,25 +5539,25 @@ def test_inflight_halt_refuses_a_start_against_what_the_running_lanes_reported()
     with supervise.live_lane("epic.1", running):
         # 4000 recorded of a 5000 budget leaves 1000, and one running lane has
         # already reported 4500 that no record carries yet.
-        halt = supervise.inflight_halt(_granted("L3", 5_000, 4_000))
+        halt = supervise.inflight_halt(_granted("unattended", 5_000, 4_000))
         # A comfortable remainder is still admitted, or the ceiling would refuse
         # every pass that has a lane in flight.
-        assert supervise.inflight_halt(_granted("L3", 5_000_000, 4_000)) is None
+        assert supervise.inflight_halt(_granted("unattended", 5_000_000, 4_000)) is None
 
     assert halt is not None
     assert "4500" in halt and "1000" in halt and "epic.1" in halt
     # And a finished lane no longer counts: its record is the source now.
-    assert supervise.inflight_halt(_granted("L3", 5_000, 4_000)) is None
+    assert supervise.inflight_halt(_granted("unattended", 5_000, 4_000)) is None
 
 
 def test_inflight_halt_is_silent_where_there_is_no_ceiling() -> None:
-    """An ungranted or L1 session has no budget to bind, exactly as check_pass_spend has none."""
+    """An ungranted or assisted session has no budget to bind, as check_pass_spend has none."""
     running = supervise.LaneStream()
     running(_turn(10_000_000))
 
     with supervise.live_lane("epic.1", running):
         assert supervise.inflight_halt(_UNGRANTED) is None
-        assert supervise.inflight_halt(_granted("L1", None, 0)) is None
+        assert supervise.inflight_halt(_granted("assisted", None, 0)) is None
 
 
 def test_dispatch_lanes_declines_to_start_a_lane_the_running_lanes_outspent(
@@ -5566,7 +5580,7 @@ def test_dispatch_lanes_declines_to_start_a_lane_the_running_lanes_outspent(
     monkeypatch.setattr(supervise.runner, "select_runner", lambda *_a, **_k: _MANUAL_SPEC)
     monkeypatch.setattr(supervise.decompose, "unsized_lane_tokens", lambda *_a: (10, "measured"))
     monkeypatch.setattr(
-        supervise.policy, "spend_status", lambda *_a, **_k: _granted("L3", 5_000, 0)
+        supervise.policy, "spend_status", lambda *_a, **_k: _granted("unattended", 5_000, 0)
     )
     held = contextlib.ExitStack()
 
@@ -5584,7 +5598,7 @@ def test_dispatch_lanes_declines_to_start_a_lane_the_running_lanes_outspent(
 
     with held:
         outcomes = supervise.dispatch_lanes(
-            Path(), _session(*lanes), admission=_granted("L3", 5_000, 0), cap=1
+            Path(), _session(*lanes), admission=_granted("unattended", 5_000, 0), cap=1
         )
 
     first, second = outcomes
@@ -5652,7 +5666,7 @@ def test_the_spend_bound_stops_a_running_lane_at_the_grant_remainder() -> None:
 
     with supervise.live_lane("epic.1", running):
         # 4000 recorded of a 5000 budget leaves 1000, and nothing reported yet.
-        bound = supervise.SpendBound(lambda: _granted("L3", 5_000, 4_000))
+        bound = supervise.SpendBound(lambda: _granted("unattended", 5_000, 4_000))
         assert bound() is None
 
         # A turn inside the remainder is not a reason to kill a working lane.
@@ -5689,7 +5703,7 @@ def test_a_live_figure_over_the_remainder_refuses_a_start_but_never_kills_a_lane
     does not (which would cost work, which is not).
     """
     running = supervise.LaneStream()
-    status = _granted("L3", 5_000, 4_000)  # 1000 recorded remaining
+    status = _granted("unattended", 5_000, 4_000)  # 1000 recorded remaining
     running(_turn(1_500))  # over the remainder at face value, inside it once scaled
 
     with supervise.live_lane("epic.1", running):
@@ -5721,13 +5735,13 @@ def test_the_over_report_bound_sits_above_every_measured_ratio() -> None:
 
 
 def test_the_spend_bound_is_silent_where_there_is_no_ceiling_to_enforce() -> None:
-    """An ungranted or L1 session has no budget to bind, so nothing may be killed over one."""
+    """An ungranted or assisted session has no budget to bind, so nothing dies over one."""
     running = supervise.LaneStream()
     running(_turn(10_000_000))
 
     with supervise.live_lane("epic.1", running):
         assert supervise.SpendBound(lambda: _UNGRANTED)() is None
-        assert supervise.SpendBound(lambda: _granted("L1", None, 0))() is None
+        assert supervise.SpendBound(lambda: _granted("assisted", None, 0))() is None
 
 
 def test_the_spend_bound_counts_a_lane_that_retired_into_the_records() -> None:
@@ -5747,7 +5761,7 @@ def test_the_spend_bound_counts_a_lane_that_retired_into_the_records() -> None:
     with supervise.live_lane("epic.1", mine):
         with supervise.live_lane("epic.2", sibling):
             # 2000 left of a 6000 budget, 1100 in flight across the two lanes.
-            bound = supervise.SpendBound(lambda: _granted("L3", 6_000, 4_000))
+            bound = supervise.SpendBound(lambda: _granted("unattended", 6_000, 4_000))
             assert bound.remaining() == 2_000
             assert bound() is None
 
@@ -5773,7 +5787,7 @@ def test_the_spend_bound_reads_the_ledger_only_once_a_check_actually_runs() -> N
 
     def status() -> policy.SpendStatus:
         reads["count"] += 1
-        return _granted("L3", 5_000, 4_000)
+        return _granted("unattended", 5_000, 4_000)
 
     bound = supervise.SpendBound(status)
     assert reads["count"] == 0
@@ -5811,7 +5825,7 @@ def test_dispatch_lane_bounds_the_run_on_its_stream_before_the_wall_clock(
         _lane("epic.1"),
         codex,
         _sizing(),
-        spend=_granted("L3", 5_000, 4_000),
+        spend=_granted("unattended", 5_000, 4_000),
     )
 
     bounds = seen["bounds"]

@@ -12,22 +12,23 @@ Three properties this module exists to keep:
   package already declares and the landing already checks; no model is asked
   what level its own work deserves. It costs zero tokens.
 - **Total, and single-valued**. Every path this repo can hold resolves, and no
-  path resolves twice. That is structural rather than incidental: the L2 rule
-  names the L3 patterns as exclusions instead of relying on match order, so the
+  path resolves twice. That is structural rather than incidental: the ``engine``
+  rule names the ``consumer-surface`` patterns as exclusions rather than relying on
+  match order, so the
   ordering of :data:`_RULES` is presentation, not semantics, and
   ``tests/test_integrity.py`` asserts exactly-one-match over every tracked file.
 - **Reads the change, not only where it lives** [D11]. A path rule alone
   over-classifies: a typo fix in ``cli.py`` is not a consumer-surface change. A
-  small diff that touches no public signature downgrades L3 to L2 and records
-  why, which keeps the ungameable property while spending the L3 budget on the
-  changes that actually reach a consumer.
+  small diff that touches no public signature downgrades ``consumer-surface`` to
+  ``engine`` and records why, which keeps the ungameable property while spending
+  that budget on the changes that actually reach a consumer.
 
-**The L3 set is not invented here.** It is the five surfaces the implementation
+**The ``consumer-surface`` set is not invented here.** It is the five surfaces the implementation
 plan §9 freezes for semver — CLI commands and flags, ``basicly.toml`` plus its
 overlay, the catalog source schemas, the generated-file/manifest contract, and
 the owned ledger format — mapped onto the paths that declare each one. Where a
 surface has a declaration and an implementation, the *declaration* is what sits
-at L3: ``schema.py`` and ``.basicly/core/schemas/`` carry the catalog source
+at ``consumer-surface``: ``schema.py`` and ``.basicly/core/schemas/`` carry the catalog source
 contract, while ``loader.py``, which parses against it, is ordinary engine code.
 
 This module imports nothing from ``basicly``. It is a rule over strings, so it
@@ -45,13 +46,32 @@ from pathlib import PurePosixPath
 # Cheapest first. Ordering is load-bearing: :func:`assign` takes the highest
 # level any declared path resolves to, because a package that touches one
 # consumer surface is a consumer change whatever else it touches.
-LEVELS = ("L1", "L2", "L3")
+# Each name is the clause that assigns it, and D31 in `architecture.md` §9.2 holds
+# why the `L1`..`L3` they replace could name neither ladder.
+LEVELS = ("docs-and-tests", "engine", "consumer-surface")
+
+# Read-only: the ledger's classification markers and every recorded ``## Plan``
+# block still spell these, and neither may be rewritten (basicly-3iaw0x).
+LEGACY_LEVELS: dict[str, str] = {"L1": "docs-and-tests", "L2": "engine", "L3": "consumer-surface"}
+
+
+def normalize_level(level: str) -> str | None:
+    """*level* as one of :data:`LEVELS`, translating a legacy letter, or None.
+
+    None rather than a raise: the caller reads a record it did not write, so whether
+    an unrecognised level is fatal there is its answer.
+    """
+    text = level.strip()
+    if text in LEVELS:
+        return text
+    return LEGACY_LEVELS.get(text)
+
 
 # The marker an assignment persists under; here, not in its writer, which two tiers
 # that read it back may not import.
 CLASSIFICATION_MARKER = "[harness-classification]"
 
-# How small a diff has to be before an L3 path stops buying the L3 budget.
+# How small a diff has to be before a consumer-surface path stops buying that budget.
 #
 # A seed, and it is honest to call it one: D11 fixes the *mechanism* (small diff,
 # no public signature change) and names no number, and nothing in this repo has
@@ -66,8 +86,8 @@ class _Rule:
     """One named clause of the path rule.
 
     A ``!``-prefixed glob is an exclusion, and exclusions are what make the rule
-    set single-valued without depending on the order clauses are tried in: the L2
-    clause covers ``src/basicly`` *except* the paths an L3 clause already claims,
+    set single-valued without depending on the order clauses are tried in: the
+    ``engine`` clause covers ``src/basicly`` *except* what a consumer clause claims,
     so at most one clause can ever match. Any exclusion wins over any inclusion,
     which is deliberately stricter — and easier to reason about — than
     gitignore's last-match-wins.
@@ -101,36 +121,36 @@ class _Rule:
 # The five frozen consumer surfaces, one clause each, named for the surface
 # rather than for the module so a verdict reads as "this is the CLI surface".
 _CONSUMER_SURFACES: tuple[_Rule, ...] = (
-    _Rule("cli-surface", "L3", ("src/basicly/cli.py",)),
+    _Rule("cli-surface", "consumer-surface", ("src/basicly/cli.py",)),
     _Rule(
         "config-surface",
-        "L3",
+        "consumer-surface",
         ("src/basicly/config.py", "basicly.toml", "basicly.local.toml"),
     ),
     _Rule(
         "catalog-source-schemas",
-        "L3",
+        "consumer-surface",
         ("src/basicly/schema.py", ".basicly/core/schemas/**"),
     ),
     _Rule(
         "generated-file-contract",
-        "L3",
+        "consumer-surface",
         (
             "src/basicly/projection.py",
             "src/basicly/renderers/**",
             ".basicly/core/templates/**",
         ),
     ),
-    _Rule("ledger-format", "L3", ("src/basicly/run_record.py",)),
+    _Rule("ledger-format", "consumer-surface", ("src/basicly/run_record.py",)),
 )
 
 _CONSUMER_GLOBS: tuple[str, ...] = tuple(g for rule in _CONSUMER_SURFACES for g in rule.globs)
 
-# Prose and tests. Markdown is L1 wherever it lives, which is why the engine
+# Prose and tests. Markdown is docs-and-tests wherever it lives, which is why the engine
 # clause below excludes it too — a document under `src/` is still a document.
 _DOCS_AND_TESTS = _Rule(
     "docs-and-tests",
-    "L1",
+    "docs-and-tests",
     ("docs/**", "tests/**", "site/**", "changelog.d/**", "**/*.md"),
 )
 
@@ -138,19 +158,20 @@ _DOCS_AND_TESTS = _Rule(
 # the five surfaces above and minus prose.
 _ENGINE = _Rule(
     "engine-internal",
-    "L2",
+    "engine",
     ("src/basicly/**", ".scripts/**", *(f"!{glob}" for glob in _CONSUMER_GLOBS), "!**/*.md"),
 )
 
 _RULES: tuple[_Rule, ...] = (*_CONSUMER_SURFACES, _DOCS_AND_TESTS, _ENGINE)
 
 # What a path no clause claims resolves to — CI config, packaging, catalog
-# content, tracker data. L2 rather than L1 or L3 on purpose: L1 would fast-gate a
-# path the rule has never been taught, and L3 would demand a human ship for every
+# content, tracker data. ``engine`` rather than either neighbour on purpose: the
+# level below would fast-gate a path the rule has never been taught, and the level
+# above would demand a human ship for every
 # unrecognised file, which is the same as having no levels at all. The middle is
 # the only choice that fails in neither direction, and the rule name says the
 # clause was absent rather than pretending a decision was made.
-_FALLBACK = _Rule("unclassified", "L2", ())
+_FALLBACK = _Rule("unclassified", "engine", ())
 
 _BY_NAME: dict[str, _Rule] = {rule.name: rule for rule in (*_RULES, _FALLBACK)}
 
@@ -172,16 +193,17 @@ class Selection:
     ship: str
 
 
-# L3's extra gate, imported not respelled (basicly-7jb5).
+# The consumer-surface extra gate, imported not respelled (basicly-7jb5).
 VALIDATE_GATE = "validate-as-consumer"
 
 _SELECTIONS: dict[str, Selection] = {
-    "L1": Selection(gates=("fast",), model_tier="medium", rework_allowance=1, ship="delegable"),
-    "L2": Selection(gates=("full",), model_tier="high", rework_allowance=2, ship="delegable"),
-    # The table says "high/maximum" for L3. A rule that has to be single-valued
-    # cannot hold both, and the surface that reaches consumers is where the
-    # cheaper half of that pair is the false economy.
-    "L3": Selection(
+    "docs-and-tests": Selection(
+        gates=("fast",), model_tier="medium", rework_allowance=1, ship="delegable"
+    ),
+    "engine": Selection(gates=("full",), model_tier="high", rework_allowance=2, ship="delegable"),
+    # The table says "high/maximum" here. A single-valued rule cannot hold both, and
+    # the surface reaching consumers is where the cheaper half is the false economy.
+    "consumer-surface": Selection(
         gates=("full", VALIDATE_GATE, "evidence-binding"),
         model_tier="maximum",
         rework_allowance=2,
@@ -196,12 +218,10 @@ def selection_for(level: str) -> Selection:
     Raises:
         ValueError: *level* is outside :data:`LEVELS`.
     """
-    try:
-        return _SELECTIONS[level]
-    except KeyError:
-        raise ValueError(
-            f"unknown integrity level {level!r}; expected one of {list(LEVELS)}"
-        ) from None
+    name = normalize_level(level)
+    if name is None:
+        raise ValueError(f"unknown integrity level {level!r}; expected one of {list(LEVELS)}")
+    return _SELECTIONS[name]
 
 
 @dataclass(frozen=True)
@@ -241,7 +261,7 @@ def _covers(entry: str, pattern: str) -> bool:
     The limit, stated rather than discovered later: two patterns that cross
     without either containing the other (``src/**/c*.py`` against ``**/cli.py``)
     are not detected. Declared scopes in this repo are file lists, and the
-    unmatched case falls to :data:`_FALLBACK` rather than to L1, so the miss costs
+    unmatched case falls to :data:`_FALLBACK` rather than to the lowest level, so the miss costs
     a level of caution and never a skipped gate.
     """
     left, right = PurePosixPath(entry), PurePosixPath(pattern)
@@ -278,8 +298,9 @@ def assign(
     """The integrity level for a unit of work declaring *scope*.
 
     The level is the highest any declared path resolves to. When *patch* is given
-    — the unified diff of the change as ``git diff`` prints it — a level of L3
-    that turns out to be a small, signature-preserving change is downgraded to L2
+    — the unified diff of the change as ``git diff`` prints it — a
+    ``consumer-surface`` level that turns out to be a small, signature-preserving
+    change is downgraded to ``engine``
     with the reason recorded (D11); without a patch there is no change to read
     and the path rule stands alone.
 
@@ -306,20 +327,20 @@ def assign(
         reason=f"{decided!r} is {rule.name}",
         selection=selection_for(rule.level),
     )
-    if base.level != "L3" or patch is None:
+    if base.level != "consumer-surface" or patch is None:
         return base
 
     changed_lines, signature_changed = _diff_facts(patch)
     if changed_lines >= downgrade_max_lines or signature_changed:
         return base
     return Assignment(
-        level="L2",
+        level="engine",
         rule="downgrade",
         reason=(
-            f"downgraded from L3 ({base.reason}): {changed_lines} changed lines is under the "
-            f"{downgrade_max_lines}-line threshold and no public signature changed"
+            f"downgraded from consumer-surface ({base.reason}): {changed_lines} changed lines "
+            f"is under the {downgrade_max_lines}-line threshold and no public signature changed"
         ),
-        selection=selection_for("L2"),
+        selection=selection_for("engine"),
     )
 
 

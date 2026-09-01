@@ -39,7 +39,7 @@ def test_a_complete_plan_loads() -> None:
 
     assert [child.title for child in children] == ["a", "b"]
     assert children[0].budget_tokens == 40_000
-    assert children[0].integrity == "L2"
+    assert children[0].integrity == "engine"
     assert children[0].depends_on == ()
 
 
@@ -94,7 +94,7 @@ def test_a_declared_empty_dependency_list_is_not_a_missing_one() -> None:
         acceptance=("does the thing",),
         scope=("src/a.py",),
         budget_tokens=40_000,
-        integrity="L2",
+        integrity="engine",
     )
 
     assert plan_gate.missing_fields(declared) == ()
@@ -118,7 +118,7 @@ def test_an_unknown_integrity_level_is_refused() -> None:
 
     assert verdict.refused
     assert "'high'" in verdict.reason
-    assert "L1" in verdict.reason
+    assert "docs-and-tests" in verdict.reason
 
 
 def test_a_budget_that_cannot_be_spent_is_refused() -> None:

@@ -124,7 +124,7 @@ def test_plan_payload_carries_every_gated_field_and_the_graph(work_repo: Path) -
     assert first["acceptance"] == ["given a plan when it is gated then it passes"]
     assert first["scope"] == ["src/a.py"]
     assert first["budget_tokens"] == 40_000
-    assert first["integrity"] == "L2"
+    assert first["integrity"] == "engine"
     assert first["demonstration"] == plan_fixtures.DEMONSTRATION
     assert payload["tasks"][1]["depends_on"] == ["proj-feat.1"]
     assert handoff.adopted(work_repo, handoff.IMPLEMENTATION_PLAN)

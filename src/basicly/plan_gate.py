@@ -64,12 +64,13 @@ import re
 from dataclasses import dataclass
 from typing import Protocol, runtime_checkable
 
-# The three integrity levels, in ascending blast radius: L1 routine (docs, comments,
-# test-only), L2 internal (engine code behind no consumer surface), L3 consumer (the
-# CLI, the `basicly.toml` schema, the catalog source schemas, the generated-file
-# contract, the ledger format). The rule that *assigns* one deliberately lives
-# elsewhere; the gate only insists that a level was assigned.
-INTEGRITY_LEVELS = ("L1", "L2", "L3")
+from . import integrity
+
+# The three integrity levels, in ascending blast radius, imported not respelled: this
+# gate only insists that a level was assigned, and the rule that *assigns* one — and
+# the retired lettered spellings every recorded `## Plan` block still carries — belong
+# to :mod:`basicly.integrity`.
+INTEGRITY_LEVELS = integrity.LEVELS
 
 # The five per-child fields, in the order a violation report lists them. Named once so
 # the plan schema, the gate message and the build-entry predicate cannot drift into
@@ -317,7 +318,7 @@ def gate_plan(units: tuple[PlannedUnit, ...]) -> PlanVerdict:
         fault = demonstration_fault(unit)
         if fault:
             violations.append(f"{where} {fault}")
-        if unit.integrity and unit.integrity not in INTEGRITY_LEVELS:
+        if unit.integrity and integrity.normalize_level(unit.integrity) is None:
             violations.append(
                 f"{where} declares integrity {unit.integrity!r}, which is not one of "
                 f"{list(INTEGRITY_LEVELS)}"
