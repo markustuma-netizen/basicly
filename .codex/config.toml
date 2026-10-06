@@ -16,3 +16,18 @@ glob_scan_max_depth = 16
 
 [permissions.basicly-consent.network]
 enabled = false
+
+["permissions"."basicly-read-only"]
+"extends" = ":read-only"
+
+["permissions"."basicly-read-only"."filesystem"]
+"glob_scan_max_depth" = 16
+
+["permissions"."basicly-read-only"."filesystem".":workspace_roots"]
+"**/.env.*" = "deny"
+"**/.env" = "deny"
+".env.*" = "deny"
+".env" = "deny"
+
+["permissions"."basicly-read-only"."network"]
+"enabled" = false

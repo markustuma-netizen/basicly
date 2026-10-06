@@ -113,6 +113,7 @@ class RunnerSpec:
     agent_style: str | None = None
     resume_style: str | None = None
     sandbox: str | None = None
+    permissions: str | None = None
     approval: str | None = None
     git_name: str | None = None
     git_email: str | None = None
@@ -142,7 +143,7 @@ BUILTIN_RUNNERS: tuple[RunnerSpec, ...] = (
         "codex",
         HEADLESS,
         ("codex", "exec", PROMPT_PLACEHOLDER),
-        sandbox="workspace-write",
+        permissions="basicly-consent",
         approval="never",
         usage_format=CODEX_JSONL,
         context_window=CODEX_FALLBACK_WINDOW,
@@ -393,6 +394,8 @@ def _apply_deny_tools(spec: RunnerSpec, argv: list[str]) -> list[str]:
 def _apply_sandbox(spec: RunnerSpec, argv: list[str]) -> list[str]:
 
     flags: list[str] = []
+    if spec.permissions is not None:
+        flags += ["-c", "default_permissions=" + json.dumps(spec.permissions)]
     if spec.sandbox is not None:
         flags += ["--sandbox", spec.sandbox]
     if spec.approval is not None:
@@ -429,6 +432,8 @@ def confine_for_decider(spec: RunnerSpec) -> RunnerSpec | None:
         return replace(spec, deny_tools=_denied_with(spec, _DECIDER_DENY_CLAUDE))
     if spec.deny_style == DENY_TOOL_FLAG:
         return replace(spec, deny_tools=_denied_with(spec, _DECIDER_DENY_COPILOT))
+    if spec.permissions is not None:
+        return replace(spec, permissions="basicly-read-only", sandbox=None, approval="never")
     if spec.sandbox is not None:
         return replace(spec, sandbox="read-only", approval="never")
     return None

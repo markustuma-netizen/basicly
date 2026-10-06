@@ -557,9 +557,10 @@ def test_runner_config_rejects_blank_model(tmp_path: Path) -> None:
         load_runner_config(tmp_path)
 
 
-def test_runner_config_codex_defaults_sandbox_and_approval(tmp_path: Path) -> None:
+def test_runner_config_codex_defaults_permissions_and_approval(tmp_path: Path) -> None:
     by_name = {spec.name: spec for spec in load_runner_config(tmp_path).specs}
-    assert by_name["codex"].sandbox == "workspace-write"
+    assert by_name["codex"].permissions == "basicly-consent"
+    assert by_name["codex"].sandbox is None
     assert by_name["codex"].approval == "never"
     assert by_name["claude"].sandbox is None
     assert by_name["claude"].approval is None

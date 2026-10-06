@@ -173,3 +173,20 @@ def claude_deny_patterns(rules: list[DenyRule]) -> list[str]:
 
 def copilot_deny_specs(rules: list[DenyRule]) -> list[str]:
     return _flat_patterns(rules, "copilot")
+
+
+@dataclass(frozen=True)
+class CodexPermissions:
+    config: str
+    rules: str
+
+
+def load_codex_permissions(permissions_dir: Path | None = None) -> CodexPermissions:
+    manifest, data = _read_manifest(permissions_dir)
+    codex = data.get("codex")
+    if not isinstance(codex, dict):
+        raise ValueError(f"{manifest}: 'codex' must be a mapping")
+    for key in ("config", "rules"):
+        if not isinstance(codex.get(key), str) or not codex[key].strip():
+            raise ValueError(f"{manifest}: codex '{key}' must be a non-empty string")
+    return CodexPermissions(config=codex["config"], rules=codex["rules"])

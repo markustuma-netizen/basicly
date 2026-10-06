@@ -28,6 +28,7 @@ from . import (
     catalog_verify,
     checkout,
     claude_settings,
+    codex_settings,
     comment_rows,
     commit,
     contention,
@@ -2031,6 +2032,9 @@ def cmd_hooks_check(_args: argparse.Namespace) -> int:
 
 def cmd_permissions_build(_args: argparse.Namespace) -> int:
     repo_root = _repo_root()
+    managed_codex = permissions.load_codex_permissions()
+    if codex_settings.sync_permissions(repo_root, managed_codex):
+        print("Wrote managed Codex consent configuration and command rules.")
     managed = permissions.load_claude_permissions()
     if claude_settings.sync_permissions(repo_root, managed):
         print(f"Wrote {claude_settings.CLAUDE_SETTINGS_PATH} (managed permissions allow and deny)")
@@ -2059,6 +2063,12 @@ def cmd_permissions_check(_args: argparse.Namespace) -> int:
         (settings_path, reason)
         for reason in claude_settings.permission_mismatches(repo_root, managed)
     ]
+    mismatches.extend(
+        (repo_root / codex_settings.CONFIG_PATH, reason)
+        for reason in codex_settings.permission_mismatches(
+            repo_root, permissions.load_codex_permissions()
+        )
+    )
     for line in automode_trust.single_repository_findings(user_skills.user_home()):
         ui.say(line, style="warn")
     if _report_mismatches(
@@ -4288,6 +4298,8 @@ def _cmd_runner_dry_run(args: argparse.Namespace) -> int:
         print(f"  model: {spec.model}")
     if resolution is not None and not resolution.honoured:
         print(f"  tier not honoured: {resolution.note}")
+    if spec.permissions:
+        print(f"  permissions: {spec.permissions}")
     if spec.sandbox:
         print(f"  sandbox: {spec.sandbox}")
     if spec.approval:

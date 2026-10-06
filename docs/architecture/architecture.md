@@ -1138,7 +1138,8 @@ Which hosts satisfy that requirement today is a status question.
 ## 18. Agent permissions
 
 The projection writes an allow list and a deny list of semantic rules into
-`.claude/settings.json`, the one agent family with a config-file deny. The projection is
+`.claude/settings.json`. Codex receives `.codex/config.toml` permission profiles and
+`.codex/rules/consent-floor.rules` command-prefix rules from the same catalog. The projection is
 **ensure-present**. It merges the managed patterns in, it preserves consumer entries, and
 it **prunes nothing**. A flat rule string carries no per-entry marker, so the projection
 cannot tell a consumer entry from one that basicly wrote. A repository's own blanket
@@ -1156,10 +1157,21 @@ interpreter, a package manager, a command wrapper, an `Agent` rule or a `Monitor
 | --- | --- | --- |
 | claude | the file-edit rule form | the two write-tool variants a reader would expect. The permission check ignores both |
 | copilot | invocation flags injected at dispatch, because there is no config-file deny | an infix wildcard. That pattern language matches by token prefix, so it cannot express Claude's globs |
-| codex | invocation-only guardrails: a sandbox mode and an approval policy on the argv | a project-scope override. Codex forbids setting either at repository scope |
+| codex | trusted repository permission profiles and command-prefix rules; dispatched agents select the consent profile and unattended approvals fail closed | complete Claude pattern parity, untrusted project configuration, or protection against explicit CLI overrides |
 
 **The list is a partial backstop. It is never the source of a prohibition.** Several
 destructive git commands are denied on no target, and still need a human confirmation.
+
+Codex projection preserves consumer settings and command rules. It adds missing managed
+keys and refuses conflicting security settings before writing. The writable and read-only
+profiles both deny dotenv reads and disable command network access. Headless dispatch
+uses `-c default_permissions="basicly-consent" -a never`; judgement uses `basicly-read-only`.
+A legacy `--sandbox` override would replace these profiles, so the built-in dispatcher
+does not emit it. Consumers must trust their project configuration and use a Codex version
+that supports named permission profiles. Command-prefix rules cover common dangerous
+forms; they do not express arbitrary flag reordering or all shell interpretations.
+See [OpenAI configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference)
+and [security documentation](https://learn.chatgpt.com/docs/security).
 
 ## 19. Catalog verification
 
@@ -3607,7 +3619,7 @@ it in a tier.
 
 <!-- docs-claims:begin layering-contract -->
 
-The 61 tiers hold 143 modules and group into 9 bands. Every band may import every band below
+The 61 tiers hold 144 modules and group into 9 bands. Every band may import every band below
 it, and nothing above it. Every count here is derived from `.importlinter`. The band
 *boundaries* are not: 9 bands over the tier stack is an editorial reading the contract does not
 carry, so they are declared in `.scripts/docs_claim_layers.py` and the counts are derived
@@ -3619,7 +3631,7 @@ flowchart TB
   b2["2 · drivers — 13<br/>supervise · loop · release · usage_report"]
   b3["3 · loop mechanics — 40<br/>merge · decompose · policy · verify · board_snapshot · decisions · plan_gate"]
   b4["4 · configuration and isolation — 3<br/>config · worktree"]
-  b5["5 · agent runtime — 5<br/>runner · lane_log · lane_split · context_window · claude_settings"]
+  b5["5 · agent runtime — 6<br/>runner · lane_log · lane_split · context_window · claude_settings"]
   b6["6 · projection — 13<br/>loader · planner · renderers · skills · agents · hooks · permissions"]
   b7["7 · records and telemetry — 15<br/>run_record · artifact_record · lens_review · spend_calibration"]
   b8["8 · tracker seam — 25<br/>owned_store · mirror · dispatch_phase · board_schema · board_fields"]

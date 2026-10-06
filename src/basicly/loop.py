@@ -477,8 +477,11 @@ def _hold_for_this_session(ctx: _Ctx) -> AdvanceResult | None:
             f"{ctx.issue_id} --take`",
         )
     me = tracker.holder_name(ctx.repo_root)
-    if me and record.get(tracker.HOLDER_FIELD) != me:
-        tracker.write(ctx.repo_root, ["update", ctx.issue_id, "--assignee", me])
+    if record.get("status") != "in_progress" or (me and record.get(tracker.HOLDER_FIELD) != me):
+        args = ["update", ctx.issue_id, "--status", "in_progress"]
+        if me:
+            args.extend(["--assignee", me])
+        tracker.write(ctx.repo_root, args)
     return None
 
 
@@ -1523,6 +1526,11 @@ def _ensure_child_worktrees(ctx: _Ctx, children: list[tuple[str, str]]) -> None:
             continue
         if working_set.admit_working_set(ctx.repo_root, cid, sizing).refused:
             continue
+        if _hold_for_this_session(replace(ctx, issue_id=cid)) is not None:
+            continue
+        merge.commit_tracker_state(
+            ctx.repo_root, cid, action="record the claim before provisioning"
+        )
         session = worktree.create(name, base=wt_config.base_branch, repo_root=ctx.repo_root)
         _bind_worktree(ctx, name, session.branch, issue_id=cid)
         existing.add(name)

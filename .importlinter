@@ -49,7 +49,7 @@ layers =
     config | worktree
     lane_split
     lane_log
-    claude_settings | runner
+    claude_settings | codex_settings | runner
     context_window
     agents | catalog_verify | copilot_store | fleet | hooks | loader | models | permissions | output_styles | planner | renderers | skills | state
     skill_pairing

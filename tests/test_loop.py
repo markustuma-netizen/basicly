@@ -216,6 +216,45 @@ def _ready_leaf(at, monkeypatch: pytest.MonkeyPatch) -> dict:
     return created
 
 
+def test_each_child_claim_is_published_before_its_worktree(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, tracker_commits: list
+) -> None:
+    ctx = loop._Ctx(tmp_path, "i", _state("decompose", has_children=True), CONFIG, loop.Inputs())
+    _pin_provisioning(monkeypatch, ranked=("i.1", "i.2"), concurrency=2)
+    claimed: list[str] = []
+
+    def claim(child: loop._Ctx) -> None:
+        claimed.append(child.issue_id)
+
+    def create(name: str, **_kwargs: object) -> Session:
+        issue = name.replace("-", ".")
+        assert claimed[-1] == issue
+        assert tracker_commits[-1] == (issue, "record the claim before provisioning")
+        return _session(name)
+
+    monkeypatch.setattr(loop, "_hold_for_this_session", claim)
+    monkeypatch.setattr(worktree, "create", create)
+
+    loop._ensure_child_worktrees(ctx, [("i.1", "open"), ("i.2", "open")])
+
+    assert claimed == ["i.1", "i.2"]
+
+
+def test_a_child_claimed_by_another_session_is_not_provisioned(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ctx = loop._Ctx(tmp_path, "i", _state("decompose", has_children=True), CONFIG, loop.Inputs())
+    created = _pin_provisioning(monkeypatch, ranked=("i.1", "i.2"), concurrency=1)
+
+    def claim(child: loop._Ctx) -> loop.AdvanceResult | None:
+        return loop._blocked(child, "held by another") if child.issue_id == "i.1" else None
+
+    monkeypatch.setattr(loop, "_hold_for_this_session", claim)
+    loop._ensure_child_worktrees(ctx, [("i.1", "open"), ("i.2", "open")])
+
+    assert created == ["i-2"]
+
+
 def test_classify_leaf_provisions_worktree(
     at,
     monkeypatch: pytest.MonkeyPatch,
@@ -2536,6 +2575,7 @@ def _pin_provisioning(
         ),
     )
     monkeypatch.setattr(working_set, "admit_working_set", _admit)
+    monkeypatch.setattr(loop, "_hold_for_this_session", lambda _ctx: None)
     return created
 
 

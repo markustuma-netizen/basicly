@@ -1,0 +1,1 @@
+- Ship Codex consent profiles and command rules on install, preserve consumer settings and dotenv protection during unattended and read-only dispatch, and claim lane records before provisioning their worktrees.

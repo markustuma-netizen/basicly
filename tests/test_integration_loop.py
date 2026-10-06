@@ -397,6 +397,33 @@ def test_the_engine_commits_the_claim_before_provisioning(harness_repo: Path) ->
     )
     tracked = _git(repo, "show", "--name-only", "--format=", "HEAD").split()
     assert tracked and all(path.startswith(".basicly/ledger/") for path in tracked)
+    assert _status(repo, issue) == "in_progress"
+
+
+def test_a_provisioned_leaf_passes_the_real_claim_hook(harness_repo: Path) -> None:
+    repo = harness_repo
+    issue = _create_bead(repo, "claim before the commit gate")
+    _to_build(repo, issue)
+    state = loop_state.read_node_state(repo, issue)
+    assert state.worktree is not None
+    session = worktree.load_session(state.worktree.name, repo)
+    assert session is not None
+    tree = Path(session.worktree_path)
+    (tree / "app.txt").write_text("claimed work\n", encoding="utf-8")
+    _git(tree, "add", "app.txt")
+    message = repo.parent / "commit-message"
+    message.write_text(f"feat: claimed work ({issue})\n", encoding="utf-8")
+    hook = Path(__file__).resolve().parents[1] / ".basicly/core/hooks/tracker-claim.py"
+
+    result = subprocess.run(
+        [sys.executable, str(hook), str(message)],
+        cwd=tree,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
 
 
 def test_a_non_tracker_dirty_base_is_left_alone(harness_repo: Path) -> None:

@@ -276,10 +276,33 @@ def test_the_loop_records_the_person_who_runs_it_as_the_holder(
     repo: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     flipped_tracker.seed(repo, "th-2", title="a free story")
+    tracker.write(
+        repo,
+        [
+            "update",
+            "th-2",
+            "--description",
+            TRIGGER,
+            "--acceptance",
+            "- seen",
+            "--requirements",
+            "- stdlib",
+        ],
+    )
     monkeypatch.setenv("GIT_AUTHOR_NAME", "sam")
 
     assert loop._hold_for_this_session(_ctx(repo, "th-2")) is None
     assert (tracker.read_record(repo, "th-2") or {})["assignee"] == "sam"
+    assert (tracker.read_record(repo, "th-2") or {})["status"] == "in_progress"
+
+
+def test_the_loop_starts_a_record_already_assigned_to_its_holder(
+    repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GIT_AUTHOR_NAME", "alex")
+
+    assert loop._hold_for_this_session(_ctx(repo, "th-1")) is None
+    assert (tracker.read_record(repo, "th-1") or {})["status"] == "in_progress"
 
 
 def test_resolve_keeps_the_current_value_of_a_status_conflict_and_fsck_is_clean(

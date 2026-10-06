@@ -170,15 +170,16 @@ def test_format_command_injects_sandbox_alone() -> None:
     assert runner.format_command(spec, "go") == ["codex", "--sandbox", "read-only", "exec", "go"]
 
 
-def test_codex_builtin_defaults_render_workspace_write_never() -> None:
+def test_codex_builtin_preserves_consent_profile_and_fails_closed() -> None:
 
     codex = next(s for s in runner.BUILTIN_RUNNERS if s.name == "codex")
-    assert codex.sandbox == "workspace-write"
+    assert codex.sandbox is None
+    assert codex.permissions == "basicly-consent"
     assert codex.approval == "never"
     assert runner.format_command(codex, "do the work") == [
         "codex",
-        "--sandbox",
-        "workspace-write",
+        "-c",
+        'default_permissions="basicly-consent"',
         "-a",
         "never",
         "exec",
@@ -318,8 +319,8 @@ def test_confine_for_decider_puts_codex_in_a_read_only_sandbox() -> None:
     assert confined.deny_tools == ()
     assert runner.format_command(confined, "judge") == [
         "codex",
-        "--sandbox",
-        "read-only",
+        "-c",
+        'default_permissions="basicly-read-only"',
         "-a",
         "never",
         "exec",

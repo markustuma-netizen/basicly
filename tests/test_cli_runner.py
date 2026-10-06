@@ -97,14 +97,14 @@ def test_runner_dry_run_surfaces_pinned_model(tmp_path, capsys: pytest.CaptureFi
     assert "claude --model opus -p" in out
 
 
-def test_runner_dry_run_surfaces_codex_sandbox_and_approval(
+def test_runner_dry_run_surfaces_codex_permissions_and_approval(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     assert cli.main(["runner", "dry-run", "--runner", "codex", "--prompt", "do it"]) == 0
     out = capsys.readouterr().out
-    assert "sandbox: workspace-write" in out
+    assert "permissions: basicly-consent" in out
     assert "approval: never" in out
-    assert "codex --sandbox workspace-write -a never exec" in out
+    assert "codex -c 'default_permissions=\"basicly-consent\"' -a never exec" in out
 
 
 def test_runner_dry_run_accepts_the_shipped_codex_guardrails(

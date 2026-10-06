@@ -48,8 +48,9 @@
 # list: `--deny-tool=read` is a real deny name (probed 2026-07-26, see
 # runner._DECIDER_DENY_COPILOT) but takes no path argument, so the only copilot
 # form of one `.env` rule would deny every read a working agent needs.
-# Codex sandbox/approval defaults remain invocation-only too (basicly-t0kt,
-# --sandbox/-a), not yet wired.
+# Codex receives trusted repository permission profiles and prefix rules from the
+# codex section below. Dispatch selects the profile with a config override; a legacy
+# --sandbox override would replace the profile and its dotenv read denials.
 #
 # So this list is a PARTIAL backstop, never the source of a prohibition
 # (basicly-tcmy.10). The `require-explicit-confirmation` fragment carries the
@@ -164,3 +165,51 @@ deny:
       - "Edit(.env.*)"
       - "Edit(**/.env)"
       - "Edit(**/.env.*)"
+
+codex:
+  config: |
+    approval_policy = "on-request"
+    approvals_reviewer = "user"
+    default_permissions = "basicly-consent"
+
+    [permissions.basicly-consent]
+    extends = ":workspace"
+
+    [permissions.basicly-consent.filesystem]
+    glob_scan_max_depth = 16
+
+    [permissions.basicly-consent.filesystem.":workspace_roots"]
+    ".env" = "deny"
+    ".env.*" = "deny"
+    "**/.env" = "deny"
+    "**/.env.*" = "deny"
+
+    [permissions.basicly-consent.network]
+    enabled = false
+
+    [permissions.basicly-read-only]
+    extends = ":read-only"
+
+    [permissions.basicly-read-only.filesystem]
+    glob_scan_max_depth = 16
+
+    [permissions.basicly-read-only.filesystem.":workspace_roots"]
+    ".env" = "deny"
+    ".env.*" = "deny"
+    "**/.env" = "deny"
+    "**/.env.*" = "deny"
+
+    [permissions.basicly-read-only.network]
+    enabled = false
+  rules: |
+    prefix_rule(pattern = ["rm", ["-rf", "-fr"]], decision = "forbidden", justification = "Recursive force removal is denied by this repository. Use the managed worktree cleanup command.", match = ["rm -rf scratch", "rm -fr scratch"])
+    prefix_rule(pattern = ["rm", "-r", "-f"], decision = "forbidden")
+    prefix_rule(pattern = ["rm", "-f", "-r"], decision = "forbidden")
+    prefix_rule(pattern = ["git", "push", ["--force", "--force-with-lease", "-f"]], decision = "forbidden", justification = "History-rewriting pushes are denied by this repository.")
+    prefix_rule(pattern = ["git", ["commit", "push"], ["--no-verify", "--no-gpg-sign"]], decision = "forbidden", justification = "Run the repository hooks and signing checks; bypassing gates is prohibited.")
+    prefix_rule(pattern = ["git", "reset", "--hard"], decision = "forbidden")
+    prefix_rule(pattern = ["git", "clean", ["-f", "-fd", "-df", "-fx", "-xf", "-fdx", "-xdf", "-ffd"]], decision = "forbidden")
+    prefix_rule(pattern = ["git", ["filter-branch", "filter-repo"]], decision = "forbidden")
+    prefix_rule(pattern = ["git", ["reset", "clean", "checkout", "restore", "stash", "push"]], decision = "prompt", justification = "Obtain explicit user consent for destructive Git actions or publication. Check the repository instructions before requesting approval.")
+    prefix_rule(pattern = ["git", ["-C", "-c", "--git-dir", "--work-tree"]], decision = "prompt", justification = "Git global options can change the target repository or bypass command-prefix checks. Review the full command against repository rules.")
+    prefix_rule(pattern = ["git", "worktree", ["remove", "prune"]], decision = "prompt", justification = "Use basicly worktree cleanup for managed lanes; review direct removal of worktrees.")
