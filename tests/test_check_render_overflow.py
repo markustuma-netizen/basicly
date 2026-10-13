@@ -10,6 +10,7 @@ SCRIPT = REPO_ROOT / ".scripts" / "check_render_overflow.py"
 RENDER = REPO_ROOT / "tests" / "fixtures" / "render"
 FIXTURE = RENDER / "clipped-and-not.html"
 COLLIDING = RENDER / "overlapping-and-not.html"
+CLIPPED_TITLE = RENDER / "clipped-title-beside-a-label.html"
 
 
 def _load(path: Path, name: str) -> ModuleType:
@@ -109,3 +110,19 @@ def test_the_overlap_control_fixture_carries_the_wall_defect_and_its_three_quiet
     assert 'class="nested"' in text, "no ancestor-holds-descendant control"
     assert "position:absolute" in text, "no out-of-flow overlay control"
     assert "overflow:hidden" not in text and "overflow: hidden" not in text
+
+
+def test_a_text_box_is_cut_to_the_ancestors_that_hide_its_overflow() -> None:
+
+    assert "texted.push({ el: el, box: visible(el) })" in gate._PROBE
+    assert "hides(c.overflowX)" in gate._PROBE
+    assert "hides(c.overflowY)" in gate._PROBE
+
+
+def test_the_clipped_title_fixture_holds_a_link_wider_than_its_clipping_title() -> None:
+
+    text = CLIPPED_TITLE.read_text(encoding="utf-8")
+    assert "overflow:hidden" in text, "the title does not clip, so the fixture proves nothing"
+    assert "text-overflow:ellipsis" in text
+    assert "<a href" in text, "no inner text carrier is wider than its clipping ancestor"
+    assert 'class="phase-name"' in text

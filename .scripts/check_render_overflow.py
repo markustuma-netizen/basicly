@@ -37,6 +37,23 @@ window.addEventListener('load', function () {
       || el.tagName.toLowerCase();
   };
   var says = function (el) { return el.textContent.trim().slice(0, 40); };
+  var hides = function (mode) { return mode === 'hidden' || mode === 'clip'; };
+  // What a reader sees of a box: its rect cut to every ancestor that hides its overflow. A
+  // long link inside an ellipsis title is wider than the title, but the part past the
+  // title's edge is never painted, so it cannot be drawn over the label beside it.
+  var visible = function (el) {
+    var b = el.getBoundingClientRect();
+    var r = { left: b.left, top: b.top, right: b.right, bottom: b.bottom };
+    for (var up = el.parentElement; up; up = up.parentElement) {
+      var c = getComputedStyle(up);
+      var hx = hides(c.overflowX), hy = hides(c.overflowY);
+      if (!hx && !hy) { continue; }
+      var u = up.getBoundingClientRect();
+      if (hx) { r.left = Math.max(r.left, u.left); r.right = Math.min(r.right, u.right); }
+      if (hy) { r.top = Math.max(r.top, u.top); r.bottom = Math.min(r.bottom, u.bottom); }
+    }
+    return r;
+  };
   var out = [];
   document.querySelectorAll('*').forEach(function (el) {
     var css = getComputedStyle(el);
@@ -45,7 +62,6 @@ window.addEventListener('load', function () {
     // Overflowing is not being clipped. Content the box scrolls to, or lets spill, is
     // still reachable; only `hidden` and `clip` take it away. Without this the page's
     // own reflow scroll below 1280px reported as a 530px defect.
-    var hides = function (mode) { return mode === 'hidden' || mode === 'clip'; };
     if (!hides(css.overflowX)) { dx = 0; }
     if (!hides(css.overflowY)) { dy = 0; }
     // An ellipsis is a declared truncation, not a clip: the element is *meant* to hold
@@ -93,7 +109,7 @@ window.addEventListener('load', function () {
     for (var up = el.parentElement; up; up = up.parentElement) {
       if (carriers.has(up)) { return; }
     }
-    texted.push({ el: el, box: el.getBoundingClientRect() });
+    texted.push({ el: el, box: visible(el) });
   });
   var collided = [];
   for (var i = 0; i < texted.length; i++) {
