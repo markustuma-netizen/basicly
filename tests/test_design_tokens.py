@@ -195,3 +195,26 @@ def test_the_tracker_page_holds_no_scale_literal() -> None:
     assert found, "the tracker page holds no declaration, so the gate read nothing"
     assert [literal for item in found for literal in gate.scale_literals(item)] == []
     assert path not in gate.load_ratchet(REPO_ROOT).frozen
+
+
+SPACING_FAMILY = ("margin", "padding", "gap", "row-gap", "column-gap")
+
+
+def _is_spacing(name: str) -> bool:
+    return name.startswith(SPACING_FAMILY) or (name.startswith("--bs-") and "padding" in name)
+
+
+def test_no_board_page_holds_a_spacing_literal() -> None:
+
+    board = REPO_ROOT / ".basicly" / "core" / "templates" / "board"
+    pages = sorted(board.glob("*.j2"))
+    found = [
+        f"{item.path}:{item.line} {item.name}: {literal}"
+        for page in pages
+        for item in gate.declarations(page.name, page.read_text(encoding="utf-8"))
+        if _is_spacing(item.name)
+        for literal in gate.scale_literals(item)
+    ]
+
+    assert len(pages) == 5
+    assert found == []

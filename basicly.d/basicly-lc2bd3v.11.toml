@@ -1,0 +1,6 @@
+[ratchet.design_tokens.frozen]
+".basicly/core/templates/board/board_backlog.html.j2" = -14
+".basicly/core/templates/board/board_kanban.html.j2" = -17
+".basicly/core/templates/board/board_page.html.j2" = -70
+".basicly/core/templates/board/board_record.html.j2" = -24
+".basicly/core/templates/board/board_theme.css.j2" = -5

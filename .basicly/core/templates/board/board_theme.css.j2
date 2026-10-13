@@ -68,7 +68,7 @@
          beside them. */
       .btn-board {
         --bs-btn-padding-y: 0;
-        --bs-btn-padding-x: 6px;
+        --bs-btn-padding-x: var(--space-2);
         --bs-btn-font-family: var(--font-sans);
         --bs-btn-font-size: 12px;
         --bs-btn-font-weight: 600;
@@ -90,8 +90,8 @@
       }
       /* The filled form, for the one control an operator came to press. */
       .btn-board-fill {
-        --bs-btn-padding-y: 3px;
-        --bs-btn-padding-x: 12px;
+        --bs-btn-padding-y: var(--space-0);
+        --bs-btn-padding-x: var(--space-4);
         --bs-btn-font-size: 13px;
         --bs-btn-color: var(--on-accent);
         --bs-btn-bg: var(--accent-fill);
@@ -109,8 +109,8 @@
       /* Stopping work is not the ordinary action on a running lane, so it is amber and
          outlined, never the indigo the rest of the page acts in. */
       .btn-board-stop {
-        --bs-btn-padding-y: 2px;
-        --bs-btn-padding-x: 9px;
+        --bs-btn-padding-y: var(--space-0);
+        --bs-btn-padding-x: var(--space-3);
         --bs-btn-color: var(--warn);
         --bs-btn-bg: var(--sunk);
         --bs-btn-border-color: var(--warn);

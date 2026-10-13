@@ -19,7 +19,7 @@
         color: var(--text);
         font-family: var(--font-sans);
         font-size: 14px;
-        padding: 16px 20px 28px;
+        padding: var(--space-5) var(--space-6) var(--space-7);
       }
       a {
         color: inherit;
@@ -27,8 +27,8 @@
       .top {
         align-items: baseline;
         display: flex;
-        gap: 16px;
-        margin-bottom: 14px;
+        gap: var(--space-5);
+        margin-bottom: var(--space-5);
       }
       .top h1 {
         color: var(--text-strong);
@@ -43,16 +43,16 @@
       .note {
         border-left: 3px solid var(--warn);
         color: var(--warn);
-        margin-bottom: 12px;
-        padding-left: 10px;
+        margin-bottom: var(--space-4);
+        padding-left: var(--space-4);
       }
       /* One row of columns that scrolls sideways rather than wrapping. Seven phases wrapped
          to a second row put `ship` above `build`, which reads as the loop running backwards. */
       .board {
         display: flex;
-        gap: 12px;
+        gap: var(--space-4);
         overflow-x: auto;
-        padding-bottom: 8px;
+        padding-bottom: var(--space-3);
       }
       .phase {
         background: var(--sunk);
@@ -65,16 +65,16 @@
         flex: 1 1 0;
         min-width: 168px;
         flex-direction: column;
-        gap: 8px;
-        padding: 10px;
+        gap: var(--space-3);
+        padding: var(--space-4);
       }
       .phase > header {
         align-items: baseline;
         border-bottom: 1px solid var(--line);
         display: flex;
-        gap: 8px;
+        gap: var(--space-3);
         justify-content: space-between;
-        padding-bottom: 6px;
+        padding-bottom: var(--space-2);
       }
       .phase .name {
         color: var(--text-strong);
@@ -92,7 +92,7 @@
         --bs-card-bg: var(--panel);
         border-left-width: 3px;
         display: block;
-        padding: 7px 9px;
+        padding: var(--space-3) var(--space-3);
         text-decoration: none;
       }
       .card:hover {
@@ -115,8 +115,8 @@
         flex-wrap: wrap;
         font-family: var(--font-mono);
         font-size: 11px;
-        gap: 8px;
-        margin-top: 5px;
+        gap: var(--space-3);
+        margin-top: var(--space-2);
       }
       .card .ident {
         color: var(--accent);

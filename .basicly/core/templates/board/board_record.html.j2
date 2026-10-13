@@ -25,7 +25,7 @@
         font-family: var(--font-sans);
         font-size: 15px;
         line-height: 1.5;
-        padding: 24px;
+        padding: var(--space-6);
       }
       main {
         margin: 0 auto;
@@ -44,14 +44,14 @@
         color: var(--muted);
         font-size: 13px;
         letter-spacing: 0.08em;
-        margin: 24px 0 8px;
-        padding-bottom: 4px;
+        margin: var(--space-6) 0 var(--space-3);
+        padding-bottom: var(--space-1);
         text-transform: uppercase;
       }
       .title {
         color: var(--text-strong);
         font-size: 17px;
-        margin-top: 4px;
+        margin-top: var(--space-1);
       }
       .age {
         color: var(--muted);
@@ -59,7 +59,7 @@
       }
       dl {
         display: grid;
-        gap: 4px 16px;
+        gap: var(--space-1) var(--space-5);
         grid-template-columns: 160px 1fr;
       }
       dt {
@@ -92,7 +92,7 @@
         color: var(--text-strong);
         display: inline-block;
         font-family: var(--font-mono);
-        padding: 4px 8px;
+        padding: var(--space-1) var(--space-3);
       }
       ul {
         list-style: none;
@@ -113,24 +113,24 @@
       .body h2 {
         color: var(--text-strong);
         font-size: 15px;
-        margin: 18px 0 6px;
+        margin: var(--space-5) 0 var(--space-2);
       }
       .body h3 {
         color: var(--text-strong);
         font-size: 14px;
-        margin: 14px 0 4px;
+        margin: var(--space-5) 0 var(--space-1);
       }
       .body p,
       .body li {
         line-height: 1.5;
-        margin-bottom: 6px;
+        margin-bottom: var(--space-2);
       }
       /* The page's bare `ul`/`li` rules are the tree and the edge lists: monospace ids with
          no marker. A rendered body is prose and needs both back (basicly-lc2bd3v.2). */
       .body ul,
       .body ol {
         list-style: disc;
-        padding-left: 22px;
+        padding-left: var(--space-6);
       }
       .body ol {
         list-style: decimal;
@@ -143,14 +143,14 @@
         border-radius: 3px;
         font-family: var(--font-mono);
         font-size: 12px;
-        padding: 1px 4px;
+        padding: var(--space-0) var(--space-1);
       }
       .body pre {
         background: var(--sunk);
         border: 1px solid var(--line);
         border-radius: 4px;
         overflow-x: auto;
-        padding: 8px 10px;
+        padding: var(--space-3) var(--space-4);
       }
       .body pre code {
         background: none;
@@ -158,19 +158,19 @@
       }
       .body table {
         border-collapse: collapse;
-        margin: 8px 0;
+        margin: var(--space-3) 0;
       }
       .body th,
       .body td {
         border: 1px solid var(--line);
-        padding: 3px 8px;
+        padding: var(--space-1) var(--space-3);
         text-align: left;
       }
       .body blockquote {
         border-left: 3px solid var(--accent);
         color: var(--muted);
-        margin: 8px 0;
-        padding-left: 12px;
+        margin: var(--space-3) 0;
+        padding-left: var(--space-4);
       }
       /* The title beside an id in the tree and the edge lists. Dimmer than the link, because
          the link is the way in and the title is what tells a reader whether to take it. */

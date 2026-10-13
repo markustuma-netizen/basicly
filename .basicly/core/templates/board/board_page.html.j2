@@ -42,14 +42,14 @@
         /* The page never scrolls and neither does a region. Anything that does not fit was
            dropped by the model, which said how many and of what. */
         overflow: hidden;
-        padding: 8px;
+        padding: var(--space-3);
       }
       /* Fixed columns, and rows that reflow only when a *capacity* changes. A wall display
          that moves when a number changes is unreadable, so every region caps what it draws at
          a slot count the model states and reports the rest. */
       .wall {
         display: grid;
-        gap: 7px;
+        gap: var(--space-2);
         grid-template-columns: minmax(0, 1fr);
         grid-template-areas:
           "head"
@@ -83,7 +83,7 @@
         overflow: hidden;
       }
       .region.framed {
-        padding: 5px 10px;
+        padding: var(--space-1) var(--space-3);
       }
       h2 {
         color: var(--muted);
@@ -112,7 +112,7 @@
         font-family: var(--font-mono);
         font-size: 0.82em;
         line-height: 1;
-        margin-right: 5px;
+        margin-right: var(--space-1);
       }
       a.rec {
         color: inherit;
@@ -153,13 +153,13 @@
         display: grid;
         grid-area: head;
         grid-template-columns: minmax(0, 1fr) auto;
-        gap: 0 18px;
+        gap: 0 var(--space-5);
       }
       .facts {
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 2px 18px;
+        gap: var(--space-0) var(--space-5);
         min-width: 0;
       }
       .facts .brand {
@@ -172,7 +172,7 @@
       .facts .cell {
         align-items: baseline;
         display: flex;
-        gap: 7px;
+        gap: var(--space-2);
         min-width: 0;
       }
       .facts .cell .value {
@@ -193,7 +193,7 @@
         font-size: 21px;
         font-weight: 700;
         letter-spacing: 0.04em;
-        padding: 0 9px;
+        padding: 0 var(--space-3);
       }
       .facts .token .note {
         min-width: 0;
@@ -215,7 +215,7 @@
         align-items: center;
         display: inline-flex;
         font-size: 17px;
-        gap: 6px;
+        gap: var(--space-2);
       }
 
       .fresh .note {
@@ -253,7 +253,7 @@
         display: flex;
         /* Stated, because the card it now is lays its children out as a column. */
         flex-direction: row;
-        gap: 22px;
+        gap: var(--space-6);
         grid-area: band;
         /* The one stated height on the page, and it is a floor rather than a fixture: the
            alarm has to be the same size whether or not anybody is waiting, or the region
@@ -312,7 +312,7 @@
       .acts {
         --bs-card-border-color: var(--warn);
         grid-area: acts;
-        padding: 5px 9px 7px;
+        padding: var(--space-1) var(--space-3) var(--space-2);
       }
       .acts h2 {
         color: var(--warn);
@@ -321,8 +321,8 @@
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 4px 10px;
-        padding: 3px 0;
+        gap: var(--space-1) var(--space-3);
+        padding: var(--space-0) 0;
       }
       .act + .act {
         border-top: 1px solid var(--line);
@@ -331,7 +331,7 @@
         align-items: baseline;
         display: flex;
         flex: 1 1 100%;
-        gap: 8px;
+        gap: var(--space-3);
         min-width: 0;
       }
       .act .subject {
@@ -356,7 +356,7 @@
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 6px;
+        gap: var(--space-2);
       }
       .act label {
         color: var(--muted);
@@ -369,7 +369,7 @@
         color: var(--text);
         font-family: var(--font-mono);
         font-size: 13px;
-        padding: 2px 5px;
+        padding: var(--space-0) var(--space-1);
       }
       /* What the board already knew against what the operator still owes. Two channels, the
          label's colour and the input's border, because a form whose filled and empty inputs
@@ -388,7 +388,7 @@
          indigo because stopping work is not the ordinary action on a running lane, and its
          one typed field is the reason, which the ledger keeps (basicly-x1h1dl5). */
       .card .kill {
-        margin-top: 3px;
+        margin-top: var(--space-0);
       }
       .card .kill summary {
         color: var(--warn);
@@ -398,8 +398,8 @@
       .card .kill form {
         align-items: baseline;
         display: flex;
-        gap: 6px;
-        margin-top: 3px;
+        gap: var(--space-2);
+        margin-top: var(--space-0);
       }
       .card .kill label {
         color: var(--warn);
@@ -413,7 +413,7 @@
         font-family: var(--font-mono);
         font-size: 12px;
         min-width: 0;
-        padding: 1px 4px;
+        padding: var(--space-0) var(--space-1);
       }
       .card .kill .btn {
         flex: 0 0 auto;
@@ -424,7 +424,7 @@
         display: block;
         font-family: var(--font-mono);
         font-size: 11px;
-        margin-top: 4px;
+        margin-top: var(--space-1);
       }
       /* Where the CLI's own output lands, so a submission never navigates the wall away. */
       .acts iframe {
@@ -432,7 +432,7 @@
         border: 1px solid var(--line);
         border-radius: 3px;
         height: 46px;
-        margin-top: 4px;
+        margin-top: var(--space-1);
         width: 100%;
       }
 
@@ -604,7 +604,7 @@
          Rows rather than cards, and above them: a claimed record has no agent, no branch and
          no spend, and it is the population the page counted three times and never named. */
       .claimed {
-        margin-bottom: 5px;
+        margin-bottom: var(--space-1);
       }
       .claimed h3 {
         color: var(--warn);
@@ -617,9 +617,9 @@
         align-items: baseline;
         border-left: 2px solid var(--warn);
         display: flex;
-        gap: 10px;
+        gap: var(--space-3);
         min-width: 0;
-        padding: 1px 0 1px 7px;
+        padding: var(--space-0) 0 var(--space-0) var(--space-2);
       }
       .claim .pri {
         color: var(--muted);
@@ -649,12 +649,12 @@
       .queue .bands {
         display: flex;
         flex-wrap: wrap;
-        gap: 4px 16px;
+        gap: var(--space-1) var(--space-5);
       }
       .queue .band {
         align-items: baseline;
         display: flex;
-        gap: 6px;
+        gap: var(--space-2);
       }
       .queue .n {
         color: var(--text-strong);
@@ -674,8 +674,8 @@
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 4px 10px;
-        margin-top: 2px;
+        gap: var(--space-1) var(--space-3);
+        margin-top: var(--space-0);
       }
       /* An id and, where it has one, the count of what waits on it. `--indigo` because every
          other id on this page is that colour and a reader follows them by hue. */
@@ -695,7 +695,7 @@
       .queue .who .n {
         color: var(--warn);
         font-size: 13px;
-        margin-left: 4px;
+        margin-left: var(--space-1);
       }
       /* The chain reads as a sequence, so each hop but the first is announced. Drawn as a
          path and not as `content: "\2192"`: that was a codepoint spelled as a CSS escape,
@@ -730,7 +730,7 @@
       .flight {
         align-content: start;
         display: grid;
-        gap: 6px;
+        gap: var(--space-2);
         grid-area: flight;
         grid-template-columns: repeat(auto-fit, minmax(560px, 1fr));
       }
@@ -742,11 +742,11 @@
       .flight.quiet {
         align-items: baseline;
         display: flex;
-        gap: 14px;
+        gap: var(--space-4);
       }
       .flight .card {
         border-width: 3px;
-        padding: 9px 12px 10px;
+        padding: var(--space-3) var(--space-4) var(--space-3);
       }
       /* The activity line is the field with no substitute (basicly-0xtzf1): the summary
          carries the one-line clip so a card still fits collapsed, and the disclosure
@@ -756,8 +756,8 @@
         color: var(--text);
         font-size: 14px;
         line-height: 1.35;
-        margin-top: 7px;
-        padding-top: 6px;
+        margin-top: var(--space-2);
+        padding-top: var(--space-2);
       }
       .card > .note summary {
         cursor: pointer;
@@ -769,7 +769,7 @@
         display: none;
       }
       .card > .note .full {
-        margin-top: 4px;
+        margin-top: var(--space-1);
         white-space: pre-wrap;
       }
       /* A still card and a wedged card look identical, so a lane reporting a live stream
@@ -781,7 +781,7 @@
         content: "";
         display: inline-block;
         height: 8px;
-        margin-left: 8px;
+        margin-left: var(--space-3);
         width: 8px;
       }
       @keyframes pulse {
@@ -791,7 +791,7 @@
       .miss {
         color: var(--muted);
         font-size: 13px;
-        margin-right: 14px;
+        margin-right: var(--space-4);
       }
       /* The title and the phase share one line. A card is the region that takes the wall's
          slack - every other row is bounded by a capacity and this one absorbs what is left -
@@ -799,7 +799,7 @@
       .card .title {
         align-items: baseline;
         display: flex;
-        gap: 12px;
+        gap: var(--space-4);
         min-width: 0;
       }
       /* The unit title (basicly-0xtzf1's `units[].title` join, id demoted to a dim cell
@@ -828,7 +828,7 @@
       }
       /* Two pairs to a line, halving how many rows a card's figures cost. */
       .card dl {
-        column-gap: 8px;
+        column-gap: var(--space-3);
         display: grid;
         grid-template-columns: repeat(2, auto minmax(0, 1fr));
         line-height: 1.15;
@@ -863,7 +863,7 @@
       .ready .table > :not(caption) > * > * {
         border-bottom-width: 0;
         box-shadow: none;
-        padding: 1px 0;
+        padding: var(--space-0) 0;
       }
       /* Only in the reclaimed row, where the height is the list's to use. Beside the lanes the
          same rule spread eight rows over 700px, which is the dead space one column over. */
@@ -873,7 +873,7 @@
       .ready td {
         font-family: var(--font-mono);
         font-size: 17px;
-        padding: 1px 0;
+        padding: var(--space-0) 0;
       }
       /* The widths live on the columns, not on the first row's cells: `table-layout: fixed`
          reads row one, and row one is a group heading whose single cell spans all three, so
@@ -904,8 +904,8 @@
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 4px 14px;
-        margin-top: 5px;
+        gap: var(--space-1) var(--space-4);
+        margin-top: var(--space-1);
       }
       .parked .one {
         font-family: var(--font-mono);
@@ -945,14 +945,14 @@
         font-family: var(--font-sans);
         font-weight: 600;
         letter-spacing: 0.02em;
-        padding: 7px 0 1px;
+        padding: var(--space-2) 0 var(--space-0);
       }
       /* The flex row is a div inside the cell, never the cell itself: `display: flex` on a
          `td` of a fixed-layout table left the name with no width to lay out in and the wall
          drew five counts with no feature beside them. A block child takes the cell's width. */
       .ready .feature .heading {
         display: flex;
-        gap: 16px;
+        gap: var(--space-5);
         justify-content: space-between;
       }
       .ready .feature .name {
@@ -960,7 +960,7 @@
       }
       .ready tr.feature:first-child td {
         border-top: 0;
-        padding-top: 1px;
+        padding-top: var(--space-0);
       }
       /* Right-aligned so the counts stack into a column the eye can compare down, which is
          what makes "42 unattached against 9 anywhere else" legible without reading titles. */
@@ -978,21 +978,21 @@
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 2px 18px;
+        gap: var(--space-0) var(--space-5);
         grid-area: foot;
       }
       .strip {
         align-items: baseline;
         display: flex;
         flex-wrap: wrap;
-        gap: 2px 14px;
+        gap: var(--space-0) var(--space-4);
         line-height: 1.2;
         min-width: 0;
       }
       .strip .cell {
         align-items: baseline;
         display: flex;
-        gap: 6px;
+        gap: var(--space-2);
         min-width: 0;
       }
       .strip .cell .value {
@@ -1013,7 +1013,7 @@
         /* The server's own notes wrap onto their own line when they carry a fault, and ride
            the events line when they do not. Both need this. */
         flex-wrap: wrap;
-        gap: 14px;
+        gap: var(--space-4);
         grid-area: tick;
       }
       .tick .lines {
@@ -1053,7 +1053,7 @@
         align-items: center;
         display: flex;
         flex-wrap: wrap;
-        gap: 2px 12px;
+        gap: var(--space-0) var(--space-4);
         grid-area: inv;
         overflow: hidden;
       }

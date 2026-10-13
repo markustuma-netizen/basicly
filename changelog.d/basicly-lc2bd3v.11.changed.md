@@ -1,0 +1,1 @@
+- **Every board page takes its spacing from the design tokens.** Padding, margins and gaps on the wall, loop, backlog and record pages, and the board button padding, now come from the shared spacing scale in `kit/board/web/tokens.css`, so a nested box always keeps an inset (basicly-lc2bd3v.11).
