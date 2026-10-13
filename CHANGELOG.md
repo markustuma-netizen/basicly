@@ -6,6 +6,13 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+A minor release with a design specialist, one design system for the tracker and the board, and record types that the tracker enforces. The tracker page and the board now read every colour, spacing and type value from one token file and follow the system light or dark setting, with every text and control colour at WCAG AA contrast. The tracker refuses a record type outside the six it knows, and a parent that may not hold its child. Records of another type still load, and one `update` moves each.
+
+- **A designer agent** (`basicly-nu6dtql`, `basicly-ck1pqum`): a read-only agent that draws mocks of every state for terminal, web, desktop and mobile surfaces, counts mock widths with a script, and returns commands, keyboard access, migration, open questions and failure modes.
+- **One design system** (`basicly-c309uki`, `basicly-0p8sdzo`, `basicly-lc2bd3v.11`): `kit/board/web/tokens.css` holds the light and dark themes, the spacing scale and the type scale, and a gate refuses a colour outside it.
+- **Six record types and a parent rule** (`basicly-0vw307h`): task, bug, feature, chore, epic and research; an epic holds features, tasks, bugs, chores and research, and a feature holds tasks, bugs and chores.
+- **Clearer failures** (`basicly-bynlqpk`, `basicly-khv2kc1`): a failed check names a Python upgrade that happened during the run, and `basicly build` names each stale projection.
+
 ## v0.22.2 - 2026-10-09
 
 Delta: v0.22.1..v0.22.2
