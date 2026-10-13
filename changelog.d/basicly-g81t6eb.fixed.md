@@ -1,0 +1,1 @@
+- **The pipe-status-guard advice works in bash and zsh.** It no longer suggests `${PIPESTATUS[1]}`, which reads the wrong stage in bash and is unset in zsh, and it names the cheapest fix: join with `;` instead of `&&` when the chain status does not matter (basicly-g81t6eb).

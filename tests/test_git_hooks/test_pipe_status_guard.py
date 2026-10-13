@@ -55,7 +55,6 @@ def test_the_reproduction_the_record_states_is_refused() -> None:
 def test_the_refusal_names_the_three_alternatives_rather_than_saying_be_careful() -> None:
     stderr = _run_hook(_bash(THE_RECORDED_ONE)).stderr
     assert "> out.txt" in stderr
-    assert "PIPESTATUS" in stderr
     assert "pipefail" in stderr
     assert "pass/fail summary line" in stderr
 
@@ -135,3 +134,11 @@ def test_the_grep_family_is_absent_from_the_fire_set_on_purpose(module) -> None:
 def test_the_guard_fails_open_on_anything_it_cannot_read() -> None:
     for payload in ("not json at all", "{}", json.dumps({"tool_name": "Edit"})):
         assert _run_hook(payload).returncode == 0
+
+
+def test_the_advice_works_in_bash_and_zsh() -> None:
+    stderr = _run_hook(_bash(THE_RECORDED_ONE)).stderr
+    assert "PIPESTATUS" not in stderr
+    assert "pipestatus" not in stderr
+    assert "<cmd> | tail -5; <next>" in stderr
+    assert "; not &&" in stderr
