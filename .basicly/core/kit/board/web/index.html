@@ -164,13 +164,12 @@
 "use strict";
 const API = "/api/v1";
 const REFINE = "refine";
-const TYPES = ["task", "feature", "bug", "chore", "epic"];
 const PRIORITIES = [["0", "critical"], ["1", "high"], ["2", "medium"], ["3", "low"], ["4", "backlog"]];
 const STATUSES = ["open", "in_progress", "blocked", "deferred"];
 const EDGE_NAMES = { blocks: "waits on", "parent-child": "is a child of", related: "is related to", "discovered-from": "was discovered from" };
 const TABS = [["ready", "Ready"], ["working", "In progress"], ["refine", "Refine"], ["blocked", "Blocked"], ["mine", "Mine"], ["active", "All open"], ["closed", "Closed"]];
 const LIST_CAP = 400;
-const state = { dependents: new Map(), edgeTypes: ["blocks"], me: "", records: new Map(), closed: null, ready: [], refine: new Map(), blocked: new Map(), tab: "ready", type: "", sort: "rank", query: "", current: null };
+const state = { dependents: new Map(), edgeTypes: ["blocks"], recordTypes: [], me: "", records: new Map(), closed: null, ready: [], refine: new Map(), blocked: new Map(), tab: "ready", type: "", sort: "rank", query: "", current: null };
 
 function el(tag, attrs, ...children) {
   const node = document.createElement(tag);
@@ -314,6 +313,7 @@ async function load() {
   state.version = version;
   state.me = index.holder || "";
   state.edgeTypes = index.edge_types || state.edgeTypes;
+  state.recordTypes = index.record_types || state.recordTypes;
   state.records = new Map(lists.flatMap((list) => list.records).map((one) => [one.record, one]));
   state.dependents = new Map();
   for (const one of state.records.values()) {
@@ -444,7 +444,7 @@ function drawTabs() {
   document.getElementById("tabs").replaceChildren(...TABS.map(([key, name]) => el("button", {
     class: "tab", type: "button", "aria-pressed": String(state.tab === key), onclick: () => pick(key),
   }, name, sizes[key] === null ? null : el("span", { class: "n" }, String(sizes[key])))));
-  document.getElementById("types").replaceChildren(...[["", "all types"], ...TYPES.map((t) => [t, t])].map(([key, name]) => el("button", {
+  document.getElementById("types").replaceChildren(...[["", "all types"], ...state.recordTypes.map((t) => [t, t])].map(([key, name]) => el("button", {
     class: "chip", type: "button", "aria-pressed": String(state.type === key), onclick: () => { state.type = key; drawList(); },
   }, name)));
 }
@@ -683,7 +683,7 @@ function storyForm(values, { status, submit, cancel, note, draft, revision }) {
     }
   } catch (error) { toast("The browser could not restore this draft: " + error.message, true); }
   const checklist = el("div", { class: "checklist", "aria-live": "polite" });
-  const type = select(TYPES.map((t) => [t, t]), values.issue_type, () => drawChecklist(checklist, type.value), "no type");
+  const type = select(state.recordTypes.map((t) => [t, t]), values.issue_type, () => drawChecklist(checklist, type.value), "no type");
   const priority = select(PRIORITIES.map(([key, name]) => [key, "P" + key + " " + name]), values.priority, () => {}, "no priority");
   const state_ = status ? select(STATUSES.map((one) => [one, one.replace("_", " ")]), values.status || status, () => {}) : null;
   const area = (name, text, placeholder, tall) => grow(el("textarea", { name, placeholder, class: tall ? "tall" : null }, String(text || "")));

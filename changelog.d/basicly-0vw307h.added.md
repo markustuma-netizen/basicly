@@ -1,0 +1,1 @@
+- **The tracker knows six record types and which may be whose parent.** It refuses any type other than task, bug, feature, chore, epic and research, and it refuses a parent whose type may not hold the child. An epic holds features, tasks, bugs, chores and research; a feature holds tasks, bugs and chores. The page reads the types from the API (basicly-0vw307h).

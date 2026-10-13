@@ -760,6 +760,7 @@ def test_a_consumer_with_no_basicly_can_import_their_tracker(tmp_path: Path) -> 
         "process_evidence.py",
         "evidence_checks.py",
         "labels.py",
+        "record_types.py",
     ):
         shutil.copy2(KIT_DIR / name, consumer / name)
     for source in (MIGRATE_SOURCE, EVENTS_SOURCE, IDS_SOURCE):
