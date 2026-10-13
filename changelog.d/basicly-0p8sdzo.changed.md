@@ -1,0 +1,1 @@
+- **The tracker page reads its spacing and type from the design tokens.** Every margin, padding, gap, font size, weight, line height, radius and shadow on the tracker page now comes from `kit/board/web/tokens.css`, so one edit there changes the whole page (basicly-0p8sdzo).

@@ -185,3 +185,13 @@ def test_the_rendered_board_reads_only_tokens(fixture: str) -> None:
 
     assert found, "the rendered page holds no declaration, so the gate read nothing"
     assert gate.colour_findings(found, TOKENS) == []
+
+
+def test_the_tracker_page_holds_no_scale_literal() -> None:
+
+    path = TRACKER.relative_to(REPO_ROOT).as_posix()
+    found = list(gate.declarations(path, TRACKER.read_text(encoding="utf-8")))
+
+    assert found, "the tracker page holds no declaration, so the gate read nothing"
+    assert [literal for item in found for literal in gate.scale_literals(item)] == []
+    assert path not in gate.load_ratchet(REPO_ROOT).frozen
