@@ -6,7 +6,7 @@ triggers: Use before a layout, a pane, a page, a screen or an interaction is bui
 returns: Returns mocks of every state in the repository's own mock conventions, the commands and keyboard access, a migration from the old layout, open questions each with a recommended answer, and the failure modes.
 posture: Read-only.
 tier: high
-tools: [Read, Grep, Glob]
+tools: [Read, Grep, Glob, Bash]
 slots:
   role:
     - text: |
@@ -43,7 +43,9 @@ slots:
 
         - Draw at the repository's body width; with none, at 80 columns and at the
           narrowest width supported. Say what is cut first below it.
-        - Count columns: a box character, an emoji or a CJK character can take two.
+        - Count each mock line's display width with a script before you return,
+          for example Python with `unicodedata.east_asian_width`: a `W` or `F`
+          character takes two columns. An emoji or a CJK character can take two.
         - Put the most important fact at the left. A narrow terminal cuts the right.
         - Give every action a key. Keep the host's keys: arrows, Enter, Esc, Tab, `q`,
           `?`. Say where the focus is in each state.

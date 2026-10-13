@@ -37,7 +37,7 @@ def test_the_designer_agent_is_read_only_at_tier_high() -> None:
     agent = _designer()
 
     assert agent.tier == "high"
-    assert agent.tools == ("Read", "Grep", "Glob")
+    assert agent.tools == ("Read", "Grep", "Glob", "Bash")
     assert set(agent.tools).isdisjoint(WRITE_TOOLS)
     assert agent.posture == "Read-only."
 
@@ -60,3 +60,12 @@ def test_the_designer_output_contract_names_every_required_section() -> None:
     assert -1 not in positions
     assert positions == sorted(positions)
     assert "answer you recommend" in contract
+
+
+def test_the_designer_counts_terminal_mock_widths_with_a_script() -> None:
+
+    body = _body()
+    terminal = body[body.index("## Terminal") : body.index("## Web")]
+
+    assert "display width with a script" in terminal
+    assert "east_asian_width" in terminal
