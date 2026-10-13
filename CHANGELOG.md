@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+A patch release with two fixes that consumer sessions reported. A commit can no longer name a record whose ledger shard is not staged, which left the terminal session with a ledger that `show` refused until a cherry-pick. The pipe-status-guard advice now works in bash and zsh.
+
+- **The commit gate reads the staged ledger** (`basicly-xy5b2j4`): an id that lives only in an unstaged or untracked shard is refused, and the refusal names the shard and the `git add` command.
+- **Pipe-status advice for bash and zsh** (`basicly-g81t6eb`): the shell-specific `PIPESTATUS` line is gone, and the advice names the `;` join for a chain whose status does not matter.
+
 ## v0.23.0 - 2026-10-13
 
 Delta: v0.22.2..v0.23.0
