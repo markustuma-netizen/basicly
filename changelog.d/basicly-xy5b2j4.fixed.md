@@ -1,1 +1,0 @@
-- **A commit cannot name a record whose ledger shard is not staged.** tracker-commit-msg now reads record ids from the staged ledger, so an id that lives only in an unstaged or untracked shard is refused, and the refusal names the shard and the `git add` command (basicly-xy5b2j4).
