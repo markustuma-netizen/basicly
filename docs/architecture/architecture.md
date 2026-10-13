@@ -2240,7 +2240,7 @@ treat it as persuadable.
 
 ```mermaid
 flowchart LR
-  csrc["11 agent.yaml sources<br/>plus 5 shared blocks<br/>every source declares a tier"]
+  csrc["12 agent.yaml sources<br/>plus 5 shared blocks<br/>every source declares a tier"]
   abuild["basicly agents-build"]
   pcl[".claude/agents<br/>declared skills ride<br/>the frontmatter"]
   pco[".github/agents<br/>the skills are dropped<br/>for this family · no bead"]
