@@ -5,7 +5,7 @@
 {%- if ident in linkable %}<a class="rec" href="{{ record_dir }}/{{ ident }}{{ record_ext }}">{{ text }}</a>{% else %}{{ text }}{% endif -%}
 {%- endmacro -%}
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -20,7 +20,7 @@
       body {
         background: var(--bg);
         color: var(--text);
-        font-family: var(--sans);
+        font-family: var(--font-sans);
         font-size: 14px;
         padding: 16px 20px 40px;
       }
@@ -28,7 +28,7 @@
         color: inherit;
       }
       a.rec {
-        color: var(--indigo);
+        color: var(--accent);
         text-decoration: none;
       }
       a.rec:hover,
@@ -43,27 +43,27 @@
         margin-bottom: 6px;
       }
       .top h1 {
-        color: var(--text-bright);
+        color: var(--text-strong);
         font-size: 18px;
       }
       .age,
       .schema {
-        color: var(--text-dim);
-        font-family: var(--mono);
+        color: var(--muted);
+        font-family: var(--font-mono);
         font-size: 12px;
       }
       .totals {
-        color: var(--text-dim);
-        font-family: var(--mono);
+        color: var(--muted);
+        font-family: var(--font-mono);
         font-size: 13px;
         margin-bottom: 14px;
       }
       .totals b {
-        color: var(--text-bright);
+        color: var(--text-strong);
       }
       .note {
-        border-left: 3px solid var(--amber);
-        color: var(--amber);
+        border-left: 3px solid var(--warn);
+        color: var(--warn);
         margin-bottom: 12px;
         padding-left: 10px;
       }
@@ -72,8 +72,8 @@
       }
       .feature > h2 {
         align-items: baseline;
-        border-bottom: 1px solid var(--border);
-        color: var(--text-bright);
+        border-bottom: 1px solid var(--line);
+        color: var(--text-strong);
         display: flex;
         font-size: 15px;
         gap: 10px;
@@ -81,8 +81,8 @@
         padding-bottom: 4px;
       }
       .feature .of {
-        color: var(--text-dim);
-        font-family: var(--mono);
+        color: var(--muted);
+        font-family: var(--font-mono);
         font-size: 12px;
         font-weight: 400;
         white-space: nowrap;
@@ -92,7 +92,7 @@
          overlap on three rows by `check_render_overflow.py`, which is the only instrument
          that sees it. Auto sizes each column to its content and the title takes the slack. */
       .table {
-        --bs-table-border-color: var(--bg-raise);
+        --bs-table-border-color: var(--panel);
       }
       /* The plan's pitch: `.table-sm` pads 4px all round, and the left edge here is flush. */
       .table > :not(caption) > * > * {
@@ -104,35 +104,35 @@
       td.state,
       td.at,
       td.kind {
-        color: var(--text-dim);
-        font-family: var(--mono);
+        color: var(--muted);
+        font-family: var(--font-mono);
         font-size: 12px;
         white-space: nowrap;
         width: 1%;
       }
       td.id {
-        font-family: var(--mono);
+        font-family: var(--font-mono);
         font-size: 12px;
         white-space: nowrap;
         width: 1%;
       }
       td.title {
-        color: var(--text-bright);
+        color: var(--text-strong);
         width: 100%;
       }
       .yes {
-        color: var(--green);
+        color: var(--ok);
       }
       /* What holds this row, under its title rather than in a column of its own: a blocked row
          has one to four blockers and a column wide enough for four wastes the width on every
          row that has none. */
       .waits {
-        color: var(--amber);
-        font-family: var(--mono);
+        color: var(--warn);
+        font-family: var(--font-mono);
         font-size: 12px;
       }
       .waits a.rec {
-        color: var(--amber);
+        color: var(--warn);
       }
     </style>
   </head>

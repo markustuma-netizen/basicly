@@ -35,15 +35,15 @@ class State:
 
 
 STATES: tuple[State, ...] = (
-    State(RENDERABLE, "\N{BLACK CIRCLE}", "solid", "var(--green)"),
-    State(WITHHELD, "\N{WHITE DIAMOND}", "double", "var(--amber)"),
-    State(ABSENT, "\N{WHITE CIRCLE}", "dashed", "var(--text-dim)"),
-    State(LIVE, "\N{BLACK RIGHT-POINTING TRIANGLE}", "solid", "var(--green)"),
-    State(STALE, "\N{BLACK DIAMOND}", "double", "var(--amber)"),
-    State(WAITING, "\N{BLACK UP-POINTING TRIANGLE}", "solid", "var(--amber)"),
-    State(STUCK, "\N{BLACK UP-POINTING TRIANGLE}", "double", "var(--orange)"),
-    State(CALM, "\N{BULLSEYE}", "solid", "var(--green)"),
-    State(FAIL, "\N{MULTIPLICATION X}", "double", "var(--amber)"),
+    State(RENDERABLE, "\N{BLACK CIRCLE}", "solid", "var(--ok)"),
+    State(WITHHELD, "\N{WHITE DIAMOND}", "double", "var(--warn)"),
+    State(ABSENT, "\N{WHITE CIRCLE}", "dashed", "var(--muted)"),
+    State(LIVE, "\N{BLACK RIGHT-POINTING TRIANGLE}", "solid", "var(--ok)"),
+    State(STALE, "\N{BLACK DIAMOND}", "double", "var(--warn)"),
+    State(WAITING, "\N{BLACK UP-POINTING TRIANGLE}", "solid", "var(--warn)"),
+    State(STUCK, "\N{BLACK UP-POINTING TRIANGLE}", "double", "var(--stuck-fill)"),
+    State(CALM, "\N{BULLSEYE}", "solid", "var(--ok)"),
+    State(FAIL, "\N{MULTIPLICATION X}", "double", "var(--warn)"),
 )
 
 BY_KEY: Mapping[str, State] = {state.key: state for state in STATES}

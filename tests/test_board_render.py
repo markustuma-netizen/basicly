@@ -90,7 +90,7 @@ def test_the_alarm_colour_is_only_ever_the_watch_bands() -> None:
     users = [
         selector.strip()
         for selector, body in _RULE.findall(styles)
-        if "var(--orange)" in body or "--orange:" in body
+        if "var(--stuck-fill)" in body or "--stuck-fill:" in body
     ]
     assert users, "no rule uses the alarm colour at all, so this probe proves nothing"
     for selector in users:

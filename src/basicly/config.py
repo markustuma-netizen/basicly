@@ -336,6 +336,7 @@ CONFIG_SCHEMA: dict[str, Table] = {
         keys=frozenset({"base_commit"}),
         tables={
             "code_citations": _RATCHET_TABLE,
+            "design_tokens": _RATCHET_TABLE,
             "module_size": _RATCHET_TABLE,
             "noqa_debt": _RATCHET_TABLE,
             "release_notes": _RATCHET_TABLE,

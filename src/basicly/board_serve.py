@@ -84,17 +84,19 @@ DROPPED_ROWS_FAULT = (
 NOTES_SLOT = '<div class="notes"></div>'
 
 
-def newest_template_mtime(templates_dir: Path) -> float | None:
+def newest_template_mtime(templates_dir: Path, *included: Path) -> float | None:
 
     try:
-        stamps = [path.stat().st_mtime for path in templates_dir.glob("*.j2")]
+        stamps = [path.stat().st_mtime for path in (*templates_dir.glob("*.j2"), *included)]
     except OSError:
         return None
     return max(stamps, default=None)
 
 
 def _template_mtime() -> float | None:
-    return newest_template_mtime(catalog.bundled_catalog_root() / board_render.TEMPLATE_DIR)
+    return newest_template_mtime(
+        catalog.bundled_catalog_root() / board_render.TEMPLATE_DIR, board_render.tokens_path()
+    )
 
 
 def _rows_dropped(ready: object, drawn: str) -> bool:

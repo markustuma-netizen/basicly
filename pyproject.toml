@@ -295,6 +295,22 @@ S603 = 15
 S607 = 6
 S701 = 1
 UP017 = 1
+# Design-token ratchet (basicly-c309uki). The gate is `.scripts/check_design_tokens.py`, run
+# by `tests/test_design_tokens.py`. Colour literals, unknown var() names and the bootstrap
+# bridge's rgb triples are refused outright. Spacing, type, radius and motion literals are
+# held at each page's count on 2026-10-13 and may only fall, page by page, tracker first and
+# the board wall last; `file_count` is the number of page files the gate reads.
+[tool.design_tokens]
+file_count = 6
+
+[tool.design_tokens.frozen]
+".basicly/core/kit/board/web/index.html" = 163
+".basicly/core/templates/board/board_page.html.j2" = 159
+".basicly/core/templates/board/board_record.html.j2" = 38
+".basicly/core/templates/board/board_kanban.html.j2" = 26
+".basicly/core/templates/board/board_backlog.html.j2" = 24
+".basicly/core/templates/board/board_theme.css.j2" = 13
+
 [tool.corpus_drift.frozen]
 "basicly-u2hl" = 4
 

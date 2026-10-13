@@ -5,7 +5,7 @@
 <a href="{{ ident }}{{ href_suffix }}">{{ ident }}</a>{% if titles.get(ident) %} <span class="what">{{ titles[ident] }}</span>{% endif %}
 {%- endmacro -%}
 <!doctype html>
-<html lang="en" data-bs-theme="dark">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -22,7 +22,7 @@
       body {
         background: var(--bg);
         color: var(--text);
-        font-family: var(--sans);
+        font-family: var(--font-sans);
         font-size: 15px;
         line-height: 1.5;
         padding: 24px;
@@ -32,16 +32,16 @@
         max-width: 900px;
       }
       a {
-        color: var(--indigo);
+        color: var(--accent);
       }
       h1 {
-        color: var(--text-bright);
-        font-family: var(--mono);
+        color: var(--text-strong);
+        font-family: var(--font-mono);
         font-size: 22px;
       }
       h2 {
-        border-bottom: 1px solid var(--border);
-        color: var(--text-dim);
+        border-bottom: 1px solid var(--line);
+        color: var(--muted);
         font-size: 13px;
         letter-spacing: 0.08em;
         margin: 24px 0 8px;
@@ -49,12 +49,12 @@
         text-transform: uppercase;
       }
       .title {
-        color: var(--text-bright);
+        color: var(--text-strong);
         font-size: 17px;
         margin-top: 4px;
       }
       .age {
-        color: var(--text-dim);
+        color: var(--muted);
         font-size: 13px;
       }
       dl {
@@ -63,35 +63,35 @@
         grid-template-columns: 160px 1fr;
       }
       dt {
-        color: var(--text-dim);
+        color: var(--muted);
       }
       dd {
-        color: var(--text-bright);
-        font-family: var(--mono);
+        color: var(--text-strong);
+        font-family: var(--font-mono);
       }
       /* Absence is on the glyph and on the colour, never on the colour alone: the wall's
          own three-channel rule, so a monochrome print still tells the two apart. */
       .absent {
-        color: var(--text-dim);
-        font-family: var(--sans);
+        color: var(--muted);
+        font-family: var(--font-sans);
         font-style: italic;
       }
       .note {
-        color: var(--amber);
+        color: var(--warn);
       }
       .held {
-        color: var(--green);
+        color: var(--ok);
       }
       .missing {
-        color: var(--text-dim);
+        color: var(--muted);
       }
       code {
-        background: var(--bg-sunk);
-        border: 1px solid var(--border);
+        background: var(--sunk);
+        border: 1px solid var(--line);
         border-radius: 4px;
-        color: var(--text-bright);
+        color: var(--text-strong);
         display: inline-block;
-        font-family: var(--mono);
+        font-family: var(--font-mono);
         padding: 4px 8px;
       }
       ul {
@@ -99,10 +99,10 @@
         padding: 0;
       }
       li {
-        font-family: var(--mono);
+        font-family: var(--font-mono);
       }
       .glyph {
-        font-family: var(--mono);
+        font-family: var(--font-mono);
       }
       /* The record's own words, rendered. This page scrolls, so the body is not capped: a
          reader who opened one record wants all of it, and the Definition of Ready's headings
@@ -111,12 +111,12 @@
         max-width: 92ch;
       }
       .body h2 {
-        color: var(--text-bright);
+        color: var(--text-strong);
         font-size: 15px;
         margin: 18px 0 6px;
       }
       .body h3 {
-        color: var(--text-bright);
+        color: var(--text-strong);
         font-size: 14px;
         margin: 14px 0 4px;
       }
@@ -136,18 +136,18 @@
         list-style: decimal;
       }
       .body li {
-        font-family: var(--sans);
+        font-family: var(--font-sans);
       }
       .body code {
-        background: var(--bg-sunk);
+        background: var(--sunk);
         border-radius: 3px;
-        font-family: var(--mono);
+        font-family: var(--font-mono);
         font-size: 12px;
         padding: 1px 4px;
       }
       .body pre {
-        background: var(--bg-sunk);
-        border: 1px solid var(--border);
+        background: var(--sunk);
+        border: 1px solid var(--line);
         border-radius: 4px;
         overflow-x: auto;
         padding: 8px 10px;
@@ -162,20 +162,20 @@
       }
       .body th,
       .body td {
-        border: 1px solid var(--border);
+        border: 1px solid var(--line);
         padding: 3px 8px;
         text-align: left;
       }
       .body blockquote {
-        border-left: 3px solid var(--indigo);
-        color: var(--text-dim);
+        border-left: 3px solid var(--accent);
+        color: var(--muted);
         margin: 8px 0;
         padding-left: 12px;
       }
       /* The title beside an id in the tree and the edge lists. Dimmer than the link, because
          the link is the way in and the title is what tells a reader whether to take it. */
       .what {
-        color: var(--text-dim);
+        color: var(--muted);
       }
     </style>
   </head>

@@ -67,8 +67,8 @@ def test_every_state_is_encoded_on_a_glyph_and_a_border_as_well_as_colour() -> N
 
 def test_the_alarm_colour_is_reserved_for_one_state() -> None:
 
-    orange = [state.key for state in board_wall.STATES if state.colour == "var(--orange)"]
-    assert orange == [board_wall.STUCK]
+    alarm = [state.key for state in board_wall.STATES if state.colour == "var(--stuck-fill)"]
+    assert alarm == [board_wall.STUCK]
 
 
 def test_every_section_the_verdict_named_gets_a_reading() -> None:

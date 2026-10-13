@@ -28,6 +28,8 @@ if TYPE_CHECKING:
     from .board_schema import SnapshotVerdict
 
 TEMPLATE_DIR = "templates/board"
+TOKENS_DIR = "kit/board/web"
+TOKENS_FILE = "tokens.css"
 TEMPLATE = "board_page.html.j2"
 TEMPLATE_RECORD = "board_record.html.j2"
 TEMPLATE_KANBAN = "board_kanban.html.j2"
@@ -122,6 +124,10 @@ def root(templates_dir: Path | None = None) -> Path:
     return templates_dir or catalog.bundled_catalog_root() / TEMPLATE_DIR
 
 
+def tokens_path() -> Path:
+    return catalog.bundled_catalog_root() / TOKENS_DIR / TOKENS_FILE
+
+
 def markdown(text: object) -> Markup:
 
     rendered = MarkdownIt("commonmark", {"html": False}).enable("table").render(str(text))
@@ -130,7 +136,7 @@ def markdown(text: object) -> Markup:
 
 def _env(templates_dir: Path | None = None) -> Environment:
     env = Environment(
-        loader=FileSystemLoader(str(root(templates_dir))),
+        loader=FileSystemLoader([str(root(templates_dir)), str(tokens_path().parent)]),
         autoescape=True,
         keep_trailing_newline=True,
     )
