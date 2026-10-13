@@ -413,7 +413,7 @@
         font-family: var(--font-mono);
         font-size: 12px;
         min-width: 0;
-        padding: var(--space-0) var(--space-1);
+        padding: var(--space-hair) var(--space-1);
       }
       .card .kill .btn {
         flex: 0 0 auto;
@@ -619,7 +619,7 @@
         display: flex;
         gap: var(--space-3);
         min-width: 0;
-        padding: var(--space-0) 0 var(--space-0) var(--space-2);
+        padding: var(--space-hair) 0 var(--space-hair) var(--space-2);
       }
       .claim .pri {
         color: var(--muted);
@@ -863,7 +863,7 @@
       .ready .table > :not(caption) > * > * {
         border-bottom-width: 0;
         box-shadow: none;
-        padding: var(--space-0) 0;
+        padding: var(--space-hair) 0;
       }
       /* Only in the reclaimed row, where the height is the list's to use. Beside the lanes the
          same rule spread eight rows over 700px, which is the dead space one column over. */
@@ -873,7 +873,7 @@
       .ready td {
         font-family: var(--font-mono);
         font-size: 17px;
-        padding: var(--space-0) 0;
+        padding: var(--space-hair) 0;
       }
       /* The widths live on the columns, not on the first row's cells: `table-layout: fixed`
          reads row one, and row one is a group heading whose single cell spans all three, so
@@ -960,7 +960,7 @@
       }
       .ready tr.feature:first-child td {
         border-top: 0;
-        padding-top: var(--space-0);
+        padding-top: var(--space-hair);
       }
       /* Right-aligned so the counts stack into a column the eye can compare down, which is
          what makes "42 unattached against 9 anywhere else" legible without reading titles. */
