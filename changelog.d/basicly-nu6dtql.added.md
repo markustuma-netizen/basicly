@@ -1,1 +1,0 @@
-- **A `designer` agent draws mocks and judges UI and UX.** It covers terminal, web, desktop and mobile surfaces, keeps to the repository mock conventions, draws every state, and returns the commands, keyboard access, migration, open questions and failure modes as text. It is read-only at tier `high` (basicly-nu6dtql).

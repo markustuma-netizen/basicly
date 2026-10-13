@@ -1,1 +1,0 @@
-- **A failed check run names a Python swap.** When the interpreter behind the repository venv changes during a pre-commit or pre-push run, for example through `uv python upgrade`, the failure now says so, names both directories and asks for a rerun (basicly-bynlqpk).

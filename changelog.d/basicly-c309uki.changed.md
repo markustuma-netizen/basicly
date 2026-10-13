@@ -1,1 +1,0 @@
-- **The tracker and the board share one design system.** Both read colour, spacing, type, radius and motion from `kit/board/web/tokens.css` and follow the system light or dark setting. Text and controls pass WCAG AA in both themes. The tracker accent is indigo, held is violet, and the board gains a light theme (basicly-c309uki).

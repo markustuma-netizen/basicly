@@ -1,1 +1,0 @@
-- **The tracker knows six record types and which may be whose parent.** It refuses a type other than task, bug, feature, chore, epic and research, and a parent that may not hold the child. Records of another type still load; move one with `update <id> --field issue_type=<type>` (basicly-0vw307h).

@@ -1,1 +1,0 @@
-- **The `designer` agent can count mock widths.** It now has Bash, and it counts the display width of each terminal mock line with a script before it returns. It stays read-only, with no write tool (basicly-ck1pqum).

@@ -6,12 +6,38 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.23.0 - 2026-10-13
+
+Delta: v0.22.2..v0.23.0
+
 A minor release with a design specialist, one design system for the tracker and the board, and record types that the tracker enforces. The tracker page and the board now read every colour, spacing and type value from one token file and follow the system light or dark setting, with every text and control colour at WCAG AA contrast. The tracker refuses a record type outside the six it knows, and a parent that may not hold its child. Records of another type still load, and one `update` moves each.
 
 - **A designer agent** (`basicly-nu6dtql`, `basicly-ck1pqum`): a read-only agent that draws mocks of every state for terminal, web, desktop and mobile surfaces, counts mock widths with a script, and returns commands, keyboard access, migration, open questions and failure modes.
 - **One design system** (`basicly-c309uki`, `basicly-0p8sdzo`, `basicly-lc2bd3v.11`): `kit/board/web/tokens.css` holds the light and dark themes, the spacing scale and the type scale, and a gate refuses a colour outside it.
 - **Six record types and a parent rule** (`basicly-0vw307h`): task, bug, feature, chore, epic and research; an epic holds features, tasks, bugs, chores and research, and a feature holds tasks, bugs and chores.
 - **Clearer failures** (`basicly-bynlqpk`, `basicly-khv2kc1`): a failed check names a Python upgrade that happened during the run, and `basicly build` names each stale projection.
+
+### Added
+
+- **The tracker knows six record types and which may be whose parent.** It refuses a type other than task, bug, feature, chore, epic and research, and a parent that may not hold the child. Records of another type still load; move one with `update <id> --field issue_type=<type>` (basicly-0vw307h).
+
+- **A `designer` agent draws mocks and judges UI and UX.** It covers terminal, web, desktop and mobile surfaces, keeps to the repository mock conventions, draws every state, and returns the commands, keyboard access, migration, open questions and failure modes as text. It is read-only at tier `high` (basicly-nu6dtql).
+
+### Changed
+
+- **The tracker page reads its spacing and type from the design tokens.** Every margin, padding, gap, font size, weight, line height, radius and shadow on the tracker page now comes from `kit/board/web/tokens.css`, so one edit there changes the whole page (basicly-0p8sdzo).
+
+- **The tracker and the board share one design system.** Both read colour, spacing, type, radius and motion from `kit/board/web/tokens.css` and follow the system light or dark setting. Text and controls pass WCAG AA in both themes. The tracker accent is indigo, held is violet, and the board gains a light theme (basicly-c309uki).
+
+- **The `designer` agent can count mock widths.** It now has Bash, and it counts the display width of each terminal mock line with a script before it returns. It stays read-only, with no write tool (basicly-ck1pqum).
+
+- **Every board page takes its spacing from the design tokens.** Padding, margins and gaps on the wall, loop, backlog and record pages, and the board button padding, now come from the shared spacing scale in `kit/board/web/tokens.css`, so a nested box always keeps an inset (basicly-lc2bd3v.11).
+
+### Fixed
+
+- **A failed check run names a Python swap.** When the interpreter behind the repository venv changes during a pre-commit or pre-push run, for example through `uv python upgrade`, the failure now says so, names both directories and asks for a rerun (basicly-bynlqpk).
+
+- **`basicly build` names a stale projection.** It projects the instruction files only, and it said "No files changed" while a style, skill, agent, hook or permissions projection was stale. Now it names each stale one and the command that syncs it, for example `basicly styles-build` (basicly-khv2kc1).
 
 ## v0.22.2 - 2026-10-09
 
