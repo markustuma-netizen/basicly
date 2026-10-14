@@ -82,7 +82,7 @@ def test_an_upgrade_moves_a_stale_pin_without_the_flag(
     cli._scaffold_ci_workflow(tmp_path)
 
     assert workflow.read_text(encoding="utf-8") == CONSUMER_CI_WORKFLOW
-    assert "Re-pinned 5 basicly reference(s)" in capsys.readouterr().out
+    assert "Re-pinned 6 basicly reference(s)" in capsys.readouterr().out
 
 
 def test_a_repin_leaves_the_previous_copy_beside_it(
@@ -152,3 +152,24 @@ def test_upgrade_repins_release_wheels_without_rewriting_standalone_kits() -> No
         f"uvx --from {DIST_SOURCE} basicly install\n{kit}",
         1,
     )
+
+
+def test_upgrade_adds_runtime_setup_without_replacing_consumer_ci_steps(tmp_path: Path) -> None:
+    workflow = tmp_path / ".github/workflows/basicly-gates.yml"
+    workflow.parent.mkdir(parents=True)
+    bootstrap = (
+        "      - name: Prepare bundled Lefthook runtime\n"
+        f"        run: uvx --from {DIST_SOURCE} basicly hooks-build --runtime-only\n"
+    )
+    original = CONSUMER_CI_WORKFLOW.replace(bootstrap, "") + "\n# consumer customization\n"
+    assert original != CONSUMER_CI_WORKFLOW + "\n# consumer customization\n"
+    workflow.write_text(original, encoding="utf-8")
+
+    cli._scaffold_ci_workflow(tmp_path)
+
+    updated = workflow.read_text(encoding="utf-8")
+    assert updated.endswith("\n# consumer customization\n")
+    assert "hooks-build --runtime-only" in updated
+    assert workflow.with_suffix(".yml.basicly-bak").read_text(encoding="utf-8") == original
+    cli._scaffold_ci_workflow(tmp_path)
+    assert workflow.read_text(encoding="utf-8") == updated

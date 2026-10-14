@@ -123,3 +123,21 @@ Code tasks and CI workflow — the last two only while still unedited.
 
 The tracker is not basicly's to delete: `.basicly/ledger/` and your record history stay
 either way.
+
+## Lefthook in CI checkouts
+
+Lefthook is installed at `.basicly/bin/lefthook` (`lefthook.exe` on Windows).
+The directory is ignored, so a fresh CI checkout restores the packaged runtime
+before checking hook configuration:
+
+```sh
+basicly hooks-build --runtime-only
+basicly hooks-check
+```
+
+The first command installs only the pinned executable and MIT license from the
+basicly package. It preserves hook configuration and does not activate Git hooks.
+The second command checks configuration without rewriting it. Install adds this
+setup to the standard scaffolded hook-check command during an upgrade, retaining
+consumer steps and backing up the previous workflow. Custom CI commands should
+add the same runtime setup before `hooks-check`.

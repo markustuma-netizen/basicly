@@ -137,6 +137,7 @@ from .scaffolds import (
     VSCODE_TASKS_JSON,
     docstring_contradictions,
     install_notes,
+    prepare_ci_runtime,
     repin,
 )
 from .schema import (
@@ -1345,7 +1346,9 @@ def _write_scaffold(
         if not force:
             existing = path.read_text(encoding="utf-8")
             repinned, moved = repin(existing)
-            if moved:
+            if content == CONSUMER_CI_WORKFLOW:
+                repinned = prepare_ci_runtime(repinned)
+            if repinned != existing:
                 backup = path.with_suffix(path.suffix + SCAFFOLD_BACKUP_SUFFIX)
                 if not dry_run:
                     backup.write_text(existing, encoding="utf-8")
@@ -1975,6 +1978,10 @@ def _core_hooks_dir(paths: ProjectPaths) -> Path:
 
 def cmd_hooks_build(_args: argparse.Namespace) -> int:
     repo_root = _repo_root()
+    if getattr(_args, "runtime_only", False):
+        result = lefthook_binary.sync_binary(repo_root)
+        _report_sync(result, repo_root, noun="runtime files", label="Lefthook runtime")
+        return 0
     paths = load_project_paths(repo_root)
     selection = load_technology_selection(repo_root)
     config_path = repo_root / "lefthook.yml"
@@ -5455,6 +5462,11 @@ def _build_parser() -> argparse.ArgumentParser:
         "--no-install",
         action="store_true",
         help="Only write wiring; do not activate Git hooks",
+    )
+    hooks_build_parser.add_argument(
+        "--runtime-only",
+        action="store_true",
+        help="Restore only the bundled executable and license; preserve hook configuration",
     )
     subparsers.add_parser("hooks-check", help="Check projected hooks are up to date")
 

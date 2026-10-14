@@ -55,6 +55,24 @@ def repin(text: str) -> tuple[str, int]:
     return repinned, moved
 
 
+def prepare_ci_runtime(text: str) -> str:
+    command = re.compile(
+        r"^(?P<indent> +)run: " + re.escape(UVX_COMMAND) + r" hooks-check$", re.MULTILINE
+    )
+    return (
+        command.sub(
+            lambda match: (
+                f"{match['indent']}run: |\n"
+                f"{match['indent']}  {UVX_COMMAND} hooks-build --runtime-only\n"
+                f"{match['indent']}  {UVX_COMMAND} hooks-check"
+            ),
+            text,
+        )
+        if "hooks-build --runtime-only" not in text
+        else text
+    )
+
+
 VSCODE_TASKS_JSON = """\
 {
   // Scaffolded by `basicly install`; yours to edit — install never overwrites it.
@@ -166,6 +184,8 @@ jobs:
         run: @UVX@ check
       - name: Skill projection drift check
         run: @UVX@ skills-check
+      - name: Prepare bundled Lefthook runtime
+        run: @UVX@ hooks-build --runtime-only
       - name: Hook wiring drift check
         run: @UVX@ hooks-check
       - name: Configured verify checks
