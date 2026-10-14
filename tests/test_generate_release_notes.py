@@ -104,7 +104,10 @@ def test_the_page_carries_summary_counts_link_breaking_and_install_and_nothing_e
     assert f"{REPO_URL}/blob/v1.2.0/CHANGELOG.md#v120---2026-09-01" in page
     assert page.count("BREAKING") == 2 and "A fix nobody needs" not in page
     assert "A new thing" not in page
-    assert page.rstrip().endswith(f"uvx --from git+{REPO_URL}@v1.2.0 basicly install\n```")
+    assert page.rstrip().endswith(
+        f"uvx --from {REPO_URL}/releases/download/v1.2.0/"
+        "basicly-1.2.0-py3-none-any.whl basicly install\n```"
+    )
 
 
 def test_the_repositorys_own_v0_10_0_section_renders_under_the_cap_with_every_breaking_entry() -> (

@@ -98,7 +98,8 @@ def render(tag: str, date: str, body: list[str], repo_url: str) -> str:
             if idx:
                 out.append("")
             out.extend(entry)
-    install = f"uvx --from git+{repo_url}@{tag} basicly install"
+    wheel = f"{repo_url}/releases/download/{tag}/basicly-{tag.removeprefix('v')}-py3-none-any.whl"
+    install = f"uvx --from {wheel} basicly install"
     out += ["", "## Install", "", "```sh", install, "```", ""]
     return "\n".join(out)
 
