@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.24.0 - 2026-10-14
+
+Delta: v0.23.1..v0.24.0
+
 basicly now runs its Git and coding-agent hooks through pinned, repository-local
 Lefthook. Fresh installs and upgrades from v0.23.1 receive the executable offline
 from the release wheel, without a global Lefthook installation.
@@ -15,6 +19,18 @@ from the release wheel, without a global Lefthook installation.
   checking configuration drift (basicly-cdd1iob).
 - Codex: use one workspace profile with repository-scoped sibling worktree and Git
   access, preserving consumer choices and secret denials (basicly-yuz0eom).
+
+### Added
+
+- Add portable Codex basicly-workspace profiles and opt-in local sibling-worktree registration during install; isolate grants by repository and let default Codex dispatch inherit project permissions and review settings. (basicly-yuz0eom)
+
+### Changed
+
+- Replace pre-commit with repo-local Lefthook for Git, Claude, Codex and Copilot. Release wheels bundle verified binaries offline without storing them in Git. Preserve staged contents, foreign hooks and scoped Codex worktrees; upgrade generated Git pins to wheel URLs. Keep tracker reads working with read-only caches, reject empty Git markers and clean up managed binaries safely. (basicly-cdd1iob)
+
+### Fixed
+
+- Use one basicly-workspace permission profile with project-scoped relative sibling grants; migrate generated GUID profiles and preserve consumer choices. (basicly-yuz0eom)
 
 ## v0.23.1 - 2026-10-13
 

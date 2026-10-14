@@ -1,1 +1,0 @@
-- Add portable Codex basicly-workspace profiles and opt-in local sibling-worktree registration during install; isolate grants by repository and let default Codex dispatch inherit project permissions and review settings.
