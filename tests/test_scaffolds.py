@@ -65,3 +65,12 @@ def test_the_ci_scaffold_keeps_tracker_only_pushes_out_of_ci() -> None:
 
     parsed = yaml.safe_load(CONSUMER_CI_WORKFLOW)
     assert ".basicly/ledger/**" in parsed["on"]["push"]["paths-ignore"]
+
+
+def test_consumer_ci_prepares_runtime_before_checking_hook_drift() -> None:
+    steps = yaml.safe_load(CONSUMER_CI_WORKFLOW)["jobs"]["gates"]["steps"]
+    commands = [step["run"] for step in steps if "run" in step]
+    bootstrap = next(i for i, command in enumerate(commands) if "--runtime-only" in command)
+    drift = next(i for i, command in enumerate(commands) if command.endswith(" hooks-check"))
+    assert commands[bootstrap].endswith(" hooks-build --runtime-only")
+    assert bootstrap < drift

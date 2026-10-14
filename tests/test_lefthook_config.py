@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from basicly import hooks, lefthook_artifacts, lefthook_binary, release
+from basicly import cli, hooks, lefthook_artifacts, lefthook_binary, release
 from basicly.hooks import HookSpec
 from basicly.lefthook_config import managed_config, root_config, sync_config
 
@@ -126,3 +126,27 @@ def test_configuration_minimum_follows_the_pinned_artifact_version(
     monkeypatch.setattr(lefthook_artifacts, "VERSION", "9.8.7")
 
     assert yaml.safe_load(managed_config([], ".basicly/core/hooks"))["min_version"] == "9.8.7"
+
+
+def test_runtime_only_bootstrap_preserves_and_detects_configuration_drift(
+    work_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(work_repo)
+    assert not lefthook_binary.binary_path(work_repo).exists()
+    assert cli.main(["hooks-check"]) == 1
+    config = work_repo / "lefthook.yml"
+    original = config.read_bytes()
+
+    assert cli.main(["hooks-build", "--runtime-only"]) == 0
+
+    assert not lefthook_binary.binary_mismatches(work_repo)
+    assert config.read_bytes() == original
+    assert cli.main(["hooks-check"]) == 0
+    managed = work_repo / ".basicly/lefthook.yml"
+    managed.write_text("min_version: 0.0.0\n", encoding="utf-8")
+    corrupted = managed.read_bytes()
+
+    assert cli.main(["hooks-build", "--runtime-only"]) == 0
+    assert managed.read_bytes() == corrupted
+    assert cli.main(["hooks-check"]) == 1
+    assert config.read_bytes() == original
