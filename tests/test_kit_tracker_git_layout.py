@@ -81,3 +81,28 @@ def test_a_redirect_outside_a_git_checkout_is_refused_by_name(tmp_path: Path) ->
 
     with pytest.raises(layout.RedirectError, match="outside a git checkout"):
         layout.shared_ledger(ledger)
+
+
+def test_an_empty_git_directory_does_not_make_a_redirect_part_of_a_checkout(
+    tmp_path: Path,
+) -> None:
+    outer = tmp_path / "outer"
+    (outer / ".git").mkdir(parents=True)
+    base = tmp_path / "base"
+    (base / "data/ledger").mkdir(parents=True)
+    ledger = _lane(outer, str(base), checkout=False)
+
+    with pytest.raises(layout.RedirectError, match="outside a git checkout"):
+        layout.shared_ledger(ledger)
+
+
+def test_a_directory_with_git_head_anchors_the_shared_ledger(tmp_path: Path) -> None:
+    base = tmp_path / "base"
+    shared = base / "data/ledger"
+    shared.mkdir(parents=True)
+    ledger = _lane(tmp_path, str(base), checkout=False)
+    metadata = tmp_path / "lane/.git"
+    metadata.mkdir()
+    (metadata / "HEAD").write_text("ref: refs/heads/main\n")
+
+    assert layout.shared_ledger(ledger) == shared

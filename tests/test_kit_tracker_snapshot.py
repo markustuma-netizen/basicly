@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import errno
 import importlib.util
 import inspect
 import json
@@ -784,6 +785,7 @@ def test_the_module_imports_nothing_outside_the_standard_library() -> None:
         "argparse",
         "collections.abc",
         "dataclasses",
+        "errno",
         "fnmatch",
         "importlib.util",
         "json",
@@ -986,3 +988,65 @@ def test_a_read_windows_refuses_while_the_file_is_replaced_is_retried() -> None:
     text = snapshot.events.read_published(busy, sleep=lambda _s: None)
 
     assert (text, busy.calls) == ("published utf-8", 3)
+
+
+def _deny_snapshot_writes(directory: Path, monkeypatch: pytest.MonkeyPatch, error: int) -> None:
+    original = Path.open
+
+    def opening(path: Path, mode: str = "r", *args: Any, **kwargs: Any) -> Any:
+        if path.parent == directory and any(flag in mode for flag in "wax+"):
+            raise OSError(error, "snapshot publication refused")
+        return original(path, mode, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "open", opening)
+
+
+@pytest.mark.parametrize("cached", [False, True])
+@pytest.mark.parametrize("error", [errno.EROFS, errno.EACCES, errno.EPERM])
+def test_a_read_returns_current_events_when_snapshot_publication_is_denied(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    cached: bool,
+    error: int,
+) -> None:
+    minted = _build(tmp_path)
+    path = snapshot.snapshot_path(tmp_path)
+    if cached:
+        snapshot.rebuild(tmp_path)
+    before = path.read_bytes() if path.exists() else None
+    _build(tmp_path, [events.Draft(RECORD_A, "status", {"status": "closed"})])
+    _deny_snapshot_writes(tmp_path, monkeypatch, error)
+
+    loaded = snapshot.load(tmp_path)
+
+    assert loaded.records[RECORD_A].status == "closed"
+    assert loaded.header.event_count == len(minted) + 1
+    assert (path.read_bytes() if path.exists() else None) == before
+    assert "snapshot cache" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("error", [errno.EIO, errno.ENOSPC])
+def test_a_read_does_not_hide_other_snapshot_io_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, error: int
+) -> None:
+    _build(tmp_path)
+    _deny_snapshot_writes(tmp_path, monkeypatch, error)
+
+    with pytest.raises(OSError) as raised:
+        snapshot.load(tmp_path)
+
+    assert raised.value.errno == error
+
+
+@pytest.mark.parametrize("operation", ["refresh", "rebuild"])
+def test_an_explicit_snapshot_publish_still_refuses_a_read_only_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, operation: str
+) -> None:
+    _build(tmp_path)
+    _deny_snapshot_writes(tmp_path, monkeypatch, errno.EROFS)
+
+    with pytest.raises(OSError) as raised:
+        getattr(snapshot, operation)(tmp_path)
+
+    assert raised.value.errno == errno.EROFS

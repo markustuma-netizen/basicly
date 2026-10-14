@@ -59,12 +59,20 @@ class RedirectError(ValueError):
     pass
 
 
+def _is_checkout(root: Path) -> bool:
+
+    marker = root / GIT_DIR_NAME
+    if marker.is_file():
+        return git_dir(root) is not None
+    return marker.is_dir() and (marker / "HEAD").is_file()
+
+
 def _place(ledger: Path, checkout: Path | None) -> Path:
 
     if checkout is not None:
         return ledger.relative_to(checkout)
     here = ledger.resolve()
-    home = next((one for one in here.parents if (one / GIT_DIR_NAME).exists()), None)
+    home = next((one for one in here.parents if _is_checkout(one)), None)
     if home is None:
         raise RedirectError(
             f"the ledger redirect {ledger / REDIRECT_FILE} sits outside a git checkout, so the "
