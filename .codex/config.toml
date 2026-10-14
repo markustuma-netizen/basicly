@@ -14,6 +14,8 @@
 "**/.env" = "deny"
 "**/.env.*" = "deny"
 
+
+".git" = "write"
 ["permissions"."basicly-workspace"."network"]
 "enabled" = true
 "allow_local_binding" = true
@@ -24,6 +26,10 @@
 "127.0.0.1" = "allow"
 "::1" = "allow"
 
+
+"github.com" = "allow"
+
+"api.github.com" = "allow"
 ["permissions"."basicly-workspace"."workspace_roots"]
 "../basicly.worktrees" = true
 

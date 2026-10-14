@@ -2,7 +2,7 @@
 
 `basicly install` projects a shared `basicly-workspace` policy into
 `.codex/config.toml`. Commit that file with the repository. The policy extends
-Codex's `:workspace` protections, denies dotenv reads, and defaults to
+Codex's `:workspace` protections with ordinary Git metadata writes enabled, denies dotenv reads, and defaults to
 `on-request` with `auto_review`. It leaves network permissions inherited.
 Existing explicit profile, approval and reviewer choices are preserved.
 
@@ -59,3 +59,11 @@ then repeat the runtime checks. Do not keep trying broader permission modes.
 Basicly's default headless Codex runner inherits the project's policy. Explicit
 runner overrides remain available. Decision-only runs select Codex's read-only
 profile and disallow approval escalation.
+
+Ordinary Git add, commit and push can write repository metadata. Linked-checkout
+registration includes explicit relative roots for its shared and private Git
+metadata; this prevents Codex from remasking the linked Git directory read-only.
+Existing explicit consumer Git read protections are preserved. Destructive commands
+still require explicit confirmation under the repository instructions and approval
+policy. Nested `.git/hooks` read masks are not emitted because `.git` is a file in
+a linked checkout and the sandbox cannot create children below that file.

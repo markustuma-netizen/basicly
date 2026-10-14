@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from .catalog import bundled_catalog_root
-from .checkout import worktrees_root
+from .checkout import git, git_common_dir, worktrees_root
 from .projection import atomic_write_text
 
 CONFIG_PATH = Path(".codex/config.toml")
@@ -46,6 +46,15 @@ def user_settings(text: str) -> dict[str, Any]:
             "Legacy Codex sandbox settings conflict with profile registration; reconcile them first"
         )
     settings = {"permissions": managed_settings()["permissions"]}
+    existing = (
+        parsed
+        .get("permissions", {})
+        .get(PROFILE_NAME, {})
+        .get("filesystem", {})
+        .get(":workspace_roots", {})
+    )
+    if ".git" in existing:
+        settings["permissions"][PROFILE_NAME]["filesystem"][":workspace_roots"].pop(".git", None)
     if "default_permissions" not in parsed:
         settings = {"default_permissions": ":workspace", **settings}
     return settings
@@ -160,6 +169,15 @@ def project_settings(text: str, profile: str) -> dict[str, Any]:
             "Legacy Codex sandbox settings conflict with project profiles; reconcile them first"
         )
     settings = managed_settings()
+    existing = (
+        parsed
+        .get("permissions", {})
+        .get(PROFILE_NAME, {})
+        .get("filesystem", {})
+        .get(":workspace_roots", {})
+    )
+    if ".git" in existing:
+        settings["permissions"][PROFILE_NAME]["filesystem"][":workspace_roots"].pop(".git", None)
     settings["default_permissions"] = profile
     for key in ("default_permissions", "approval_policy", "approvals_reviewer"):
         if key in parsed:
@@ -216,7 +234,23 @@ def _project_additions(repo_root: Path, text: str, register: bool) -> dict[str, 
     settings = project_settings(text, PROFILE_NAME)
     if register:
         relative = Path(os.path.relpath(worktrees_root(repo_root), repo_root)).as_posix()
-        settings["permissions"][PROFILE_NAME]["workspace_roots"] = {relative: True}
+        roots = {relative: True}
+        git_access = (
+            tomllib
+            .loads(text)
+            .get("permissions", {})
+            .get(PROFILE_NAME, {})
+            .get("filesystem", {})
+            .get(":workspace_roots", {})
+            .get(".git", "write")
+        )
+        if git_access == "write" and (repo_root / ".git").is_file():
+            gitdir = Path(git(["rev-parse", "--git-dir"], cwd=repo_root).stdout.strip())
+            if not gitdir.is_absolute():
+                gitdir = repo_root / gitdir
+            for root in (git_common_dir(repo_root), gitdir.resolve()):
+                roots[Path(os.path.relpath(root, repo_root)).as_posix()] = True
+        settings["permissions"][PROFILE_NAME]["workspace_roots"] = roots
     return settings
 
 

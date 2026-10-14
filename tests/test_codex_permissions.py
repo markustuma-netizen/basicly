@@ -101,7 +101,11 @@ def test_linked_checkout_reuses_main_profile_identity_before_commit(tmp_path: Pa
     profile = _config(repo)["default_permissions"]
     assert _config(linked)["default_permissions"] == profile
     assert "workspace_roots" not in tomllib.loads(user.read_text())["permissions"][profile]
-    assert _config(linked)["permissions"][profile]["workspace_roots"] == {"../app.worktrees": True}
+    assert _config(linked)["permissions"][profile]["workspace_roots"] == {
+        "../app.worktrees": True,
+        "../app/.git": True,
+        "../app/.git/worktrees/lane": True,
+    }
 
 
 @pytest.mark.parametrize(

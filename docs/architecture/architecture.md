@@ -1161,8 +1161,7 @@ interpreter, a package manager, a command wrapper, an `Agent` rule or a `Monitor
 | codex | trusted project permission profiles and approval settings, plus explicitly requested runner overrides | automatic reload of a thread already running with earlier permission settings |
 
 Codex projects the catalog's `codex-profile.yaml` into `.codex/config.toml`.
-The single `basicly-workspace` profile extends `:workspace`, preserving protected
-metadata and adding dotenv denials. Shared configuration contains no machine paths.
+The single `basicly-workspace` profile extends `:workspace`, preserving agent and credential protections and adding dotenv denials. Shared configuration contains no machine paths.
 Old generated GUID profiles migrate into the named policy without removing
 consumer-owned settings.
 
@@ -1174,6 +1173,14 @@ review instructions or command rules. Explicit consumer selections remain
 unchanged. Default Codex dispatch inherits the project settings; decision-only
 dispatch selects the read-only profile. See
 [the consumer setup](../how-to/configure-codex-permissions.md).
+
+Ordinary Git add, commit and push can write repository metadata. Linked-checkout
+registration includes explicit relative roots for its shared and private Git
+metadata; this prevents Codex from remasking the linked Git directory read-only.
+Existing explicit consumer Git read protections are preserved. Destructive commands
+still require explicit confirmation under the repository instructions and approval
+policy. Nested `.git/hooks` read masks are not emitted because `.git` is a file in
+a linked checkout and the sandbox cannot create children below that file.
 
 **The list is a partial backstop. It is never the source of a prohibition.** Several
 destructive git commands are denied on no target, and still need a human confirmation.
