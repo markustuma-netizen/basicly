@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from basicly import hooks, lefthook_binary
+from basicly import hooks, lefthook_artifacts, lefthook_binary, release
 from basicly.hooks import HookSpec
 from basicly.lefthook_config import managed_config, root_config, sync_config
 
@@ -92,3 +92,37 @@ def test_foreign_commit_message_job_receives_original_git_arguments(
     assert result.returncode == 0, result.stdout + result.stderr
     for output in ("foreign-arguments", "managed-arguments"):
         assert json.loads((work_repo / output).read_text()) == [str(message)]
+
+
+def test_release_regenerates_lefthook_commands_for_the_bumped_version(
+    work_repo: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(release.shipped_core, "write_digests", lambda *_args: None)
+    monkeypatch.setattr(release, "_refresh_generated_docs", lambda _root: None)
+    version_file = work_repo / release.VERSION_FILE
+    version_file.write_text(
+        release.VERSION_RE.sub('__version__ = "9.8.7"', version_file.read_text()), encoding="utf-8"
+    )
+
+    release._regenerate(work_repo)
+
+    config = yaml.safe_load((work_repo / ".basicly/lefthook.yml").read_text())
+    command = json.loads(
+        config["post-merge"]["commands"]["basicly-dispatch"]["env"]["BASICLY_FOLD_COMMAND"]
+    )
+    assert command == [
+        "uvx",
+        "--from",
+        "https://github.com/niksavis/basicly/releases/download/v9.8.7/basicly-9.8.7-py3-none-any.whl",
+        "basicly",
+        "tracker",
+        "fold",
+    ]
+
+
+def test_configuration_minimum_follows_the_pinned_artifact_version(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(lefthook_artifacts, "VERSION", "9.8.7")
+
+    assert yaml.safe_load(managed_config([], ".basicly/core/hooks"))["min_version"] == "9.8.7"

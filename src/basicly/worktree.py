@@ -346,9 +346,10 @@ def _worktree_removal_verdict(worktree: Path) -> RemovalVerdict:
             line
             for line in proc.stdout.splitlines()
             if not worktree_contents.owned_bytecode_cache(worktree, line)
+            and not worktree_contents.owned_lefthook_assets(worktree, line)
         )
     except OSError as exc:
-        return RemovalVerdict(False, f"bytecode cache contents could not be read: {exc}", True)
+        return RemovalVerdict(False, f"managed worktree artifacts could not be read: {exc}", True)
     return classify_worktree_tree(proc.returncode, retained)
 
 

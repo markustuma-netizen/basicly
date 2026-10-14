@@ -538,7 +538,8 @@ def _regenerate(repo_root: Path) -> None:
         [
             sys.executable,
             "-c",
-            "import sys; from basicly.cli import main; sys.exit(main(['build']))",
+            "import sys; from basicly.cli import main; "
+            "sys.exit(main(['build']) or main(['hooks-build', '--no-install']))",
         ],
         cwd=repo_root,
         env=env,

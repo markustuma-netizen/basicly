@@ -10,6 +10,7 @@ from pathlib import Path
 import yaml
 from ruamel.yaml import YAML
 
+from . import lefthook_artifacts
 from .projection import SyncResult, sync_file
 from .scaffolds import UVX_COMMAND
 
@@ -48,7 +49,7 @@ def managed_config(specs: list[HookSpec], hooks_relpath: str, secret_exclude: st
             "matcher": spec.matcher,
         }
         groups[name].append(entry)
-    data: dict = {"min_version": "2.2.2"}
+    data: dict = {"min_version": lefthook_artifacts.VERSION}
     for name, entries in groups.items():
         data[name] = {
             "commands": {

@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from basicly import worktree
+from basicly import lefthook_binary, worktree
 from tests import test_worktree_safety
 from tests.test_worktree import _git
 
@@ -38,3 +38,34 @@ def test_cleanup_recognizes_only_regular_bytecode_in_owned_python_cache(
         with pytest.raises(SystemExit, match="uncommitted changes"):
             worktree.cleanup("cache", repo_root=safety_repo)
         assert bytecode.is_symlink() if contents == "symlink" else bytecode.exists()
+
+
+@pytest.mark.parametrize(
+    "contents", ["managed", "unknown", "binary", "license", "ignore", "symlink"]
+)
+def test_cleanup_removes_only_verified_repository_local_lefthook_assets(
+    safety_repo: Path, contents: str
+) -> None:
+    session = worktree.create("binary", repo_root=safety_repo)
+    lefthook_binary.sync_binary(session.path)
+    directory = session.path / ".basicly/bin"
+    if contents == "unknown":
+        (directory / "notes.txt").write_text("retain this", encoding="utf-8")
+    elif contents == "binary":
+        lefthook_binary.binary_path(session.path).write_bytes(b"consumer executable")
+    elif contents == "license":
+        (directory / "LICENSE.lefthook").write_text("retain this", encoding="utf-8")
+    elif contents == "ignore":
+        (directory / ".gitignore").write_text("*\nconsumer rule\n", encoding="utf-8")
+    elif contents == "symlink":
+        path = lefthook_binary.binary_path(session.path)
+        saved = safety_repo.parent / "saved-binary"
+        path.rename(saved)
+        path.symlink_to(saved)
+    if contents == "managed":
+        worktree.cleanup("binary", repo_root=safety_repo)
+        assert not session.path.exists()
+    else:
+        with pytest.raises(SystemExit, match="uncommitted changes"):
+            worktree.cleanup("binary", repo_root=safety_repo)
+        assert directory.exists()

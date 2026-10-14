@@ -71,8 +71,8 @@ Hooks
 ┏━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ manager ┃ specs ┃ projection ┃ activation ┃
 ┡━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ git     │ 14    │ in sync    │ installed  │
-│ claude  │ 8     │ in sync    │ active     │
+│ git     │ 15    │ in sync    │ installed  │
+│ claude  │ 9     │ in sync    │ active     │
 │ copilot │ 2     │ in sync    │ active     │
 └─────────┴───────┴────────────┴────────────┘
 agent hooks: active on claude, copilot; the git hooks stay the commit-time floor
@@ -81,7 +81,7 @@ overlays: 2 fragment(s), 0 agent(s)
 ```
 
 `repo: consumer` means this repo *uses* the catalog rather than authoring it.
-`git 14 … installed` means fourteen git hooks are now live — which is what the
+`git 15 … installed` means fifteen git hooks are now live — which is what the
 next step is about.
 
 ## Step 2 — check that the first commit can pass
@@ -260,7 +260,7 @@ git add -A
 git commit -m "chore: install basicly (myrepo-rq9r)"
 ```
 
-Every hook should report `Passed`.
+Lefthook should report each managed dispatcher as successful.
 
 ## Step 4 — ask the loop where the bead stands
 

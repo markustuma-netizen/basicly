@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import tracker_paths, usage, verify_artifact
+from . import lefthook_binary, tracker_paths, usage, verify_artifact
 
 DEP_DIRS = (".venv", "node_modules")
 
@@ -83,3 +83,25 @@ def owned_bytecode_cache(worktree: Path, line: str) -> bool:
     return bool(children) and all(
         child.is_file() and not child.is_symlink() and child.suffix == ".pyc" for child in children
     )
+
+
+def owned_lefthook_assets(worktree: Path, line: str) -> bool:
+    directory = worktree / ".basicly/bin"
+    binary = lefthook_binary.binary_path(worktree).name
+    names = {binary, "LICENSE.lefthook", ".gitignore"}
+    path = line[3:].strip().strip('"').rstrip("/")
+    if not line.startswith("!! ") or path not in {
+        ".basicly/bin",
+        *(f".basicly/bin/{name}" for name in names),
+    }:
+        return False
+    if any(candidate.is_symlink() for candidate in (directory, directory.parent)):
+        return False
+    children = tuple(directory.iterdir())
+    if any(
+        child.name not in names or child.is_symlink() or not child.is_file() for child in children
+    ):
+        return False
+    if (directory / ".gitignore").read_bytes() != b"*\n":
+        return False
+    return not lefthook_binary.binary_mismatches(worktree)

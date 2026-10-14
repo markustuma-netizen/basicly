@@ -1,5 +1,12 @@
 # How to upgrade, check drift, and uninstall
 
+The basicly release pins Lefthook in its artifact manifest. Re-running install
+replaces an older `.basicly/bin/lefthook` (or `lefthook.exe`) with that release's
+verified bundled executable and license. This upgrade needs no global Lefthook
+installation or separate binary download, and preserves consumer-owned hook
+configuration. Lefthook follows the basicly release you selected; it does not
+silently switch to an unreviewed upstream version.
+
 ## Upgrade
 
 There is no `update` command. **Re-running install *is* the upgrade** — it is
