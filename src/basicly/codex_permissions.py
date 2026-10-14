@@ -13,7 +13,7 @@ from typing import Any
 import yaml
 
 from .catalog import bundled_catalog_root
-from .checkout import main_checkout, worktrees_root
+from .checkout import worktrees_root
 from .projection import atomic_write_text
 
 CONFIG_PATH = Path(".codex/config.toml")
@@ -29,37 +29,6 @@ def managed_settings() -> dict[str, Any]:
     return settings
 
 
-def repository_profile(text: str) -> str | None:
-    settings = tomllib.loads(text)
-    profiles = settings.get("permissions", {})
-    if not isinstance(profiles, dict):
-        raise ValueError("Codex permissions must be a table")
-    found = [
-        name
-        for name, profile in profiles.items()
-        if name.startswith(PROJECT_PROFILE_PREFIX)
-        and isinstance(profile, dict)
-        and profile.get("extends") == PROFILE_NAME
-    ]
-    if len(found) > 1:
-        raise ValueError("Multiple basicly-workspace repository profiles; keep exactly one")
-    if (
-        found
-        and re.fullmatch(re.escape(PROJECT_PROFILE_PREFIX) + r"[0-9a-f]{32}", found[0]) is None
-    ):
-        raise ValueError(
-            "Invalid basicly-workspace repository identity; restore the shared profile"
-        )
-    selected = settings.get("default_permissions", "")
-    if (
-        isinstance(selected, str)
-        and selected.startswith(PROJECT_PROFILE_PREFIX)
-        and selected not in found
-    ):
-        raise ValueError("Selected basicly-workspace repository profile is missing its definition")
-    return found[0] if found else None
-
-
 def sibling_settings(root: PurePath, profile: str) -> dict[str, Any]:
     if not root.is_absolute() or not root.name.endswith(".worktrees"):
         raise ValueError("Codex sibling root must be an absolute .worktrees directory")
@@ -70,13 +39,13 @@ def sibling_settings(root: PurePath, profile: str) -> dict[str, Any]:
     }
 
 
-def user_settings(text: str, root: PurePath, profile: str) -> dict[str, Any]:
+def user_settings(text: str) -> dict[str, Any]:
     parsed = tomllib.loads(text)
     if "sandbox_mode" in parsed or "sandbox_workspace_write" in parsed:
         raise ValueError(
             "Legacy Codex sandbox settings conflict with profile registration; reconcile them first"
         )
-    settings = sibling_settings(root, profile)
+    settings = {"permissions": managed_settings()["permissions"]}
     if "default_permissions" not in parsed:
         settings = {"default_permissions": ":workspace", **settings}
     return settings
@@ -115,7 +84,7 @@ def _header(line: str) -> tuple[str, ...] | None:
         key, value = next(iter(parsed.items()))
         path.append(key)
         parsed = value
-    return tuple(path) if parsed == {} else None
+    return tuple(path) if parsed in ({}, [{}]) else None
 
 
 def _literal(value: Any) -> str:
@@ -192,21 +161,63 @@ def project_settings(text: str, profile: str) -> dict[str, Any]:
         )
     settings = managed_settings()
     settings["default_permissions"] = profile
-    settings["permissions"][profile] = {"extends": PROFILE_NAME}
     for key in ("default_permissions", "approval_policy", "approvals_reviewer"):
         if key in parsed:
             settings.pop(key, None)
     return settings
 
 
-def _profile(repo_root: Path, text: str) -> str:
-    profile = repository_profile(text)
-    if profile is not None:
-        return profile
-    if (repo_root / ".git").is_file():
-        main = main_checkout(repo_root)
-        profile = repository_profile(_read(main / CONFIG_PATH))
-    return profile or PROJECT_PROFILE_PREFIX + uuid.uuid4().hex
+def _remove_table(text: str, path: tuple[str, ...]) -> str:
+    lines: list[str] = []
+    keep = True
+    for line in text.splitlines(keepends=True):
+        header = _header(line)
+        if header is not None:
+            keep = header[: len(path)] != path
+        if keep:
+            lines.append(line)
+    return "".join(lines)
+
+
+def _migrate_profiles(text: str, root: PurePath | None = None) -> str:
+    parsed = tomllib.loads(text)
+    profiles = parsed.get("permissions", {})
+    for name, profile in profiles.items():
+        if re.fullmatch(re.escape(PROJECT_PROFILE_PREFIX) + r"[0-9a-f]{32}", name) is None:
+            continue
+        if root is not None:
+            if profile != sibling_settings(root, name)["permissions"][name]:
+                raise ValueError(
+                    f"Codex profile {name} has consumer settings or another sibling root"
+                )
+            additions: dict[str, Any] = {}
+        else:
+            if profile.get("extends") != PROFILE_NAME or set(profile) - {"extends", "network"}:
+                raise ValueError(
+                    f"Codex profile {name} has consumer settings; review before migration"
+                )
+            additions = {
+                "permissions": {PROFILE_NAME: {k: v for k, v in profile.items() if k != "extends"}}
+            }
+        text = _remove_table(text, ("permissions", name))
+        if parsed.get("default_permissions") == name:
+            text = re.sub(
+                r"(?m)^(\s*(?:[\"']?default_permissions[\"']?)\s*=\s*)([\"'])"
+                + re.escape(name)
+                + r"\2",
+                r'\1"' + PROFILE_NAME + '"',
+                text,
+            )
+        text = merge_settings(text, additions)
+    return text
+
+
+def _project_additions(repo_root: Path, text: str, register: bool) -> dict[str, Any]:
+    settings = project_settings(text, PROFILE_NAME)
+    if register:
+        relative = Path(os.path.relpath(worktrees_root(repo_root), repo_root)).as_posix()
+        settings["permissions"][PROFILE_NAME]["workspace_roots"] = {relative: True}
+    return settings
 
 
 def _write_user_config(path: Path, before: str, after: str) -> None:
@@ -237,20 +248,22 @@ def _write_user_config(path: Path, before: str, after: str) -> None:
 def sync_permissions(repo_root: Path, *, user_config: Path | None = None) -> list[Path]:
     project = repo_root / CONFIG_PATH
     text = _read(project)
-    profile = _profile(repo_root, text)
-    planned = [(project, text, merge_settings(text, project_settings(text, profile)))]
+    migrated = _migrate_profiles(text)
+    settings = _project_additions(repo_root, migrated, user_config is not None)
+    planned = [(project, text, merge_settings(migrated, settings))]
     if user_config is not None:
         if user_config.is_symlink():
             raise ValueError("Refusing to replace a symlinked Codex user config")
         user_text = _read(user_config)
-        desired = user_settings(user_text, worktrees_root(repo_root), profile)
-        planned.append((user_config, user_text, merge_settings(user_text, desired)))
+        migrated_user = _migrate_profiles(user_text, worktrees_root(repo_root))
+        desired = user_settings(migrated_user)
+        planned.append((user_config, user_text, merge_settings(migrated_user, desired)))
     if user_config is not None:
         worktrees_root(repo_root).mkdir(parents=True, exist_ok=True)
     changed: list[Path] = []
     for path, before, after in planned:
         if before != after:
-            if path == user_config:
+            if path == user_config or before != _migrate_profiles(before):
                 _write_user_config(path, before, after)
             else:
                 atomic_write_text(path, after)
@@ -261,19 +274,22 @@ def sync_permissions(repo_root: Path, *, user_config: Path | None = None) -> lis
 def mismatches(repo_root: Path, *, user_config: Path | None = None) -> list[tuple[Path, str]]:
     project = repo_root / CONFIG_PATH
     text = _read(project)
-    profile = _profile(repo_root, text)
-    wanted = [(project, text, project_settings(text, profile))]
+    migrated = _migrate_profiles(text)
+    wanted = [(project, text, _project_additions(repo_root, migrated, user_config is not None))]
     if user_config is not None:
         user_text = _read(user_config)
         wanted.append((
             user_config,
             user_text,
-            user_settings(user_text, worktrees_root(repo_root), profile),
+            user_settings(user_text),
         ))
     found: list[tuple[Path, str]] = []
     for path, current, desired in wanted:
         try:
-            if merge_settings(current, desired) != current:
+            migrated = _migrate_profiles(
+                current, worktrees_root(repo_root) if path == user_config else None
+            )
+            if merge_settings(migrated, desired) != current:
                 found.append((path, "managed Codex permissions missing"))
         except ValueError as exc:
             found.append((path, str(exc)))

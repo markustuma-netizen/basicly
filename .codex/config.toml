@@ -1,6 +1,6 @@
-approval_policy = "on-request"
-approvals_reviewer = "auto_review"
-"default_permissions" = "basicly-workspace-ef438e400ecd41fb8738c58bfb0dfc06"
+"approval_policy" = "on-request"
+"approvals_reviewer" = "auto_review"
+"default_permissions" = "basicly-workspace"
 
 ["permissions"."basicly-workspace"]
 "extends" = ":workspace"
@@ -14,18 +14,18 @@ approvals_reviewer = "auto_review"
 "**/.env" = "deny"
 "**/.env.*" = "deny"
 
-["permissions"."basicly-workspace-ef438e400ecd41fb8738c58bfb0dfc06"]
-"extends" = "basicly-workspace"
-
-["features"]
-"network_proxy" = true
-
-["permissions"."basicly-workspace-ef438e400ecd41fb8738c58bfb0dfc06"."network"]
+["permissions"."basicly-workspace"."network"]
 "enabled" = true
 "allow_local_binding" = true
 "allow_upstream_proxy" = false
 
-["permissions"."basicly-workspace-ef438e400ecd41fb8738c58bfb0dfc06"."network"."domains"]
+["permissions"."basicly-workspace"."network"."domains"]
 "localhost" = "allow"
 "127.0.0.1" = "allow"
 "::1" = "allow"
+
+["permissions"."basicly-workspace"."workspace_roots"]
+"../basicly.worktrees" = true
+
+["features"]
+"network_proxy" = true

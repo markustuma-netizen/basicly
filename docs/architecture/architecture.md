@@ -1158,19 +1158,21 @@ interpreter, a package manager, a command wrapper, an `Agent` rule or a `Monitor
 | --- | --- | --- |
 | claude | the file-edit rule form | the two write-tool variants a reader would expect. The permission check ignores both |
 | copilot | invocation flags injected at dispatch, because there is no config-file deny | an infix wildcard. That pattern language matches by token prefix, so it cannot express Claude's globs |
-| codex | trusted project permission profiles and approval settings, plus explicitly requested runner overrides | a portable relative path grant to a sibling outside the repository |
+| codex | trusted project permission profiles and approval settings, plus explicitly requested runner overrides | automatic reload of a thread already running with earlier permission settings |
 
 Codex projects the catalog's `codex-profile.yaml` into `.codex/config.toml`.
-The `basicly-workspace` base extends `:workspace`, preserving protected metadata
-and adding dotenv denials. A repository-specific derived profile carries a stable
-identity that survives clones. Shared configuration contains no machine paths.
+The single `basicly-workspace` profile extends `:workspace`, preserving protected
+metadata and adding dotenv denials. Shared configuration contains no machine paths.
+Old generated GUID profiles migrate into the named policy without removing
+consumer-owned settings.
 
 `basicly install --codex-user` registers the main checkout's sibling worktree
-root in that repository profile's local user configuration. Registration does not
-change an existing user default or add global review instructions or command rules.
-Separate repositories have separate profile identities and sibling grants. Explicit
-consumer selections remain unchanged. Default Codex dispatch inherits the project
-settings; decision-only dispatch selects the read-only profile. See
+root as a relative project-scoped `workspace_roots` entry and makes the named
+policy discoverable in user configuration. The user profile contains no sibling
+path union. Registration does not change an existing user default or add global
+review instructions or command rules. Explicit consumer selections remain
+unchanged. Default Codex dispatch inherits the project settings; decision-only
+dispatch selects the read-only profile. See
 [the consumer setup](../how-to/configure-codex-permissions.md).
 
 **The list is a partial backstop. It is never the source of a prohibition.** Several

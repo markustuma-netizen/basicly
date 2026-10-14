@@ -1,0 +1,1 @@
+- Use one basicly-workspace permission profile with project-scoped relative sibling grants; migrate generated GUID profiles and preserve consumer choices.

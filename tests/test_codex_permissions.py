@@ -22,14 +22,14 @@ def _config(repo: Path) -> dict:
     return tomllib.loads((repo / codex_permissions.CONFIG_PATH).read_text())
 
 
-def test_shared_policy_and_repository_identity_are_portable_and_idempotent(tmp_path: Path) -> None:
+def test_shared_policy_has_one_stable_name_and_is_idempotent(tmp_path: Path) -> None:
     repo = _repo(tmp_path / "app")
     codex_permissions.sync_permissions(repo)
     before = (repo / codex_permissions.CONFIG_PATH).read_text()
     settings = _config(repo)
     profile = settings["default_permissions"]
-    assert profile.startswith("basicly-workspace-")
-    assert settings["permissions"][profile] == {"extends": "basicly-workspace"}
+    assert profile == "basicly-workspace"
+    assert set(settings["permissions"]) == {profile}
     base = settings["permissions"]["basicly-workspace"]
     assert base["extends"] == ":workspace"
     assert "workspace_roots" not in base
@@ -52,12 +52,12 @@ def test_two_repositories_receive_disjoint_local_sibling_grants(tmp_path: Path) 
         codex_permissions.sync_permissions(repo, user_config=user)
     local = tomllib.loads(user.read_text())
     names = [_config(repo)["default_permissions"] for repo in (first, second)]
-    assert names[0] != names[1]
+    assert names == ["basicly-workspace", "basicly-workspace"]
     assert local["default_permissions"] == ":workspace"
     for repo, name in zip((first, second), names, strict=True):
-        assert local["permissions"][name] == {
-            "extends": ":workspace",
-            "workspace_roots": {(tmp_path / (repo.name + ".worktrees")).as_posix(): True},
+        assert "workspace_roots" not in local["permissions"][name]
+        assert _config(repo)["permissions"][name]["workspace_roots"] == {
+            "../" + repo.name + ".worktrees": True
         }
         assert codex_permissions.sync_permissions(repo, user_config=user) == []
         assert codex_permissions.mismatches(repo, user_config=user) == []
@@ -76,12 +76,10 @@ def test_clone_on_another_machine_keeps_identity_and_resolves_new_root(tmp_path:
     profile = _config(first)["default_permissions"]
     assert _config(moved)["default_permissions"] == profile
     local = tomllib.loads(user.read_text())
-    assert local["permissions"][profile]["workspace_roots"] == {
-        (tmp_path / "another-location.worktrees").as_posix(): True,
+    assert "workspace_roots" not in local["permissions"][profile]
+    assert _config(moved)["permissions"][profile]["workspace_roots"] == {
+        "../another-location.worktrees": True
     }
-    assert (first / codex_permissions.CONFIG_PATH).read_bytes() == (
-        moved / codex_permissions.CONFIG_PATH
-    ).read_bytes()
 
 
 def test_linked_checkout_reuses_main_profile_identity_before_commit(tmp_path: Path) -> None:
@@ -102,9 +100,8 @@ def test_linked_checkout_reuses_main_profile_identity_before_commit(tmp_path: Pa
     codex_permissions.sync_permissions(linked, user_config=user)
     profile = _config(repo)["default_permissions"]
     assert _config(linked)["default_permissions"] == profile
-    assert tomllib.loads(user.read_text())["permissions"][profile]["workspace_roots"] == {
-        (tmp_path / "app.worktrees").as_posix(): True,
-    }
+    assert "workspace_roots" not in tomllib.loads(user.read_text())["permissions"][profile]
+    assert _config(linked)["permissions"][profile]["workspace_roots"] == {"../app.worktrees": True}
 
 
 @pytest.mark.parametrize(
@@ -113,7 +110,7 @@ def test_linked_checkout_reuses_main_profile_identity_before_commit(tmp_path: Pa
 def test_local_registration_accepts_both_platform_path_forms(
     root: PureWindowsPath | PurePosixPath,
 ) -> None:
-    profile = "basicly-workspace-" + "a" * 32
+    profile = "basicly-workspace"
     rendered = codex_permissions.merge_settings(
         "", codex_permissions.sibling_settings(root, profile)
     )
@@ -226,9 +223,8 @@ def test_cli_registration_honors_codex_home_and_checks_missing_local_roots(tmp_p
     assert checked.returncode == 0, checked.stderr
     local = tomllib.loads((home / "config.toml").read_text())
     profile = _config(repo)["default_permissions"]
-    assert local["permissions"][profile]["workspace_roots"] == {
-        (tmp_path / "app.worktrees").as_posix(): True
-    }
+    assert "workspace_roots" not in local["permissions"][profile]
+    assert _config(repo)["permissions"][profile]["workspace_roots"] == {"../app.worktrees": True}
     assert local["default_permissions"] == ":workspace"
 
 
@@ -263,8 +259,9 @@ def test_install_registers_only_with_explicit_user_flag_and_replays_without_chan
     user = home / "config.toml"
     before_project, before_user = project.read_bytes(), user.read_bytes()
     profile = tomllib.loads(before_project.decode())["default_permissions"]
-    assert tomllib.loads(before_user.decode())["permissions"][profile]["workspace_roots"] == {
-        (tmp_path / "consumer.worktrees").as_posix(): True,
+    assert "workspace_roots" not in tomllib.loads(before_user.decode())["permissions"][profile]
+    assert tomllib.loads(before_project.decode())["permissions"][profile]["workspace_roots"] == {
+        "../consumer.worktrees": True
     }
     repeated = subprocess.run(
         [*command, "install", "--codex-user"],
@@ -278,3 +275,88 @@ def test_install_registers_only_with_explicit_user_flag_and_replays_without_chan
     assert project.read_bytes() == before_project
     assert user.read_bytes() == before_user
     assert not list((home / "permission-backups").glob("*.toml"))
+
+
+@pytest.mark.parametrize("quote", ['"', "'"])
+def test_guid_migration_preserves_network_policy_and_removes_only_owned_tables(
+    tmp_path: Path,
+    quote: str,
+) -> None:
+    repo = _repo(tmp_path / "app")
+    target = repo / codex_permissions.CONFIG_PATH
+    target.parent.mkdir()
+    legacy = "basicly-workspace-" + "a" * 32
+    target.write_text(
+        "default_permissions=" + quote + legacy + quote + "\n"
+        '[permissions.basicly-workspace]\nextends=":workspace"\n'
+        "[permissions." + legacy + ']\nextends="basicly-workspace"\n'
+        "[permissions." + legacy + ".network]\nenabled=true\nallow_local_binding=true\n"
+        "[permissions." + legacy + '.network.domains]\nlocalhost="allow"\n'
+        '[permissions.consumer]\nextends=":read-only"\n'
+    )
+    user = tmp_path / "user.toml"
+    user.write_text(
+        'default_permissions=":workspace"\n'
+        "[permissions." + legacy + ']\nextends=":workspace"\n'
+        "[permissions."
+        + legacy
+        + ".workspace_roots]\n"
+        + '"'
+        + (tmp_path / "app.worktrees").as_posix()
+        + '"=true\n'
+    )
+    codex_permissions.sync_permissions(repo, user_config=user)
+    settings = _config(repo)
+    assert settings["default_permissions"] == "basicly-workspace"
+    assert set(settings["permissions"]) == {"basicly-workspace", "consumer"}
+    assert settings["permissions"]["basicly-workspace"]["network"] == {
+        "enabled": True,
+        "allow_local_binding": True,
+        "domains": {"localhost": "allow"},
+    }
+    assert set(tomllib.loads(user.read_text())["permissions"]) == {"basicly-workspace"}
+    assert codex_permissions.sync_permissions(repo, user_config=user) == []
+
+
+def test_guid_with_consumer_fields_is_refused_without_removing_it(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "app")
+    target = repo / codex_permissions.CONFIG_PATH
+    target.parent.mkdir()
+    legacy = "basicly-workspace-" + "a" * 32
+    text = "[permissions." + legacy + ']\nextends="consumer"\n'
+    target.write_text(text)
+    with pytest.raises(ValueError, match="consumer"):
+        codex_permissions.sync_permissions(repo)
+    assert target.read_text() == text
+
+
+def test_guid_migration_preserves_following_array_tables(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "app")
+    target = repo / codex_permissions.CONFIG_PATH
+    target.parent.mkdir()
+    legacy = "basicly-workspace-" + "a" * 32
+    target.write_text(
+        "[permissions."
+        + legacy
+        + ']\nextends="basicly-workspace"\n[[consumer_entries]]\nvalue="retained"\n'
+    )
+    codex_permissions.sync_permissions(repo)
+    assert _config(repo)["consumer_entries"] == [{"value": "retained"}]
+
+
+def test_registration_preserves_consumer_project_roots(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "app")
+    target = repo / codex_permissions.CONFIG_PATH
+    target.parent.mkdir()
+    target.write_text(
+        '[permissions.basicly-workspace]\nextends=":workspace"\n[permissions.basicly-workspace.workspace_roots]\n"../consumer.worktrees"=true\n'
+    )
+    user = tmp_path / "user.toml"
+    codex_permissions.sync_permissions(repo, user_config=user)
+    assert _config(repo)["permissions"]["basicly-workspace"]["workspace_roots"] == {
+        "../consumer.worktrees": True,
+        "../app.worktrees": True,
+    }
+    assert (
+        "workspace_roots" not in tomllib.loads(user.read_text())["permissions"]["basicly-workspace"]
+    )
