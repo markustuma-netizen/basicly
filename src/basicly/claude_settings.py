@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import TYPE_CHECKING
 
 from .projection import atomic_write_text
 
 if TYPE_CHECKING:
-    from .hooks import HookSpec
+    from .lefthook_config import HookSpec
     from .permissions import ClaudePermissions
 
 CLAUDE_SETTINGS_PATH = Path(".claude/settings.json")
@@ -31,7 +31,6 @@ AGENT_HOOK_EVENTS = {
     "posttooluse": "PostToolUse",
     "sessionstart": "SessionStart",
 }
-AGENT_HOOK_MATCHER = "Edit|Write|NotebookEdit"
 
 
 def _load_settings(path: Path) -> dict:
@@ -146,38 +145,29 @@ def sync_permissions(repo_root: Path, managed: ClaudePermissions) -> bool:
 
 
 def _agent_hook_command(spec: HookSpec, hooks_relpath: str) -> str:
-
-    script = f"{PROJECT_DIR_PLACEHOLDER}/{hooks_relpath}/{spec.script}"
-    return f'{HOOK_INTERPRETER} "{script}"'
-
-
-def _event_key(spec: HookSpec) -> str:
-    event = AGENT_HOOK_EVENTS.get(spec.stage)
-    if event is None:
-        raise ValueError(
-            f"claude hook '{spec.id}' has stage {spec.stage!r}; "
-            f"allowed: {sorted(AGENT_HOOK_EVENTS)}"
-        )
-    return event
+    script = f"{PROJECT_DIR_PLACEHOLDER}/{hooks_relpath}/lefthook-runtime.py"
+    return f'{HOOK_INTERPRETER} "{script}" claude {spec.stage}'
 
 
-def _managed_group(spec: HookSpec, hooks_relpath: str) -> dict:
+def _event_groups(specs: list[HookSpec], hooks_relpath: str) -> dict[str, dict]:
     return {
-        "matcher": spec.matcher or AGENT_HOOK_MATCHER,
-        "hooks": [{"type": "command", "command": _agent_hook_command(spec, hooks_relpath)}],
+        AGENT_HOOK_EVENTS[spec.stage]: {
+            "matcher": "*",
+            "hooks": [{"type": "command", "command": _agent_hook_command(spec, hooks_relpath)}],
+        }
+        for spec in specs
     }
 
 
 def _references_managed_script(group: object, script_paths: set[str]) -> bool:
-
     if not isinstance(group, dict):
         return False
-    for hook in group.get("hooks") or []:
-        if isinstance(hook, dict):
-            command = hook.get("command")
-            if isinstance(command, str) and any(path in command for path in script_paths):
-                return True
-    return False
+    return any(
+        isinstance(hook, dict)
+        and isinstance(hook.get("command"), str)
+        and any(path in hook["command"] for path in script_paths)
+        for hook in group.get("hooks", [])
+    )
 
 
 def merge_agent_hooks(
@@ -186,74 +176,58 @@ def merge_agent_hooks(
     hooks_relpath: str,
     strip_scripts: set[str] | None = None,
 ) -> dict:
-
     merged = dict(settings)
-    hooks_section = merged.get(HOOKS_KEY)
-    hooks_section = dict(hooks_section) if isinstance(hooks_section, dict) else {}
-
-    script_paths = strip_scripts or {f"{hooks_relpath}/{spec.script}" for spec in specs}
+    section = dict(merged.get(HOOKS_KEY) or {})
+    paths = (strip_scripts or {f"{hooks_relpath}/{spec.script}" for spec in specs}) | {
+        f"{hooks_relpath}/lefthook-runtime.py",
+        ".basicly/core/kit/tier/claude_tier_hook.py",
+        (PurePosixPath(hooks_relpath).parent / "kit/tier/claude_tier_hook.py").as_posix(),
+    }
     for event in AGENT_HOOK_EVENTS.values():
-        existing = hooks_section.get(event)
-        if isinstance(existing, list):
-            hooks_section[event] = [
-                group for group in existing if not _references_managed_script(group, script_paths)
+        kept = []
+        for group in section.get(event, []):
+            if not _references_managed_script(group, paths):
+                kept.append(group)
+                continue
+            foreign = [
+                hook
+                for hook in group.get("hooks", [])
+                if not _references_managed_script({"hooks": [hook]}, paths)
             ]
-
-    for spec in specs:
-        event = _event_key(spec)
-        groups = hooks_section.get(event)
-        groups = groups if isinstance(groups, list) else []
-        groups.append(_managed_group(spec, hooks_relpath))
-        hooks_section[event] = groups
-
-    merged[HOOKS_KEY] = hooks_section
+            if foreign:
+                kept.append({**group, "hooks": foreign})
+        if kept:
+            section[event] = kept
+        else:
+            section.pop(event, None)
+    for event, group in _event_groups(specs, hooks_relpath).items():
+        section.setdefault(event, []).append(group)
+    if section:
+        merged[HOOKS_KEY] = section
+    else:
+        merged.pop(HOOKS_KEY, None)
     return merged
 
 
 def agent_hook_mismatches(repo_root: Path, specs: list[HookSpec], hooks_relpath: str) -> list[str]:
-
-    settings = _load_settings(repo_root / CLAUDE_SETTINGS_PATH)
-    hooks_section = settings.get(HOOKS_KEY)
-    hooks_section = hooks_section if isinstance(hooks_section, dict) else {}
-
-    mismatches: list[str] = []
-    for spec in specs:
-        expected = _managed_group(spec, hooks_relpath)
-        groups = hooks_section.get(_event_key(spec))
-        groups = groups if isinstance(groups, list) else []
-        found = any(
-            isinstance(group, dict)
-            and group.get("matcher") == expected["matcher"]
-            and any(
-                isinstance(hook, dict)
-                and hook.get("type") == "command"
-                and hook.get("command") == expected["hooks"][0]["command"]
-                for hook in group.get("hooks") or []
-            )
-            for group in groups
-        )
-        if not found:
-            mismatches.append(f"managed agent hook '{spec.id}' missing or out of sync")
-    return mismatches
+    section = _load_settings(repo_root / CLAUDE_SETTINGS_PATH).get(HOOKS_KEY, {})
+    return [
+        f"managed agent event {event!r} missing or out of sync"
+        for event, group in _event_groups(specs, hooks_relpath).items()
+        if group not in section.get(event, [])
+    ]
 
 
 def excluded_agent_hooks_present(
     repo_root: Path, excluded_specs: list[HookSpec], hooks_relpath: str
 ) -> list[str]:
-    settings = _load_settings(repo_root / CLAUDE_SETTINGS_PATH)
-    hooks_section = settings.get(HOOKS_KEY)
-    hooks_section = hooks_section if isinstance(hooks_section, dict) else {}
-    groups: list = []
-    for event in AGENT_HOOK_EVENTS.values():
-        event_groups = hooks_section.get(event)
-        if isinstance(event_groups, list):
-            groups.extend(event_groups)
-
+    section = _load_settings(repo_root / CLAUDE_SETTINGS_PATH).get(HOOKS_KEY, {})
     return [
-        f"managed agent hook '{spec.id}' excluded by technology selection"
+        f"retired direct agent hook {spec.id!r} remains"
         for spec in excluded_specs
         if any(
             _references_managed_script(group, {f"{hooks_relpath}/{spec.script}"})
+            for groups in section.values()
             for group in groups
         )
     ]
@@ -265,55 +239,25 @@ def sync_agent_hooks(
     hooks_relpath: str,
     excluded_specs: list[HookSpec] | None = None,
 ) -> bool:
-
-    excluded_specs = excluded_specs or []
-    if not specs and not excluded_specs:
-        return False
-    if not agent_hook_mismatches(repo_root, specs, hooks_relpath) and not (
-        excluded_agent_hooks_present(repo_root, excluded_specs, hooks_relpath)
-    ):
-        return False
-
     path = repo_root / CLAUDE_SETTINGS_PATH
     settings = _load_settings(path)
-    strip_scripts = {f"{hooks_relpath}/{spec.script}" for spec in (*specs, *excluded_specs)}
-    merged = merge_agent_hooks(settings, specs, hooks_relpath, strip_scripts)
-
+    scripts = {f"{hooks_relpath}/{spec.script}" for spec in (*specs, *(excluded_specs or []))}
+    merged = merge_agent_hooks(settings, specs, hooks_relpath, scripts)
+    if settings == merged:
+        return False
     path.parent.mkdir(parents=True, exist_ok=True)
     atomic_write_text(path, json.dumps(merged, indent=2) + "\n")
     return True
 
 
 def remove_agent_hooks(repo_root: Path, specs: list[HookSpec], hooks_relpath: str) -> bool:
-
     path = repo_root / CLAUDE_SETTINGS_PATH
-    if not path.exists() or not specs:
+    if not path.exists():
         return False
     settings = _load_settings(path)
-    hooks_section = settings.get(HOOKS_KEY)
-    if not isinstance(hooks_section, dict):
+    scripts = {f"{hooks_relpath}/{spec.script}" for spec in specs}
+    updated = merge_agent_hooks(settings, [], hooks_relpath, scripts)
+    if updated == settings:
         return False
-
-    script_paths = {f"{hooks_relpath}/{spec.script}" for spec in specs}
-    changed = False
-    for event in AGENT_HOOK_EVENTS.values():
-        existing = hooks_section.get(event)
-        if not isinstance(existing, list):
-            continue
-        kept = [g for g in existing if not _references_managed_script(g, script_paths)]
-        if len(kept) == len(existing):
-            continue
-        changed = True
-        if kept:
-            hooks_section[event] = kept
-        else:
-            hooks_section.pop(event, None)
-    if not changed:
-        return False
-
-    if hooks_section:
-        settings[HOOKS_KEY] = hooks_section
-    else:
-        settings.pop(HOOKS_KEY, None)
-    atomic_write_text(path, json.dumps(settings, indent=2) + "\n")
+    atomic_write_text(path, json.dumps(updated, indent=2) + "\n")
     return True

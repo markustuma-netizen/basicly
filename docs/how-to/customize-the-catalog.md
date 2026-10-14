@@ -115,7 +115,7 @@ Technology-tagged sources (the shell references of `cli-tools`, shell and platfo
 fragments) are skipped at projection time when they fall outside your stack:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly install --technologies python,zsh
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly install --technologies python,zsh
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -138,7 +138,7 @@ check command exits non-zero when the file on disk no longer matches.
 | `.claude/skills/**`, `.agents/skills/**` | `basicly skills-build` | `basicly skills-check` |
 | `.claude/output-styles/*.md` | `basicly styles-build` | `basicly styles-check` |
 | `.claude/agents/**`, `.github/agents/**` | `basicly agents-build` | `basicly agents-check` |
-| `.pre-commit-config.yaml`, agent hook config | `basicly hooks-build` | `basicly hooks-check` |
+| `.basicly/lefthook.yml`, agent hook config | `basicly hooks-build` | `basicly hooks-check` |
 | the managed allow and deny lists in `.claude/settings.json` | `basicly permissions-build` | `basicly permissions-check` |
 
 Only the first row is covered by `.basicly/generated-manifest.json`, which is

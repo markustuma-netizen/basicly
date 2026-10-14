@@ -112,6 +112,9 @@ jobs:
 
       - uses: astral-sh/setup-uv@v7
 
+      - name: Prepare pinned Lefthook artifacts
+        run: python3 src/basicly/lefthook_artifacts.py --download
+
       - name: Build distribution artifacts
         run: uv build
 

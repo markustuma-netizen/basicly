@@ -176,8 +176,9 @@ def test_the_cli_exit_code_is_passed_through(
 
 
 def test_the_pre_commit_config_launches_the_script_and_not_npx() -> None:
-    config = (REPO_ROOT / ".pre-commit-config.yaml").read_text(encoding="utf-8")
-    assert "entry: uv run --no-project python .basicly/core/hooks/markdownlint.py" in config
+    config = (REPO_ROOT / ".basicly/lefthook.yml").read_text(encoding="utf-8")
+    assert ".basicly/core/hooks/markdownlint.py" in config
+    assert "lefthook-runtime.py" in config
     assert "npx --no-install markdownlint-cli2" not in config
 
 

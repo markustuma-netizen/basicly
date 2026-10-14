@@ -5,10 +5,11 @@ import re
 import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from basicly import claude_settings, cli
+from basicly import claude_settings, cli, lefthook_binary, lefthook_config
 from basicly.hooks import HookSpec, load_hook_specs
 
 if TYPE_CHECKING:
@@ -88,7 +89,7 @@ GUARD = HookSpec(
 HOOKS_RELPATH = ".basicly/core/hooks"
 EXPECTED_COMMAND = (
     "uv run --no-project --no-python-downloads python "
-    '"${CLAUDE_PROJECT_DIR}/.basicly/core/hooks/protect-generated.py"'
+    '"${CLAUDE_PROJECT_DIR}/.basicly/core/hooks/lefthook-runtime.py" claude pretooluse'
 )
 
 
@@ -102,7 +103,7 @@ def test_sync_agent_hooks_writes_and_preserves_other_keys(tmp_path: Path) -> Non
     groups = data["hooks"]["PreToolUse"]
     assert groups == [
         {
-            "matcher": claude_settings.AGENT_HOOK_MATCHER,
+            "matcher": "*",
             "hooks": [{"type": "command", "command": EXPECTED_COMMAND}],
         }
     ]
@@ -123,6 +124,18 @@ def test_merge_preserves_foreign_pretooluse_groups(tmp_path: Path) -> None:
     groups = _read_settings(tmp_path)["hooks"]["PreToolUse"]
     assert foreign in groups
     assert len(groups) == 2
+
+
+def test_custom_core_tier_hook_is_replaced_without_removing_its_foreign_neighbor() -> None:
+    foreign = {"type": "command", "command": "consumer-check"}
+    old = {"type": "command", "command": "uv run python harness/kit/tier/claude_tier_hook.py"}
+    settings = {"hooks": {"PreToolUse": [{"matcher": "Agent", "hooks": [old, foreign]}]}}
+    spec = HookSpec("tier", "../kit/tier/claude_tier_hook.py", "pretooluse", manager="claude")
+    updated = claude_settings.merge_agent_hooks(settings, [spec], "harness/hooks")
+    groups = updated["hooks"]["PreToolUse"]
+    assert groups[0] == {"matcher": "Agent", "hooks": [foreign]}
+    assert len(groups) == 2
+    assert "lefthook-runtime.py" in groups[1]["hooks"][0]["command"]
 
 
 def test_agent_hook_mismatches_flags_missing_and_stale(tmp_path: Path) -> None:
@@ -148,19 +161,20 @@ def test_posttooluse_spec_lands_in_its_own_event_with_its_matcher(tmp_path: Path
     data = _read_settings(tmp_path)
     assert data["hooks"]["PreToolUse"] == [
         {
-            "matcher": claude_settings.AGENT_HOOK_MATCHER,
+            "matcher": "*",
             "hooks": [{"type": "command", "command": EXPECTED_COMMAND}],
         }
     ]
     assert data["hooks"]["PostToolUse"] == [
         {
-            "matcher": "Bash",
+            "matcher": "*",
             "hooks": [
                 {
                     "type": "command",
                     "command": (
                         "uv run --no-project --no-python-downloads python "
-                        '"${CLAUDE_PROJECT_DIR}/.basicly/core/hooks/tool-usage.py"'
+                        '"${CLAUDE_PROJECT_DIR}/.basicly/core/hooks/lefthook-runtime.py" '
+                        "claude posttooluse"
                     ),
                 }
             ],
@@ -239,7 +253,7 @@ def _as_the_host_would_run(settings: dict, event: str, tool: str, repo: Path) ->
             hook["command"].replace(claude_settings.PROJECT_DIR_PLACEHOLDER, repo.as_posix())
         )
         for group in settings["hooks"][event]
-        if re.fullmatch(group["matcher"], tool)
+        if group["matcher"] == "*" or re.fullmatch(group["matcher"], tool)
         for hook in group["hooks"]
     ]
 
@@ -251,7 +265,14 @@ def _fire_agent_hook(argv: list[str], repo: Path, target: Path) -> subprocess.Co
     )
 
 
-def test_projected_agent_hook_fires_and_its_refusal_reaches_the_agent(tmp_path: Path) -> None:
+def test_projected_agent_hook_fires_and_its_refusal_reaches_the_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "uv-cache"))
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    subprocess.run(["git", "init", "-q", str(tmp_path)], check=True)
+    lefthook_binary.sync_binary(tmp_path)
 
     shutil.copytree(
         REPO_ROOT / HOOKS_RELPATH,
@@ -259,14 +280,15 @@ def test_projected_agent_hook_fires_and_its_refusal_reaches_the_agent(tmp_path: 
         ignore=shutil.ignore_patterns("__pycache__"),
     )
     specs = [spec for spec in load_hook_specs() if spec.manager == "claude"]
+    lefthook_config.sync_config(tmp_path, specs, HOOKS_RELPATH)
     assert claude_settings.sync_agent_hooks(tmp_path, specs, HOOKS_RELPATH) is True
     generated = tmp_path / "AGENTS.md"
     generated.write_text(GENERATED_MARKER + "# Baseline\n", encoding="utf-8")
 
     argvs = _as_the_host_would_run(_read_settings(tmp_path), "PreToolUse", "Edit", tmp_path)
-    selected = {Path(argv[-1]).name for argv in argvs}
-    assert selected == {"protect-generated.py", "headroom-guard.py"}
-    guard = next(argv for argv in argvs if argv[-1].endswith("protect-generated.py"))
+    assert len(argvs) == 1
+    assert argvs[0][-2:] == ["claude", "pretooluse"]
+    guard = argvs[0]
     blocked = _fire_agent_hook(guard, tmp_path, generated)
     assert blocked.returncode == 2, blocked.stderr
     assert "basicly build" in blocked.stderr

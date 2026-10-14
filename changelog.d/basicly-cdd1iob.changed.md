@@ -1,0 +1,1 @@
+- Replace pre-commit with Lefthook for Git, Claude, Codex and Copilot, preserving staged snapshots and foreign hooks. Release wheels bundle verified binaries for offline repo-local installation without storing binaries in Git. Upgrade generated Git install pins to wheel URLs and retain sibling Codex worktree permissions.

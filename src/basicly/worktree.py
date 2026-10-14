@@ -18,7 +18,8 @@ from .checkout import (
     run,
     worktrees_root,
 )
-from .hooks import PRECOMMIT_CONFIG, hook_stages, install_hooks, load_hook_specs
+from .config import load_project_paths
+from .hooks import hook_stages, install_hooks, load_hook_specs
 
 BRANCH_PREFIX = "harness/"
 
@@ -127,7 +128,7 @@ def install_worktree_hooks(worktree: Path) -> str:
     stages = hook_stages(load_hook_specs())
     if not stages:
         return "hooks: none defined"
-    ok, message = install_hooks(worktree, stages)
+    ok, message = install_hooks(worktree, stages, load_project_paths(worktree).core_root / "hooks")
     if not ok:
         raise RuntimeError(f"worktree hooks could not be installed: {message}")
     return f"hooks: {', '.join(stages)} — {message}"
@@ -404,7 +405,7 @@ def cleanup(
         git(["worktree", "remove", "--force", str(worktree)], cwd=main)
     git(["worktree", "prune"], cwd=main, check=False)
 
-    if (main / PRECOMMIT_CONFIG).exists():
+    if (main / "lefthook.yml").exists():
         print(f"  {install_worktree_hooks(main)}")
 
     record = load_session(name, main)

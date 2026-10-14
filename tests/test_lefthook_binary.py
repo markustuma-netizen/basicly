@@ -1,0 +1,29 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import pytest
+
+from basicly import lefthook_binary
+
+
+def test_binary_selection_covers_six_platforms_and_refuses_unsupported() -> None:
+    for system in ("Linux", "Darwin", "Windows"):
+        for machine in ("x86_64", "arm64"):
+            assert lefthook_binary.binary_bytes(system, machine)
+    assert lefthook_binary.asset_name("Windows", "AMD64").endswith("Windows_x86_64.gz")
+    with pytest.raises(ValueError, match="does not support"):
+        lefthook_binary.asset_name("Linux", "riscv64")
+
+
+def test_installed_binary_checks_license_and_preserves_foreign_ignore(tmp_path: Path) -> None:
+    lefthook_binary.sync_binary(tmp_path)
+    license_path = tmp_path / ".basicly/bin/LICENSE.lefthook"
+    license_path.unlink()
+    assert lefthook_binary.binary_mismatches(tmp_path) == [
+        (license_path, "bundled Lefthook license missing or differs")
+    ]
+    ignore = license_path.parent / ".gitignore"
+    ignore.write_text("consumer-specific\n", encoding="utf-8")
+    lefthook_binary.remove_binary(tmp_path)
+    assert ignore.read_text(encoding="utf-8") == "consumer-specific\n"

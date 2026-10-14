@@ -36,6 +36,17 @@ def test_a_non_repository_has_no_hook_directory(tmp_path: Path) -> None:
     assert layout.hooks_dir(tmp_path) is None
 
 
+def test_managed_hook_detection_respects_the_effective_hook_directory(tmp_path: Path) -> None:
+    assert not layout.managed_by_lefthook(tmp_path, None)
+    directory = tmp_path / "shared-hooks"
+    directory.mkdir()
+    hook = directory / "post-merge"
+    hook.write_text("#!/bin/sh\necho foreign\n", encoding="utf-8")
+    assert not layout.managed_by_lefthook(tmp_path, directory)
+    hook.write_text("#!/bin/sh\n# basicly Lefthook launcher\n", encoding="utf-8")
+    assert layout.managed_by_lefthook(tmp_path, directory)
+
+
 def _lane(tmp_path: Path, named: str, *, checkout: bool = True) -> Path:
     ledger = tmp_path / "lane" / "data" / "ledger"
     ledger.mkdir(parents=True)

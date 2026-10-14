@@ -38,7 +38,7 @@ BANDS: tuple[Band, ...] = (
         "capability_proof",
         ("merge", "decompose", "policy", "verify", "board_snapshot", "decisions", "plan_gate"),
     ),
-    Band("configuration and isolation", "worktree", ("config", "worktree")),
+    Band("configuration and isolation", "config", ("config", "worktree")),
     Band(
         "agent runtime",
         "context_window",

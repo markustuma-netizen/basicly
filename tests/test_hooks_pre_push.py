@@ -3,7 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
-import shlex
+import shutil
 import signal
 import subprocess
 import sys
@@ -13,7 +13,7 @@ from types import ModuleType
 
 import pytest
 
-from basicly import hooks
+from basicly import hooks, lefthook_config
 
 REPO_ROOT = Path(__file__).parent.parent
 HOOK_SOURCE = REPO_ROOT / ".basicly" / "core" / "hooks" / "pre-push.py"
@@ -95,7 +95,7 @@ def test_a_repo_without_the_kit_is_quiet(tmp_path: Path, monkeypatch: pytest.Mon
     assert not hook.ledger_write_in_flight(tmp_path)
 
 
-def test_the_refusal_names_the_stash_message_an_operator_will_have_seen(
+def test_the_refusal_names_the_live_ledger_contention(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
 
@@ -107,8 +107,8 @@ def test_the_refusal_names_the_stash_message_an_operator_will_have_seen(
 
     reported = capsys.readouterr().err
     assert "ledger write is in flight" in reported
-    assert "Stashed changes conflicted with hook auto-fixes" in reported
-    assert "commits are unaffected" in reported
+    assert "unstaged files are unchanged" in reported
+    assert "Your commits" in reported
 
 
 def test_a_quiet_tree_runs_the_checks_unchanged(
@@ -136,6 +136,13 @@ def _git(repo: Path, *args: str) -> None:
     subprocess.run(("git", *args), cwd=repo, check=True, capture_output=True)
 
 
+@pytest.fixture(autouse=True)
+def isolated_uv(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "uv-cache"))
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+
+
 def _pushable_repo(tmp_path: Path) -> Path:
 
     repo = tmp_path / "work"
@@ -148,30 +155,27 @@ def _pushable_repo(tmp_path: Path) -> Path:
     ):
         _git(repo, "config", key, value)
     (repo / LEDGER_FILE).write_bytes(b'{"seq": 1}\n')
-    (repo / ".pre-commit-config.yaml").write_text(
-        "repos:\n- repo: local\n  hooks:\n  - id: slow\n    name: slow\n"
-        f"    entry: {shlex.quote(sys.executable)} {(tmp_path / 'slow.py').as_posix()}\n"
-        "    language: system\n    stages: [pre-push]\n"
-        "    always_run: true\n    pass_filenames: false\n",
-        encoding="utf-8",
+    scripts = repo / ".basicly/core/hooks"
+    scripts.mkdir(parents=True)
+    shutil.copyfile(
+        REPO_ROOT / ".basicly/core/hooks/lefthook-runtime.py", scripts / "lefthook-runtime.py"
     )
-    (tmp_path / "slow.py").write_text(
+    (scripts / "slow.py").write_text(
         f"import pathlib, time\npathlib.Path({str(tmp_path / 'started')!r}).write_text('go')\n"
         "time.sleep(60)\n",
         encoding="utf-8",
+    )
+    lefthook_config.sync_config(
+        repo,
+        [hooks.HookSpec("slow", "slow.py", "pre-push", always_run=True)],
+        ".basicly/core/hooks",
     )
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "one")
     (repo / "other.txt").write_text("second\n", encoding="utf-8")
     _git(repo, "add", "-A")
     _git(repo, "commit", "-qm", "two")
-    subprocess.run(
-        (sys.executable, "-m", "pre_commit", "install", "--hook-type", "pre-push"),
-        cwd=repo,
-        check=True,
-        capture_output=True,
-        env={**os.environ, "PRE_COMMIT_HOME": str(tmp_path / "pc-home")},
-    )
+    assert hooks.install_hooks(repo, ["pre-push"])[0]
     (repo / LEDGER_FILE).write_bytes(b'{"seq": 1}\n' + LIVE_APPEND)
     return repo
 
@@ -211,20 +215,19 @@ def _kill_the_hook_mid_run(repo: Path, tmp_path: Path) -> str:
 
 
 @posix_hooks
-def test_a_kill_mid_push_loses_the_ledger_without_the_guard(tmp_path: Path) -> None:
+def test_a_kill_mid_push_never_stashes_the_ledger(tmp_path: Path) -> None:
     repo = _pushable_repo(tmp_path)
 
     output = _kill_the_hook_mid_run(repo, tmp_path)
 
-    assert "Unstaged files detected" in output
-    assert LIVE_APPEND not in (repo / LEDGER_FILE).read_bytes()
+    assert "Unstaged files detected" not in output
+    assert LIVE_APPEND in (repo / LEDGER_FILE).read_bytes()
 
 
 @posix_hooks
 def test_a_kill_mid_push_leaves_a_ledger_only_tree_byte_identical(tmp_path: Path) -> None:
     repo = _pushable_repo(tmp_path)
     before = (repo / LEDGER_FILE).read_bytes()
-    assert hooks.apply_pre_push_guard(repo)
 
     output = _kill_the_hook_mid_run(repo, tmp_path)
 
@@ -233,23 +236,25 @@ def test_a_kill_mid_push_leaves_a_ledger_only_tree_byte_identical(tmp_path: Path
 
 
 @posix_hooks
-def test_dirt_outside_the_ledger_still_takes_the_stash(tmp_path: Path) -> None:
+def test_dirt_outside_the_ledger_is_also_preserved(tmp_path: Path) -> None:
     repo = _pushable_repo(tmp_path)
     (repo / "other.txt").write_text("unstaged\n", encoding="utf-8")
-    assert hooks.apply_pre_push_guard(repo)
 
     output = _kill_the_hook_mid_run(repo, tmp_path)
 
-    assert "Unstaged files detected" in output
+    assert "Unstaged files detected" not in output
+    assert (repo / "other.txt").read_text() == "unstaged\n"
 
 
-def test_the_guard_refuses_a_hook_script_it_does_not_recognise(tmp_path: Path) -> None:
-    (tmp_path / ".git" / "hooks").mkdir(parents=True)
-    foreign = tmp_path / ".git" / "hooks" / "pre-push"
-    foreign.write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
-
-    assert hooks.apply_pre_push_guard(tmp_path) is False
-    assert foreign.read_text(encoding="utf-8") == "#!/bin/sh\nexit 0\n"
+def test_a_foreign_pre_push_hook_survives_install_and_uninstall(tmp_path: Path) -> None:
+    _git(tmp_path, "init", "-q")
+    foreign = tmp_path / ".git/hooks/pre-push"
+    content = "#!/bin/sh\nexit 0\n"
+    foreign.write_text(content, encoding="utf-8")
+    foreign.chmod(0o755)
+    assert hooks.install_hooks(tmp_path, ["pre-push"])[0]
+    assert hooks.uninstall_hooks(tmp_path, ["pre-push"])[0]
+    assert foreign.read_text(encoding="utf-8") == content
 
 
 def test_a_pre_push_hook_without_the_guard_reads_as_not_installed(tmp_path: Path) -> None:
@@ -259,7 +264,7 @@ def test_a_pre_push_hook_without_the_guard_reads_as_not_installed(tmp_path: Path
 
     assert hooks.missing_hook_installations(tmp_path, ["pre-push"]) == ["pre-push"]
 
-    hook_file.write_text(f"# pre-commit\n# {hooks.PRE_PUSH_GUARD_MARKER}\n", encoding="utf-8")
+    hook_file.write_text(f"# {hooks.HOOK_MARKER}\n", encoding="utf-8")
     assert hooks.missing_hook_installations(tmp_path, ["pre-push"]) == []
 
 

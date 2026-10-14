@@ -130,7 +130,8 @@ Setup:
 
 ```sh
 uv sync --group dev
-uv run pre-commit install --install-hooks -t pre-commit -t commit-msg -t pre-push
+uv run python src/basicly/lefthook_artifacts.py --download
+uv run basicly hooks-build
 ```
 
 Test, whole suite then one file:

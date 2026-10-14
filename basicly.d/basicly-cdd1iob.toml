@@ -1,0 +1,6 @@
+[ratchet.module_size.frozen]
+"src/basicly/hooks.py" = -7076
+
+[ratchet.noqa_debt.frozen]
+S603 = -2
+S310 = 1

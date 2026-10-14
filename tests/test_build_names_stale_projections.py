@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from basicly import cli
+from basicly import cli, lefthook_binary
 
 if TYPE_CHECKING:
     import pytest
@@ -42,6 +42,7 @@ def test_build_names_a_stale_style_and_its_build_command(work_repo: Path) -> Non
 
 
 def test_build_prints_nothing_more_when_every_projection_is_in_sync(work_repo: Path) -> None:
+    lefthook_binary.sync_binary(work_repo)
     result = _build(work_repo)
 
     assert result.returncode == 0, result.stderr

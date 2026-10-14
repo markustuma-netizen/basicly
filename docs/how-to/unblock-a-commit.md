@@ -80,7 +80,7 @@ Stale generated files detected. Run `basicly build` to fix.
 
 You (or an agent) hand-edited a **projected** file. `CLAUDE.md`, `AGENTS.md`,
 `.github/copilot-instructions.md`, everything under `.claude/skills/`, and
-`.pre-commit-config.yaml` are outputs, not sources — the fix belongs in the
+`.basicly/lefthook.yml` are outputs, not sources — the fix belongs in the
 fragment, and the file is then regenerated:
 
 ```sh

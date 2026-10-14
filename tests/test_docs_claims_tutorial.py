@@ -29,18 +29,30 @@ def test_a_tutorial_install_pin_behind_the_release_fails_naming_the_line(
     path = work_repo / TUTORIAL_MD
     current = claims._released_version(work_repo)
     text = path.read_text(encoding="utf-8")
-    assert f"@v{current}" in text
-    path.write_text(text.replace(f"@v{current}", "@v0.0.1"), encoding="utf-8")
+    assert f"/v{current}/" in text
+    path.write_text(text.replace(f"/v{current}/", "/v0.0.1/"), encoding="utf-8")
     first = next(
         number
         for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1)
-        if "@v0.0.1" in line
+        if "/v0.0.1/" in line
     )
 
     assert _run(work_repo, "--check") == 1
     err = capsys.readouterr().err
     assert "[tutorial-versions]" in err
-    assert f"{TUTORIAL_MD}:{first}: install pin @v0.0.1 is not the released v{current}" in err
+    assert f"{TUTORIAL_MD}:{first}: install pin v0.0.1 is not the released v{current}" in err
+
+
+def test_a_stale_wheel_filename_refuses_even_when_its_release_tag_is_current(
+    work_repo: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    path = work_repo / TUTORIAL_MD
+    current = claims._released_version(work_repo)
+    text = path.read_text()
+    assert f"basicly-{current}-py3-none-any.whl" in text
+    path.write_text(text.replace(f"basicly-{current}-", "basicly-0.0.1-"))
+    assert _run(work_repo, "--check") == 1
+    assert "install pin v0.0.1" in capsys.readouterr().err
 
 
 def test_a_tutorial_claim_naming_an_older_version_fails_naming_the_line(

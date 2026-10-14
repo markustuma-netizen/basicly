@@ -17,7 +17,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from basicly import cli
+from basicly import cli, lefthook_binary
 from basicly.agents import GENERATED_MARKER as AGENT_GENERATED_MARKER
 from basicly.config import (
     CONFIG_FILE,
@@ -74,6 +74,10 @@ def test_the_work_repo_fixture_copies_the_tracked_files_but_the_test_suite(
     copied = {
         path.relative_to(work_repo).as_posix() for path in work_repo.rglob("*") if path.is_file()
     }
+    manifest = json.loads((work_repo / "src/basicly/lefthook_assets/manifest.json").read_text())
+    tracked.update(
+        f"build/lefthook/{manifest['version']}/{entry['name']}" for entry in manifest["assets"]
+    )
 
     assert copied == tracked
     assert (work_repo / "src" / "basicly" / "cli.py").is_file()
@@ -115,7 +119,7 @@ def test_cli_install_converges_fresh_consumer(tmp_path: Path) -> None:
     assert (consumer / ".claude" / "CLAUDE.md").is_file()
     assert (consumer / ".github" / "copilot-instructions.md").is_file()
     assert list((consumer / ".claude" / "skills").rglob("SKILL.md"))
-    assert (consumer / ".pre-commit-config.yaml").is_file()
+    assert (consumer / "lefthook.yml").is_file()
     assert '"label": "basicly: build"' in (consumer / ".vscode" / "tasks.json").read_text(
         encoding="utf-8"
     )
@@ -140,7 +144,7 @@ def test_cli_install_honors_custom_core_paths(tmp_path: Path) -> None:
     assert (consumer / "conf" / "basicly" / "core" / "targets" / "claude.yaml").is_file()
     assert not (consumer / ".basicly" / "core").exists()
     assert (consumer / "AGENTS.md").is_file()
-    config_text = (consumer / ".pre-commit-config.yaml").read_text(encoding="utf-8")
+    config_text = (consumer / ".basicly/lefthook.yml").read_text(encoding="utf-8")
     assert "conf/basicly/core/hooks/pre-commit.py" in config_text
 
 
@@ -631,7 +635,8 @@ def test_cli_uninstall_removes_everything_managed(tmp_path: Path) -> None:
     for root in (".claude", ".github", ".agents"):
         base = consumer / root
         assert not (list(base.rglob("SKILL.md")) if base.exists() else [])
-    assert not (consumer / ".pre-commit-config.yaml").exists()
+    assert not (consumer / "lefthook.yml").exists()
+    assert not (consumer / ".basicly/bin").exists()
 
     assert (consumer / "basicly.toml").is_file()
     assert (consumer / ".basicly-local" / "fragments" / "user").is_dir()
@@ -643,18 +648,10 @@ def test_cli_uninstall_preserves_foreign_hooks(tmp_path: Path) -> None:
     consumer.mkdir()
     run_basicly_consumer(consumer, "install")
 
-    config = consumer / ".pre-commit-config.yaml"
-    data = config.read_text(encoding="utf-8")
-    foreign = (
-        "repos:\n"
-        "- repo: local\n"
-        "  hooks:\n"
-        "  - id: my-own-hook\n"
-        "    name: my-own-hook\n"
-        "    entry: echo mine\n"
-        "    language: system\n" + data.removeprefix("repos:\n")
-    )
-    config.write_text(foreign, encoding="utf-8")
+    config = consumer / "lefthook.yml"
+    data = yaml.safe_load(config.read_text(encoding="utf-8"))
+    data["pre-commit"] = {"commands": {"my-own-hook": {"run": "echo mine"}}}
+    config.write_text(yaml.safe_dump(data), encoding="utf-8")
 
     result = run_basicly_consumer(consumer, "uninstall")
     assert result.returncode == 0, result.stderr
@@ -1276,6 +1273,7 @@ def test_cli_install_leaves_a_consumer_bash_edit_and_webfetch_untouched(
 
 
 def test_cli_status_json_authoring_schema(work_repo: Path) -> None:
+    lefthook_binary.sync_binary(work_repo)
     result = run_basicly(work_repo, "status", "--json")
     assert result.returncode == 0, result.stderr
     report = json.loads(result.stdout)
@@ -1298,7 +1296,7 @@ def test_cli_status_json_authoring_schema(work_repo: Path) -> None:
         "state_error": None,
     }
     assert report["drift"] == {"stale_outputs": [], "manifest_stale": False, "core_drift": []}
-    assert set(report["hooks"]) == {"git", "claude", "copilot"}
+    assert set(report["hooks"]) == {"git", "claude", "codex", "copilot"}
     for entry in report["hooks"].values():
         assert entry["mismatches"] == 0
     assert report["permissions"]["claude"]["managed_patterns"] > 0
@@ -1397,12 +1395,10 @@ def test_cli_hooks_check_still_points_wiring_drift_at_hooks_build(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     monkeypatch.chdir(work_repo)
-    config = work_repo / ".pre-commit-config.yaml"
+    config = work_repo / ".basicly/lefthook.yml"
     data = yaml.safe_load(config.read_text(encoding="utf-8"))
-    for repo in data["repos"]:
-        if repo.get("repo") == "local":
-            repo["hooks"] = [h for h in repo["hooks"] if h["id"] != "pre-push-script"]
-    config.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
+    data.pop("pre-push")
+    config.write_text(yaml.safe_dump(data), encoding="utf-8")
 
     assert cli.main(["hooks-check"]) == 1
     err = " ".join(capsys.readouterr().err.split())
@@ -1415,6 +1411,7 @@ def test_cli_hooks_check_warns_when_uv_is_missing(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    lefthook_binary.sync_binary(work_repo)
     monkeypatch.chdir(work_repo)
     real_which = shutil.which
     monkeypatch.setattr(
@@ -1432,6 +1429,7 @@ def test_cli_hooks_check_stays_quiet_when_uv_is_present(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    lefthook_binary.sync_binary(work_repo)
     monkeypatch.chdir(work_repo)
     assert cli.main(["hooks-check"]) == 0
     assert "uv is not on PATH" not in capsys.readouterr().err

@@ -11,6 +11,10 @@ Cross-platform scripts for this repository.
 
 ## Available scripts
 
+- `python src/basicly/lefthook_artifacts.py --download` prepares the pinned,
+  checksum-verified Lefthook release for source development and packaging.
+  Use `--from-dir <directory>` for supplied local artifacts. Assets stay in
+  ignored `build/lefthook/`; builds and consumer installs never download them.
 - [`setup_git_identity.py`](setup_git_identity.py) — scaffold per-remote git identities
   via conditional includes, so the right name/email is selected by a repo's remote URL
   without setting a global `user.email`. Carries no identities of its own; pair it with
@@ -38,4 +42,4 @@ Git hook scripts moved to [`.basicly/core/hooks/`](../.basicly/core/hooks/) — 
 are now a first-class, catalog-distributed artifact type alongside fragments and
 skills (see [`docs/architecture/architecture.md`](../docs/architecture/architecture.md)), not repo-private
 scripts. See that directory's README for the hook table and
-[`.pre-commit-config.yaml`](../.pre-commit-config.yaml) for how they are wired.
+[`.basicly/lefthook.yml`](../.basicly/lefthook.yml) for how they are wired.

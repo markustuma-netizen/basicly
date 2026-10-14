@@ -47,6 +47,14 @@ def hooks_dir(root: Path, override: Path | None = None) -> Path | None:
 REDIRECT_FILE = "redirect"
 
 
+def managed_by_lefthook(root: Path, hooks: Path | None) -> bool:
+    directory = hooks_dir(root, hooks)
+    if directory is None:
+        return False
+    path = directory / "post-merge"
+    return path.is_file() and "basicly Lefthook launcher" in path.read_text(encoding="utf-8")
+
+
 class RedirectError(ValueError):
     pass
 

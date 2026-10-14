@@ -10,7 +10,10 @@ if TYPE_CHECKING:
     from collections.abc import Callable
     from pathlib import Path
 
-DIST_SOURCE = f"git+https://github.com/niksavis/basicly@v{__version__}"
+DIST_SOURCE = (
+    f"https://github.com/niksavis/basicly/releases/download/v{__version__}/"
+    f"basicly-{__version__}-py3-none-any.whl"
+)
 UVX_COMMAND = f"uvx --from {DIST_SOURCE} basicly"
 
 GENERATED_IGNORES: tuple[tuple[str, str], ...] = (
@@ -37,7 +40,9 @@ GENERATED_IGNORES: tuple[tuple[str, str], ...] = (
 
 
 _PIN_PATTERN = re.compile(
-    re.escape(DIST_SOURCE).replace(re.escape(f"v{__version__}"), r"v\d+\.\d+\.\d+")
+    r"https://github\.com/niksavis/basicly/releases/download/v(?P<release>\d+\.\d+\.\d+)/"
+    r"basicly-(?P=release)-py3-none-any\.whl"
+    r"|git\+https://github\.com/niksavis/basicly@v\d+\.\d+\.\d+(?![#\w.])"
 )
 
 

@@ -37,8 +37,10 @@ PIN_GLOBS = ("docs/how-to/*.md", "docs/tutorial/*.md")
 
 RERECORDED_PATHS = ("docs/tutorial/",)
 TRANSCRIPT_VERSION_RE = re.compile(r"basicly (?P<version>\d+\.\d+\.\d+)")
-INSTALL_PIN_RE = re.compile(r"basicly@v(?P<version>\d+\.\d+\.\d+)")
-PIN_RE_TEMPLATE = r"(?<![\w.])v{version}(?!\w|\.\d)"
+INSTALL_PIN_RE = re.compile(
+    r"(?:basicly@v|/releases/download/v|basicly-)(?P<version>\d+\.\d+\.\d+)"
+)
+PIN_RE_TEMPLATE = r"(?<![\w.])(?P<prefix>v|basicly-){version}(?!\w|\.\d)"
 
 CHANGELOG_SCRIPT = Path(".scripts") / "generate_release_changelog.py"
 CHANGELOG_FILE = Path("CHANGELOG.md")
@@ -507,7 +509,13 @@ def _rewrite_pins(repo_root: Path, plan: ReleasePlan) -> None:
     pin_re = _pin_re(plan.current_version)
     for site in plan.pins:
         path = repo_root / site.path
-        path.write_text(pin_re.sub(plan.tag, path.read_text(encoding="utf-8")), encoding="utf-8")
+        path.write_text(
+            pin_re.sub(
+                lambda match: match.group("prefix") + plan.version,
+                path.read_text(encoding="utf-8"),
+            ),
+            encoding="utf-8",
+        )
     stale = [
         site.path.as_posix()
         for site in plan.pins

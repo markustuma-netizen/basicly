@@ -48,10 +48,11 @@ layers =
     plan_gate | policy | routing_evals | tuning | verify
     capability_proof
     invest
-    config | worktree
+    worktree
+    config
     lane_split
     lane_log
-    claude_settings | codex_permissions | runner
+    claude_settings | codex_hooks | codex_permissions | runner
     context_window
     agents | catalog_verify | copilot_store | fleet | hooks | kit_load | loader | models | permissions | output_styles | planner | renderers | shipped_core | skills | state
     skill_pairing
@@ -81,7 +82,9 @@ layers =
     board_fields | board_schema
     worktree_contents
     verify_log
-    automode_trust | base_lock | catalog_routing | catalog_source | checkout | copilot_tools | dropin | integrity | needs_input | plan_record | precommit_config | projection | read_cost | redact | review | roles | scaffolds | schema | session | tracker_usage | tree_schema | ui | usage | verify_artifact
+    lefthook_config | lefthook_binary
+    lefthook_artifacts
+    automode_trust | base_lock | catalog_routing | catalog_source | checkout | copilot_tools | dropin | integrity | needs_input | plan_record | legacy_hooks | projection | read_cost | redact | review | roles | scaffolds | schema | session | tracker_usage | tree_schema | ui | usage | verify_artifact
     tracker_paths
     catalog | stemmer
 # One cycle survives as a function-level import carrying `# noqa: PLC0415`; the

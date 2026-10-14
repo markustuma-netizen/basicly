@@ -223,6 +223,26 @@ def test_current_pins_raise_no_lagging_pin(repo: Path) -> None:
     assert release.lagging_pins(repo, CURRENT) == ()
 
 
+@pytest.mark.usefixtures("no_regen")
+def test_release_updates_both_wheel_tag_and_filename_and_detects_stale_filenames(
+    repo: Path,
+) -> None:
+    readme = repo / "README.md"
+    readme.write_text(
+        f"https://github.com/niksavis/basicly/releases/download/v{CURRENT}/"
+        f"basicly-{CURRENT}-py3-none-any.whl\n",
+        encoding="utf-8",
+    )
+    _git(repo, "add", "README.md")
+    _git(repo, "commit", "-qm", "test wheel install pin")
+    plan = release.plan_release(repo, "0.6.0", date="2026-07-26")
+    result = release.run_release(repo, plan, issue_id="fx-1")
+    assert not result.refused
+    assert readme.read_text().endswith("/v0.6.0/basicly-0.6.0-py3-none-any.whl\n")
+    readme.write_text(readme.read_text().replace("basicly-0.6.0-", "basicly-0.5.0-"))
+    assert any("v0.5.0" in reason for reason in release.lagging_pins(repo, "0.6.0"))
+
+
 def test_an_existing_tag_is_refused(repo: Path) -> None:
     _git(repo, "tag", "-a", "v0.6.0", "-m", "v0.6.0")
     plan = release.plan_release(repo, "0.6.0", date="2026-07-26")

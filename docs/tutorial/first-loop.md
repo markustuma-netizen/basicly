@@ -33,7 +33,7 @@ Every command below is written as bare `basicly`. Run it as the pinned form so
 you always get the version you chose:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly <args>
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly <args>
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -47,7 +47,7 @@ uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly <args>
 From the repo root:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly install
 ```
 
 It ends with:
@@ -310,7 +310,7 @@ Created worktree 'myrepo-rq9r'
   path:   /path/to/myrepo.worktrees/myrepo-rq9r
   branch: harness/myrepo-rq9r  (base main @ a0545c0)
   .basicly/ledger/redirect: tracker shared with the base checkout
-  hooks: pre-commit, commit-msg, pre-push — pre-commit installed at /path/to/myrepo/.git/hooks/pre-commit
+  hooks: post-merge, pre-commit, commit-msg, pre-push — repository-local Lefthook hooks installed
   ...
 [blocked] intake -> intake: recorded work type 'task'; classify checkpoint awaiting approval
 checkpoint classify: APPROVED (myrepo-rq9r)

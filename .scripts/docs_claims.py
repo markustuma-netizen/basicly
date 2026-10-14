@@ -42,8 +42,8 @@ _RELEASE_HEADING = re.compile(
 )
 _TUTORIAL_VERSIONS = (
     (
-        re.compile(r"@v(?P<version>\d+\.\d+\.\d+)"),
-        "install pin @v{found} is not the released v{released}",
+        re.compile(r"(?:@v|/releases/download/v|basicly-)(?P<version>\d+\.\d+\.\d+)"),
+        "install pin v{found} is not the released v{released}",
     ),
     (
         re.compile(r"basicly (?P<version>\d+\.\d+\.\d+)"),

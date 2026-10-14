@@ -1,17 +1,21 @@
 from __future__ import annotations
 
+import json
 import re
 from pathlib import Path
 
+import yaml
+
 from basicly.hooks import HookSpec, load_hook_specs
-from basicly.precommit_config import merge_precommit_config
+from basicly.lefthook_config import managed_config
 
 CORE_HOOKS = Path(__file__).parent.parent / ".basicly" / "core" / "hooks"
 
 
 def _entry(spec: HookSpec) -> dict:
-    merged = merge_precommit_config(None, [spec], ".basicly/core/hooks")
-    return merged["repos"][0]["hooks"][0]
+    merged = yaml.safe_load(managed_config([spec], ".basicly/core/hooks"))
+    command = merged[spec.stage]["commands"]["basicly-dispatch"]
+    return json.loads(command["env"]["BASICLY_HOOK_SPECS"])[0]
 
 
 def test_a_declared_scope_reaches_the_rendered_config() -> None:
@@ -24,7 +28,7 @@ def test_no_scope_leaves_pre_commits_default() -> None:
     spec = HookSpec(id="h", script="h.py", stage="pre-commit", always_run=True)
 
     entry = _entry(spec)
-    assert "files" not in entry
+    assert entry["files"] == ""
     assert entry["always_run"] is True
 
 

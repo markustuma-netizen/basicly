@@ -55,6 +55,7 @@ def _within(path: Path, root: Path) -> str:
 layout = _load("git_layout.py", "basicly_tracker_kit_git_layout")
 git_dir = layout.git_dir
 hooks_dir = layout.hooks_dir
+managed_by_lefthook = layout.managed_by_lefthook
 
 ON_DEFAULT_BRANCH = (
     'tracker_default="$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null)"',
@@ -160,6 +161,10 @@ def install(  # noqa: PLR0913 — one keyword per seam the host injects; a setti
     hooks: Path | None = None,
 ) -> int:
 
+    if managed_by_lefthook(root, hooks):
+        uninstall_fold(root, dry_run=dry_run, stream=stream, hooks=hooks)
+        stream.write("tracker: post-merge orchestration is managed by Lefthook\n")
+        return 0
     script = "" if command else (script or _within(_HERE / CLI_FILE, root))
     within = ensure_ledger(root, ledger, dry_run=dry_run, stream=stream)
     directory = hooks_dir(root, hooks)
@@ -257,6 +262,9 @@ def install_claim(
     layout: tuple[list[str] | None, list[str] | None, Path | None] = (None, None, None),
 ) -> None:
 
+    if managed_by_lefthook(root, layout[2]):
+        stream.write("tracker: commit claim checks are managed by Lefthook\n")
+        return
     places, managed, hooks = layout
     directory = hooks_dir(root, hooks)
     if directory is None:
