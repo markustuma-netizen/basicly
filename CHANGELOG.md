@@ -6,6 +6,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly now runs its Git and coding-agent hooks through pinned, repository-local
+Lefthook. Fresh installs and upgrades from v0.23.1 receive the executable offline
+from the release wheel, without a global Lefthook installation.
+
+- Hooks: preserve staged contents, foreign hooks and agent blocking behavior while
+  removing the Python pre-commit tool. CI restores the bundled runtime before
+  checking configuration drift (basicly-cdd1iob).
+- Codex: use one workspace profile with repository-scoped sibling worktree and Git
+  access, preserving consumer choices and secret denials (basicly-yuz0eom).
+
 ## v0.23.1 - 2026-10-13
 
 Delta: v0.23.0..v0.23.1
