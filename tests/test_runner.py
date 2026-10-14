@@ -170,17 +170,13 @@ def test_format_command_injects_sandbox_alone() -> None:
     assert runner.format_command(spec, "go") == ["codex", "--sandbox", "read-only", "exec", "go"]
 
 
-def test_codex_builtin_defaults_render_workspace_write_never() -> None:
+def test_codex_builtin_inherits_project_permission_profile_and_reviewer() -> None:
 
     codex = next(s for s in runner.BUILTIN_RUNNERS if s.name == "codex")
-    assert codex.sandbox == "workspace-write"
-    assert codex.approval == "never"
+    assert codex.sandbox is None
+    assert codex.approval is None
     assert runner.format_command(codex, "do the work") == [
         "codex",
-        "--sandbox",
-        "workspace-write",
-        "-a",
-        "never",
         "exec",
         "do the work",
     ]
@@ -318,12 +314,12 @@ def test_confine_for_decider_puts_codex_in_a_read_only_sandbox() -> None:
     assert confined.deny_tools == ()
     assert runner.format_command(confined, "judge") == [
         "codex",
-        "--sandbox",
-        "read-only",
         "-a",
         "never",
         "exec",
         "judge",
+        "-c",
+        'default_permissions=":read-only"',
     ]
 
 

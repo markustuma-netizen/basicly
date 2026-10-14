@@ -142,8 +142,6 @@ BUILTIN_RUNNERS: tuple[RunnerSpec, ...] = (
         "codex",
         HEADLESS,
         ("codex", "exec", PROMPT_PLACEHOLDER),
-        sandbox="workspace-write",
-        approval="never",
         usage_format=CODEX_JSONL,
         context_window=CODEX_FALLBACK_WINDOW,
         context_window_source=FALLBACK_WINDOW,
@@ -429,6 +427,13 @@ def confine_for_decider(spec: RunnerSpec) -> RunnerSpec | None:
         return replace(spec, deny_tools=_denied_with(spec, _DECIDER_DENY_CLAUDE))
     if spec.deny_style == DENY_TOOL_FLAG:
         return replace(spec, deny_tools=_denied_with(spec, _DECIDER_DENY_COPILOT))
+    if model_family(spec) == "codex":
+        return replace(
+            spec,
+            command=(*spec.command, "-c", 'default_permissions=":read-only"'),
+            sandbox=None,
+            approval="never",
+        )
     if spec.sandbox is not None:
         return replace(spec, sandbox="read-only", approval="never")
     return None
