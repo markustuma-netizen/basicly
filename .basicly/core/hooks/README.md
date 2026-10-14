@@ -14,6 +14,11 @@ stdout, stderr and blocking exit codes through a private result channel.
 Codex uses a separate Windows command and asks you to review new hook definitions
 with `/hooks` before it runs them.
 
+Git launchers verify that the managed dispatcher completed. If Lefthook skips
+it because its native file selection is empty, the launcher runs only the
+managed job once; foreign job filters still apply. Original Git arguments are
+forwarded to consumer-owned Lefthook commands.
+
 Git pre-commit runs against an isolated index snapshot. Successful mechanical
 fixes update the index while preserving partially staged working files. Pre-push
 never stashes ledger writes or ordinary unstaged edits.

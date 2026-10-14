@@ -551,3 +551,68 @@ def test_staged_checks_reuse_prepared_uv_environment_without_building(
         assert "AssertionError" in result.stdout + result.stderr
     if stale_lock:
         assert "missing-snapshot-dependency" in result.stdout + result.stderr
+
+
+@pytest.mark.parametrize("stage", ["pre-commit", "pre-push"])
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("gate_code", [0, 1])
+def test_native_gate_runs_once_without_changing_foreign_file_filters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str, changed: bool, gate_code: int
+) -> None:
+    tmp_path = tmp_path / "repo"
+    tmp_path.mkdir()
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "uv-cache"))
+    counter = tmp_path.parent / (tmp_path.name + ".runs")
+    foreign_counter = tmp_path.parent / (tmp_path.name + ".foreign")
+    monkeypatch.setenv("BASICLY_TEST_GATE_COUNTER", str(counter))
+    monkeypatch.setenv("BASICLY_TEST_FOREIGN_COUNTER", str(foreign_counter))
+    subprocess.run(["git", "init", "-qb", "main"], cwd=tmp_path, check=True)
+    for key, value in (("user.name", "Test"), ("user.email", "test@example.invalid")):
+        subprocess.run(["git", "config", key, value], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("initial")
+    subprocess.run(["git", "add", "seed.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/main", "HEAD"], cwd=tmp_path, check=True
+    )
+    for key, value in (("branch.main.remote", "origin"), ("branch.main.merge", "refs/heads/main")):
+        subprocess.run(["git", "config", key, value], cwd=tmp_path, check=True)
+    if changed:
+        (tmp_path / "seed.txt").write_text("changed")
+        subprocess.run(["git", "add", "seed.txt"], cwd=tmp_path, check=True)
+        if stage == "pre-push":
+            subprocess.run(["git", "commit", "-qm", "changed"], cwd=tmp_path, check=True)
+    _materialize_hooks(tmp_path)
+    lefthook_binary.sync_binary(tmp_path)
+    (tmp_path / CORE_HOOKS_DIR / "gate.py").write_text(
+        'import os\nfrom pathlib import Path\np=Path(os.environ["BASICLY_TEST_GATE_COUNTER"])\n'
+        'p.write_text(p.read_text()+"run\\n" if p.exists() else "run\\n")\n'
+        f"raise SystemExit({gate_code})\n"
+    )
+    (tmp_path / CORE_HOOKS_DIR / "foreign-marker.py").write_text(
+        "import os\nfrom pathlib import Path\n"
+        'Path(os.environ["BASICLY_TEST_FOREIGN_COUNTER"]).write_text("unexpected")\n'
+    )
+    (tmp_path / "lefthook.yml").write_text(
+        stage + ':\n  commands:\n    foreign:\n      glob: "*.foreign"\n'
+        "      run: uv run --no-project --no-python-downloads python "
+        ".basicly/core/hooks/foreign-marker.py\n"
+    )
+    lefthook_config.sync_config(
+        tmp_path, [HookSpec("gate", "gate.py", stage, always_run=True)], CORE_HOOKS_DIR.as_posix()
+    )
+    assert install_hooks(tmp_path, [stage])[0]
+    result = subprocess.run(
+        ["sh", str(tmp_path / ".git/hooks" / stage)],
+        cwd=tmp_path,
+        input="",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == gate_code, result.stdout + result.stderr
+    assert counter.read_text() == "run\n"
+    assert not foreign_counter.exists()

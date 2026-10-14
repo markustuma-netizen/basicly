@@ -66,6 +66,21 @@ def staged_paths(root: Path) -> list[str]:
     return [os.fsdecode(path) for path in proc.stdout.split(b"\0") if path]
 
 
+def record_result(code: int, outputs: list[bytes], errors: list[bytes], agent: bool) -> None:
+    target = os.environ.get("BASICLY_HOOK_RESULT")
+    if not target:
+        if agent:
+            raise ValueError("agent dispatcher requires its protocol launcher")
+        return
+    result: dict = {"code": code}
+    if agent:
+        result.update({
+            "stdout": base64.b64encode(combine_output(outputs)).decode(),
+            "stderr": base64.b64encode(b"".join(errors)).decode(),
+        })
+    Path(target).write_text(json.dumps(result), encoding="utf-8")
+
+
 def dispatch() -> int:
     root = project_root()
     specs = json.loads(os.environ["BASICLY_HOOK_SPECS"])
@@ -103,14 +118,20 @@ def dispatch() -> int:
         if proc.returncode:
             code = proc.returncode
             break
-    if agent:
-        result = {
-            "code": code,
-            "stdout": base64.b64encode(combine_output(outputs)).decode(),
-            "stderr": base64.b64encode(b"".join(errors)).decode(),
-        }
-        Path(os.environ["BASICLY_HOOK_RESULT"]).write_text(json.dumps(result), encoding="utf-8")
+    record_result(code, outputs, errors, agent)
     return code
+
+
+def run_foreign_hook(root: Path, arguments: list[str], raw: bytes | None) -> int:
+    foreign = os.environ.get("BASICLY_FOREIGN_HOOK")
+    if not foreign:
+        return 0
+    command = [foreign, *arguments]
+    if os.name == "nt":
+        command = ["sh", "-c", 'exec "$@"', "basicly-foreign-hook", *command]
+    return subprocess.run(  # nosec B603 B607
+        command, cwd=root, input=raw, check=False
+    ).returncode
 
 
 def launch(manager: str, stage: str, arguments: list[str]) -> int:
@@ -123,16 +144,10 @@ def launch(manager: str, stage: str, arguments: list[str]) -> int:
     agent = manager != "git"
     name = stage if not agent else f"basicly-{manager}-{stage}"
     raw = sys.stdin.buffer.read() if agent or stage == "pre-push" else None
-    foreign = os.environ.get("BASICLY_FOREIGN_HOOK")
-    if not agent and foreign:
-        command = [foreign, *arguments]
-        if os.name == "nt":
-            command = ["sh", "-c", 'exec "$@"', "basicly-foreign-hook", *command]
-        original = subprocess.run(  # nosec B603 B607
-            command, cwd=root, input=raw, check=False
-        )
-        if original.returncode:
-            return original.returncode
+    if not agent:
+        foreign_code = run_foreign_hook(root, arguments, raw)
+        if foreign_code:
+            return foreign_code
     with tempfile.TemporaryDirectory(prefix="basicly-hook-") as directory:
         snapshot_state = None
         run_root = root
@@ -150,8 +165,11 @@ def launch(manager: str, stage: str, arguments: list[str]) -> int:
             env.update(state.env)
         result_path = Path(directory) / "result.json"
         env["BASICLY_HOOK_RESULT"] = str(result_path)
+        command = [str(binary), "run", name, "--no-auto-install", "--no-tty"]
+        if arguments:
+            command.extend(["--", *arguments])
         proc = subprocess.run(  # nosec B603
-            [str(binary), "run", name, "--no-auto-install", "--no-tty"],
+            command,
             cwd=run_root,
             env=env,
             input=raw,
@@ -159,6 +177,16 @@ def launch(manager: str, stage: str, arguments: list[str]) -> int:
             check=False,
         )
         if not agent:
+            if proc.returncode == 0 and not result_path.is_file():
+                command[3:3] = ["--force", "--job", "basicly-dispatch"]
+                proc = subprocess.run(  # nosec B603
+                    command, cwd=run_root, env=env, input=raw, check=False
+                )
+            if proc.returncode == 0 and not result_path.is_file():
+                print(
+                    "managed Git dispatcher did not run; run `basicly hooks-build`", file=sys.stderr
+                )
+                return 2
             if snapshot_state is not None and proc.returncode == 0:
                 module, state = snapshot_state
                 module.publish(state)

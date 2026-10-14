@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
+from basicly import hooks, lefthook_binary
 from basicly.hooks import HookSpec
 from basicly.lefthook_config import managed_config, root_config, sync_config
 
@@ -47,3 +50,45 @@ def test_consumer_cannot_overwrite_the_managed_dispatcher(tmp_path: Path) -> Non
         sync_config(tmp_path, [HookSpec("check", "check.py", "pre-commit")], ".basicly/core/hooks")
     assert config.read_text(encoding="utf-8") == current
     assert not (tmp_path / ".basicly/lefthook.yml").exists()
+
+
+@pytest.mark.parametrize("filename", ["message with spaces.txt", "message's.txt"])
+def test_foreign_commit_message_job_receives_original_git_arguments(
+    work_repo: Path, monkeypatch: pytest.MonkeyPatch, filename: str
+) -> None:
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.setenv("UV_CACHE_DIR", str(work_repo.parent / "uv-cache"))
+    subprocess.run(["git", "init", "-q"], cwd=work_repo, check=True)
+    lefthook_binary.sync_binary(work_repo)
+    for script, result in (
+        ("foreign.py", "foreign-arguments"),
+        ("managed.py", "managed-arguments"),
+    ):
+        (work_repo / ".basicly/core/hooks" / script).write_text(
+            "import json,sys\nfrom pathlib import Path\n"
+            + f'Path("{result}").write_text(json.dumps(sys.argv[1:]))\n'
+        )
+    (work_repo / "lefthook.yml").write_text(
+        "commit-msg:\n  commands:\n    consumer-message:\n"
+        "      run: uv run --no-project --no-python-downloads python "
+        '.basicly/core/hooks/foreign.py "{1}"\n'
+    )
+    sync_config(
+        work_repo,
+        [HookSpec("managed", "managed.py", "commit-msg", pass_filenames=True)],
+        ".basicly/core/hooks",
+    )
+    assert hooks.install_hooks(work_repo, ["commit-msg"])[0]
+    message = work_repo / filename
+    message.write_text("message")
+    result = subprocess.run(
+        ["sh", str(work_repo / ".git/hooks/commit-msg"), str(message)],
+        cwd=work_repo,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    for output in ("foreign-arguments", "managed-arguments"):
+        assert json.loads((work_repo / output).read_text()) == [str(message)]
