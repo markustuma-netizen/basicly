@@ -106,6 +106,10 @@ jobs:
           node-version: 22
       - name: Install Python dependencies
         run: uv sync
+      - name: Prepare pinned Lefthook runtime
+        run: |
+          python3 src/basicly/lefthook_artifacts.py --download
+          uv run python -c "from pathlib import Path; from basicly.lefthook_binary import sync_binary; sync_binary(Path.cwd())"
       - name: Install Node dependencies
         run: npm install --no-fund --no-audit
       # No external tracker is installed (basicly-vkh0.42.2). The cost is stated rather

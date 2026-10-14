@@ -65,9 +65,49 @@ def test_bootstrap_sh_pins_ref_and_passes_args_through(tmp_path: Path) -> None:
         "tool",
         "run",
         "--from",
-        "git+https://github.com/niksavis/basicly@v9.9.9",
+        "https://github.com/niksavis/basicly/releases/download/v9.9.9/basicly-9.9.9-py3-none-any.whl",
         "basicly",
         "install",
         "--technologies",
         "python,zsh",
     ]
+
+
+@needs_sh
+def test_bootstrap_latest_resolves_to_a_release_wheel(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    binaries = tmp_path / "bin"
+    binaries.mkdir()
+    log = tmp_path / "arguments"
+    uv = binaries / "uv"
+    uv.write_text(f'#!/bin/sh\nprintf \'%s\\n\' "$@" > "{log}"\n')
+    uv.chmod(0o755)
+    curl = binaries / "curl"
+    curl.write_text("#!/bin/sh\nprintf https://github.com/niksavis/basicly/releases/tag/v9.9.9\n")
+    curl.chmod(0o755)
+    result = subprocess.run(
+        ["sh", str(SH_SCRIPT)],
+        cwd=tmp_path,
+        env={**os.environ, "PATH": str(binaries) + os.pathsep + os.environ["PATH"]},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    assert log.read_text().splitlines()[3] == (
+        "https://github.com/niksavis/basicly/releases/download/v9.9.9/basicly-9.9.9-py3-none-any.whl"
+    )
+
+
+@needs_sh
+def test_bootstrap_refuses_source_branches_before_running_basicly(tmp_path: Path) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    result = subprocess.run(
+        ["sh", str(SH_SCRIPT), "--ref", "main"],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 1
+    assert "must name a release" in result.stderr

@@ -261,7 +261,7 @@ def test_cleanup_reinstalls_base_checkout_hooks(
         "install_worktree_hooks",
         lambda target: (reinstalls.append(Path(target)), "hooks: recorded")[1],
     )
-    (git_repo / ".pre-commit-config.yaml").write_text("repos: []\n", encoding="utf-8")
+    (git_repo / "lefthook.yml").write_text("extends: []\n", encoding="utf-8")
     monkeypatch.chdir(git_repo)
     worktree.create("hooked")
     reinstalls.clear()

@@ -669,6 +669,7 @@ def test_rebuild_refuses_a_log_the_fold_cannot_read_rather_than_writing_a_wrong_
 GUARD_REACH = {
     ("snapshot.py", "rebuild"): "guard",
     ("snapshot.py", "refresh"): "guard",
+    ("snapshot.py", "load"): "guard",
     ("snapshot.py", "rotate"): "guard",
     ("fsck.py", "rebuild"): "call site",
 }
@@ -694,7 +695,10 @@ def _functions() -> dict[tuple[str, str], Any]:
     return found
 
 
-def test_a_rebuild_whose_publish_would_shrink_refuses_and_deletes_nothing(tmp_path: Path) -> None:
+@pytest.mark.parametrize("publish", [fsck.rebuild, snapshot.load, snapshot.refresh])
+def test_a_publish_that_would_shrink_refuses_and_deletes_nothing(
+    tmp_path: Path, publish: Any
+) -> None:
 
     ledger = _seed(tmp_path / "ledger")
     fsck.rebuild(ledger)
@@ -703,7 +707,7 @@ def test_a_rebuild_whose_publish_would_shrink_refuses_and_deletes_nothing(tmp_pa
         log.unlink()
 
     with pytest.raises(snapshot.SnapshotError) as refusal:
-        fsck.rebuild(ledger)
+        publish(ledger)
 
     assert "0 records over a file holding 2" in str(refusal.value)
     assert _derived_text(ledger) == published

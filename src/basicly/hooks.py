@@ -5,20 +5,15 @@ import shlex
 import shutil
 import subprocess
 from collections.abc import Callable
-from dataclasses import dataclass
 from pathlib import Path
 
 import yaml
 
+from . import lefthook_binary, lefthook_config
 from .catalog import bundled_catalog_root, iter_catalog_files
-from .precommit_config import (
-    HOOK_PYTHON,
-    excluded_hooks_present,
-    managed_hook_mismatches,
-    parse_config,
-    render_precommit_config,
-    retired_hooks_present,
-)
+from .lefthook_config import INTERPRETER as HOOK_PYTHON
+from .lefthook_config import HookSpec
+from .legacy_hooks import foreign_git_hook, parse_config, retire_tracker_block
 from .projection import SyncResult, atomic_write_text, sync_file
 from .schema import ValidationError, technology_selected
 
@@ -28,9 +23,10 @@ PRECOMMIT_CONFIG = ".pre-commit-config.yaml"
 GIT_MANAGER = "git"
 CLAUDE_MANAGER = "claude"
 COPILOT_MANAGER = "copilot"
-HOOK_MANAGERS = (GIT_MANAGER, CLAUDE_MANAGER, COPILOT_MANAGER)
+CODEX_MANAGER = "codex"
+HOOK_MANAGERS = (GIT_MANAGER, CLAUDE_MANAGER, CODEX_MANAGER, COPILOT_MANAGER)
 
-AGENT_HOOK_HOSTS = {CLAUDE_MANAGER: "claude", COPILOT_MANAGER: "copilot"}
+AGENT_HOOK_HOSTS = {CLAUDE_MANAGER: "claude", CODEX_MANAGER: "codex", COPILOT_MANAGER: "copilot"}
 
 COPILOT_HOOKS_DIR = Path(".github/hooks")
 COPILOT_MANAGED_PREFIX = "basicly-"
@@ -40,19 +36,6 @@ COPILOT_EVENTS = {
     "pretooluse": "preToolUse",
     "sessionstart": "sessionStart",
 }
-
-
-@dataclass(frozen=True)
-class HookSpec:
-    id: str
-    script: str
-    stage: str
-    pass_filenames: bool = False
-    always_run: bool = False
-    files: str = ""
-    manager: str = GIT_MANAGER
-    technologies: tuple[str, ...] = ()
-    matcher: str = ""
 
 
 def _catalog_hooks_dir() -> Path:
@@ -138,23 +121,20 @@ def render_copilot_hook(spec: HookSpec, hooks_relpath: str) -> str:
         raise ValueError(
             f"copilot hook '{spec.id}' has stage {spec.stage!r}; allowed: {sorted(COPILOT_EVENTS)}"
         )
-    script = f"{hooks_relpath}/{spec.script}"
+    script = f"{hooks_relpath}/lefthook-runtime.py"
     entry: dict = {
         "type": "command",
-        "bash": f"{HOOK_PYTHON} {shlex.quote(script)}",
-        "powershell": f"{HOOK_PYTHON} '{script}'",
+        "bash": f"{HOOK_PYTHON} {shlex.quote(script)} copilot {spec.stage}",
+        "powershell": f"{HOOK_PYTHON} '{script}' copilot {spec.stage}",
     }
-    if spec.matcher:
-        entry["matcher"] = spec.matcher
-    config = {"version": 1, "hooks": {event: [entry]}}
-    return json.dumps(config, indent=2) + "\n"
+    return json.dumps({"version": 1, "hooks": {event: [entry]}}, indent=2) + "\n"
 
 
 def sync_copilot_hooks(
     repo_root: Path, core_hooks_dir: Path, selection: frozenset[str] | None = None
 ) -> SyncResult:
-    all_specs = copilot_hook_specs(load_hook_specs())
-    specs = selected_hook_specs(all_specs, selection)
+    selected = selected_hook_specs(copilot_hook_specs(load_hook_specs()), selection)
+    specs = list({spec.stage: spec for spec in selected}.values())
     result = SyncResult()
     hooks_relpath = core_hooks_dir.as_posix()
 
@@ -175,8 +155,8 @@ def sync_copilot_hooks(
 def check_copilot_hooks(
     repo_root: Path, core_hooks_dir: Path, selection: frozenset[str] | None = None
 ) -> list[tuple[Path, str]]:
-    all_specs = copilot_hook_specs(load_hook_specs())
-    specs = selected_hook_specs(all_specs, selection)
+    selected = selected_hook_specs(copilot_hook_specs(load_hook_specs()), selection)
+    specs = list({spec.stage: spec for spec in selected}.values())
     hooks_relpath = core_hooks_dir.as_posix()
     mismatches: list[tuple[Path, str]] = []
 
@@ -215,38 +195,35 @@ def remove_copilot_hooks(repo_root: Path) -> int:
 def sync_hooks(
     repo_root: Path, core_hooks_dir: Path, selection: frozenset[str] | None = None
 ) -> SyncResult:
-
-    result = SyncResult()
-    src = _catalog_hooks_dir()
     dst = repo_root / core_hooks_dir
-
-    if src.resolve() != dst.resolve() and not dst.is_dir():
+    if not dst.is_dir():
         raise ValidationError("core hooks are not materialized; run `basicly install` first", dst)
-
-    all_specs = git_hook_specs(load_hook_specs(src))
-    specs = selected_hook_specs(all_specs, selection)
-    all_ids = {spec.id for spec in all_specs}
-    excluded_ids = all_ids - {spec.id for spec in specs}
-    hooks_relpath = core_hooks_dir.as_posix()
-    config_path = repo_root / PRECOMMIT_CONFIG
-
-    if not config_path.exists():
-        rendered = render_precommit_config(None, specs, hooks_relpath)
-        sync_file(config_path, rendered.encode("utf-8"), result)
-        return result
-
-    existing_text = config_path.read_text(encoding="utf-8")
-    parsed = parse_config(config_path, existing_text)
-    if (
-        managed_hook_mismatches(parsed, specs, hooks_relpath)
-        or excluded_hooks_present(parsed, excluded_ids)
-        or retired_hooks_present(parsed, all_ids, hooks_relpath)
-    ):
-        rendered = render_precommit_config(existing_text, specs, hooks_relpath, all_ids)
-        sync_file(config_path, rendered.encode("utf-8"), result)
-    else:
-        result.unchanged.append(config_path)
-
+    specs = selected_hook_specs(load_hook_specs(), selection)
+    legacy = repo_root / PRECOMMIT_CONFIG
+    secret_exclude = None
+    if legacy.exists():
+        parsed = parse_config(legacy, legacy.read_text(encoding="utf-8"))
+        secret_exclude = parsed.get("exclude", "")
+        ids = {spec.id for spec in load_hook_specs()}
+        for block in parsed.get("repos", []):
+            if block.get("repo") != "local" or any(
+                hook.get("id") not in ids
+                and f"{core_hooks_dir.as_posix()}/" not in hook.get("entry", "")
+                for hook in block.get("hooks", [])
+            ):
+                raise ValueError(
+                    "foreign pre-commit hooks need migration to lefthook.yml; "
+                    "move those checks first, then run `basicly hooks-build`; no hooks changed"
+                )
+    result = lefthook_config.sync_config(
+        repo_root, specs, core_hooks_dir.as_posix(), secret_exclude
+    )
+    binary = lefthook_binary.sync_binary(repo_root)
+    result.written.extend(binary.written)
+    result.unchanged.extend(binary.unchanged)
+    if legacy.exists():
+        legacy.unlink()
+        result.written.append(legacy)
     return result
 
 
@@ -278,156 +255,128 @@ def _git_hooks_dir(repo_root: Path) -> Path:
     return path if path.is_absolute() else repo_root / path
 
 
-PRE_PUSH_STAGE = "pre-push"
-PRE_PUSH_GUARD_MARKER = "basicly: ledger-safe pre-push dispatch"
-_PRE_PUSH_ANCHOR = 'ARGS+=(--hook-dir "$HERE" -- "$@")\n'
-_PRE_PUSH_GUARD = f"""
-# {PRE_PUSH_GUARD_MARKER} (basicly-6ajmrc). `hook-impl` stashes the unstaged tree before
-# any hook runs and restores it after; the ledger is append-only shared state a live
-# engine process writes *during* the push, so a kill inside that window drops every event
-# appended since the stash. `run --all-files` is the same stage without a stash, and every
-# pre-push hook here is `always_run` with `pass_filenames: false`, so the two do identical
-# work. Anything unstaged outside the ledger takes the unchanged path, stash included.
-if [ -n "$(git diff --name-only --ignore-submodules -- .basicly/ledger/)" ] &&
-   [ -z "$(git diff --name-only --ignore-submodules -- . ':(exclude).basicly/ledger/')" ]; then
-    ARGS=(run --hook-stage pre-push --all-files)
-fi
-"""
-
-
-def apply_pre_push_guard(repo_root: Path) -> bool:
-
-    path = _git_hooks_dir(repo_root) / PRE_PUSH_STAGE
-    try:
-        text = path.read_text(encoding="utf-8")
-        mode = path.stat().st_mode
-    except OSError:
-        return False
-    if PRE_PUSH_GUARD_MARKER in text:
-        return True
-    if _PRE_PUSH_ANCHOR not in text:
-        return False
-    atomic_write_text(path, text.replace(_PRE_PUSH_ANCHOR, _PRE_PUSH_ANCHOR + _PRE_PUSH_GUARD, 1))
-    path.chmod(mode)
-    return True
+HOOK_MARKER = "basicly Lefthook launcher"
 
 
 def missing_hook_installations(repo_root: Path, stages: list[str]) -> list[str]:
-
-    hooks_dir = _git_hooks_dir(repo_root)
-    missing: list[str] = []
-    for stage in stages:
-        hook_file = hooks_dir / stage
-        installed = False
-        if hook_file.exists():
-            text = hook_file.read_text(encoding="utf-8", errors="ignore")
-            installed = "pre-commit" in text
-            if stage == PRE_PUSH_STAGE:
-                installed = installed and PRE_PUSH_GUARD_MARKER in text
-        if not installed:
-            missing.append(stage)
-    return missing
+    directory = _git_hooks_dir(repo_root)
+    return [
+        stage
+        for stage in stages
+        if not (directory / stage).is_file()
+        or HOOK_MARKER.encode() not in (directory / stage).read_bytes()
+    ]
 
 
-def _pre_commit_command(args: list[str]) -> list[str] | None:
-
-    pre_commit = shutil.which("pre-commit")
-    if pre_commit:
-        return [pre_commit, *args]
-    if shutil.which("uv"):
-        return ["uv", "tool", "run", "pre-commit", *args]
-    return None
-
-
-def install_hooks(repo_root: Path, stages: list[str]) -> tuple[bool, str]:
-
-    stage_args: list[str] = []
-    for stage in stages:
-        stage_args += ["-t", stage]
-    manual = "uvx pre-commit install --install-hooks " + " ".join(stage_args)
-
+def install_hooks(
+    repo_root: Path, stages: list[str], core_hooks_dir: Path = Path(".basicly/core/hooks")
+) -> tuple[bool, str]:
     if not (repo_root / ".git").exists():
-        return False, (
-            "not a git repository (no .git); run `git init`, then `basicly hooks-build` "
-            "to activate the gates"
-        )
-
-    cmd = _pre_commit_command(["install", "--install-hooks", *stage_args])
-    if cmd is None:
-        return False, f"neither pre-commit nor uv is on PATH; install uv, then run: {manual}"
-
-    result = subprocess.run(cmd, cwd=repo_root, capture_output=True, text=True, check=False)  # noqa: S603 — argv built here, no shell
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
-        return False, f"pre-commit install failed ({detail}); run manually: {manual}"
-    message = result.stdout.strip() or "hooks installed"
-    if PRE_PUSH_STAGE in stages and not apply_pre_push_guard(repo_root):
-        message += (
-            "\nwarning: the pre-push hook was not recognised, so the ledger guard "
-            "was not applied; a push will stash unstaged ledger writes"
-        )
-    return True, message
+        return False, "not a git repository; run `git init`, then `basicly hooks-build`"
+    if shutil.which("uv") is None:
+        return False, "uv is not on PATH; install uv, then run `basicly hooks-build`"
+    lefthook_binary.sync_binary(repo_root)
+    directory = _git_hooks_dir(repo_root)
+    directory.mkdir(parents=True, exist_ok=True)
+    for stage in stages:
+        path = directory / stage
+        saved = directory / f"{stage}.basicly-original"
+        if path.exists() and saved.exists() and HOOK_MARKER.encode() not in path.read_bytes():
+            return False, f"{saved.name} already exists; resolve the hook conflict first"
+        foreign = directory / f"{stage}.basicly-foreign"
+        current = path.read_bytes() if path.exists() else b""
+        if foreign.exists() and HOOK_MARKER.encode() not in current:
+            return False, f"{foreign.name} already exists; resolve the hook conflict first"
+        foreign_git_hook(stage, saved.read_bytes() if saved.exists() else current)
+    for stage in stages:
+        path = directory / stage
+        current = path.read_bytes() if path.exists() else b""
+        saved = directory / f"{stage}.basicly-original"
+        if current and HOOK_MARKER.encode() not in current:
+            shutil.copy2(path, saved)
+        runtime = (core_hooks_dir / "lefthook-runtime.py").as_posix()
+        original = f"$(git rev-parse --git-path hooks)/{saved.name}"
+        legacy = f"$(git rev-parse --git-path hooks)/{stage}.legacy"
+        lines = [
+            "#!/bin/sh",
+            f"# {HOOK_MARKER}",
+            f'basicly_original="{original}"',
+            f'basicly_legacy="{legacy}"',
+            f'if [ ! -f "{runtime}" ]; then',
+            '  if [ -x "$basicly_original" ]; then',
+            '    exec "$basicly_original" "$@"',
+            "  fi",
+            "  exit 0",
+            "fi",
+        ]
+        saved_body = saved.read_bytes() if saved.exists() else b""
+        if saved_body and b"# File generated by pre-commit" not in saved_body:
+            foreign = retire_tracker_block(stage, saved)
+            lines.append(
+                f'export BASICLY_FOREIGN_HOOK="$(git rev-parse --git-path hooks)/{foreign.name}"'
+            )
+        if b"# File generated by pre-commit" in saved_body:
+            lines.extend([
+                'if [ -x "$basicly_legacy" ]; then',
+                '  export BASICLY_FOREIGN_HOOK="$basicly_legacy"',
+                "fi",
+            ])
+        lines.append(f'exec {lefthook_config.INTERPRETER} "{runtime}" git {stage} "$@"')
+        atomic_write_text(path, "\n".join(lines) + "\n")
+        path.chmod(path.stat().st_mode | 0o111)
+    return True, "repository-local Lefthook hooks installed"
 
 
 def uninstall_hooks(repo_root: Path, stages: list[str]) -> tuple[bool, str]:
-
-    stage_args: list[str] = []
+    directory = _git_hooks_dir(repo_root)
     for stage in stages:
-        stage_args += ["-t", stage]
-    manual = "uvx pre-commit uninstall " + " ".join(stage_args)
-
-    cmd = _pre_commit_command(["uninstall", *stage_args])
-    if cmd is None:
-        return False, f"neither pre-commit nor uv is on PATH; run manually: {manual}"
-
-    result = subprocess.run(cmd, cwd=repo_root, capture_output=True, text=True, check=False)  # noqa: S603 — argv built here, no shell
-    if result.returncode != 0:
-        detail = result.stderr.strip() or result.stdout.strip() or "unknown error"
-        return False, f"pre-commit uninstall failed ({detail}); run manually: {manual}"
-    return True, result.stdout.strip() or "hooks uninstalled"
+        path = directory / stage
+        if not path.exists() or HOOK_MARKER.encode() not in path.read_bytes():
+            continue
+        saved = directory / f"{stage}.basicly-original"
+        if saved.exists():
+            content = saved.read_bytes()
+            legacy = directory / f"{stage}.legacy"
+            if b"# File generated by pre-commit" in content:
+                if legacy.exists():
+                    shutil.copy2(legacy, path)
+                    legacy.unlink()
+                else:
+                    path.unlink()
+            else:
+                shutil.copy2(saved, path)
+                foreign_body = foreign_git_hook(stage, content)
+                if foreign_body != content:
+                    path.write_bytes(foreign_body)
+            saved.unlink()
+        else:
+            path.unlink()
+        foreign = directory / f"{stage}.basicly-foreign"
+        if foreign.exists():
+            foreign.unlink()
+    return True, "managed Lefthook hooks uninstalled"
 
 
 def remove_managed_hooks(repo_root: Path) -> str | None:
-
-    config_path = repo_root / PRECOMMIT_CONFIG
-    if not config_path.exists():
+    config = repo_root / lefthook_config.CONFIG
+    if not config.exists():
         return None
-
-    parsed = parse_config(config_path, config_path.read_text(encoding="utf-8"))
-    specs = git_hook_specs(load_hook_specs())
-    managed_ids = {spec.id for spec in specs}
-
-    kept: list = []
-    changed = False
-    for repo in parsed.get("repos") or []:
-        if isinstance(repo, dict) and repo.get("repo") == "local":
-            hooks = [
-                hook
-                for hook in (repo.get("hooks") or [])
-                if not (isinstance(hook, dict) and hook.get("id") in managed_ids)
-            ]
-            if len(hooks) != len(repo.get("hooks") or []):
-                changed = True
-            if hooks:
-                kept.append({**repo, "hooks": hooks})
-        else:
-            kept.append(repo)
-
-    if not changed:
+    parsed = yaml.safe_load(config.read_text(encoding="utf-8"))
+    extends = parsed.get("extends", [])
+    if lefthook_config.MANAGED_CONFIG not in extends:
         return None
-
-    if kept:
-        parsed["repos"] = kept
-        atomic_write_text(
-            config_path,
-            yaml.safe_dump(parsed, sort_keys=False, default_flow_style=False),
-        )
-        return f"Removed managed hooks from {PRECOMMIT_CONFIG} (foreign hooks preserved)"
-
-    config_path.unlink()
-    ok, message = uninstall_hooks(repo_root, hook_stages(specs))
-    note = f"Deleted {PRECOMMIT_CONFIG} (only managed hooks remained)"
-    return note if ok else f"{note}; {message}"
+    parsed["extends"] = [path for path in extends if path != lefthook_config.MANAGED_CONFIG]
+    if not parsed["extends"]:
+        parsed.pop("extends")
+    if parsed:
+        atomic_write_text(config, yaml.safe_dump(parsed, sort_keys=False))
+    else:
+        config.unlink()
+    managed = repo_root / lefthook_config.MANAGED_CONFIG
+    if managed.exists():
+        managed.unlink()
+    uninstall_hooks(repo_root, hook_stages(load_hook_specs()))
+    return "Removed managed Lefthook configuration (foreign hooks preserved)"
 
 
 def _tracked_identity(path: Path, cwd: Path) -> tuple[Path, str] | None:
@@ -478,22 +427,9 @@ def check_hooks(
             elif target.read_bytes() != path.read_bytes():
                 mismatches.append((target, "differs from catalog"))
 
-    all_specs = git_hook_specs(load_hook_specs(src))
-    specs = selected_hook_specs(all_specs, selection)
-    excluded_ids = {spec.id for spec in all_specs} - {spec.id for spec in specs}
-    config_path = repo_root / PRECOMMIT_CONFIG
-    if not config_path.exists():
-        mismatches.append((config_path, "missing"))
-        return mismatches
-
-    existing_text = config_path.read_text(encoding="utf-8")
-    parsed = parse_config(config_path, existing_text)
+    specs = selected_hook_specs(load_hook_specs(src), selection)
     mismatches.extend(
-        (config_path, reason)
-        for reason in managed_hook_mismatches(parsed, specs, core_hooks_dir.as_posix())
+        lefthook_config.config_mismatches(repo_root, specs, core_hooks_dir.as_posix())
     )
-    mismatches.extend(
-        (config_path, reason) for reason in excluded_hooks_present(parsed, excluded_ids)
-    )
-
+    mismatches.extend(lefthook_binary.binary_mismatches(repo_root))
     return mismatches

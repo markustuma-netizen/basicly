@@ -31,7 +31,6 @@ dev = [
   "djlint>=1.40.4",
   "import-linter>=2.13",
   "pip-audit>=2.10.1",
-  "pre-commit>=4.6",
   "pyproject-fmt>=2.25.2",
   "pyright>=1.1.411",
   "pytest>=9.1.1",
@@ -82,9 +81,11 @@ faulthandler_timeout = "60"
 # next directory of first-party Python fails there instead of being silently dropped,
 # and runs pyright over a bad module under `.scripts` to prove the coverage is real.
 [tool.pyright]
+venvPath = "."
+venv = ".venv"
 extraPaths = ["src", "."]
 typeCheckingMode = "standard"
-include = ["src", "tests", ".scripts", ".basicly/core", "packages", ".claude/skills", ".agents/skills"]
+include = ["src", "tests", ".scripts", ".basicly/core", "packages", ".claude/skills", ".agents/skills", "hatch_build.py"]
 exclude = ["**/node_modules", "**/__pycache__", "**/.venv"]
 
 [project.scripts]
@@ -615,6 +616,9 @@ declared_count = 1
 [tool.hatch.build.targets.wheel]
 packages = ["src/basicly"]
 exclude = ["**/__pycache__", "**/*.pyc"]
+
+[tool.hatch.build.hooks.custom]
+path = "hatch_build.py"
 
 # Ship the managed core catalog inside the wheel so `basicly install` can
 # materialize it into a fresh consumer repo. The authoring source stays at

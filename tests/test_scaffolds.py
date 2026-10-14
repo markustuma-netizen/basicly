@@ -17,7 +17,7 @@ def test_no_scaffold_resolves_the_engine_from_a_branch() -> None:
 
 
 def test_every_scaffolded_uvx_line_pins_the_scaffolding_version() -> None:
-    assert DIST_SOURCE.endswith(f"@v{__version__}")
+    assert DIST_SOURCE.endswith(f"/v{__version__}/basicly-{__version__}-py3-none-any.whl")
     for name, body in _SCAFFOLDS.items():
         uvx_lines = [line for line in body.splitlines() if "uvx --from" in line]
         assert uvx_lines, f"{name} has no uvx line to pin"

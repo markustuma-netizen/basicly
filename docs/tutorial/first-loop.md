@@ -33,7 +33,7 @@ Every command below is written as bare `basicly`. Run it as the pinned form so
 you always get the version you chose:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly <args>
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly <args>
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -47,7 +47,7 @@ uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly <args>
 From the repo root:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly install
 ```
 
 It ends with:
@@ -71,8 +71,8 @@ Hooks
 ┏━━━━━━━━━┳━━━━━━━┳━━━━━━━━━━━━┳━━━━━━━━━━━━┓
 ┃ manager ┃ specs ┃ projection ┃ activation ┃
 ┡━━━━━━━━━╇━━━━━━━╇━━━━━━━━━━━━╇━━━━━━━━━━━━┩
-│ git     │ 14    │ in sync    │ installed  │
-│ claude  │ 8     │ in sync    │ active     │
+│ git     │ 15    │ in sync    │ installed  │
+│ claude  │ 9     │ in sync    │ active     │
 │ copilot │ 2     │ in sync    │ active     │
 └─────────┴───────┴────────────┴────────────┘
 agent hooks: active on claude, copilot; the git hooks stay the commit-time floor
@@ -81,7 +81,7 @@ overlays: 2 fragment(s), 0 agent(s)
 ```
 
 `repo: consumer` means this repo *uses* the catalog rather than authoring it.
-`git 14 … installed` means fourteen git hooks are now live — which is what the
+`git 15 … installed` means fifteen git hooks are now live — which is what the
 next step is about.
 
 ## Step 2 — check that the first commit can pass
@@ -260,7 +260,7 @@ git add -A
 git commit -m "chore: install basicly (myrepo-rq9r)"
 ```
 
-Every hook should report `Passed`.
+Lefthook should report each managed dispatcher as successful.
 
 ## Step 4 — ask the loop where the bead stands
 
@@ -310,7 +310,7 @@ Created worktree 'myrepo-rq9r'
   path:   /path/to/myrepo.worktrees/myrepo-rq9r
   branch: harness/myrepo-rq9r  (base main @ a0545c0)
   .basicly/ledger/redirect: tracker shared with the base checkout
-  hooks: pre-commit, commit-msg, pre-push — pre-commit installed at /path/to/myrepo/.git/hooks/pre-commit
+  hooks: post-merge, pre-commit, commit-msg, pre-push — repository-local Lefthook hooks installed
   ...
 [blocked] intake -> intake: recorded work type 'task'; classify checkpoint awaiting approval
 checkpoint classify: APPROVED (myrepo-rq9r)

@@ -225,7 +225,7 @@ flowchart LR
   git["git, and the git host"]
   ci["GitHub Actions runners<br/>linux"]
   uv["uv and CPython"]
-  pc["pre-commit"]
+  pc["bundled Lefthook"]
 
   human --> sys
   uv --> sys
@@ -257,7 +257,7 @@ cannot be reviewed.
 | model vendors | model ids, prices, per-surface caps | a committed model map, generated from a reviewed anchors file | the drift check reports and never writes, so an upstream edit can never change which model runs someone's code |
 | GitHub Actions | five workflows on three platforms | the workflow files in this repository | CI failing does not block a local landing; the loop's verify step runs the same checks |
 | `uv` and CPython | the runtime every projected hook shells out to | `requires-python` in `pyproject.toml` | a consumer without the runtime on `PATH` reaches the bootstrap shim |
-| `pre-commit` | the runner that installs and invokes the git-hook floor at three stages | a pinned revision per hook repository in the committed config | a hook the runner cannot resolve fails the commit loudly rather than passing it |
+| Lefthook | the shared runner for Git and agent hooks | bundled 2.2.2 release archives for six platform variants, checked before materialization | a missing or altered repository binary fails the hook check |
 | ~~the external tracker binary~~ | **none. It was removed 2026-08-18 and no code path spawns it** | — | §37 is the closing account of it |
 
 **The projected guidance is the one contract every agent family does standardize.** That
@@ -672,9 +672,9 @@ Measured from the projected files, and regenerated and gated on every commit:
 
 | Surface | size | cap | headroom | lines | line cap |
 | --- | --- | --- | --- | --- | --- |
-| `.claude/CLAUDE.md` (claude) | 10832 characters | 12000 | 1168 | 172 | 200 |
-| `AGENTS.md` (codex) | 13711 bytes | 24576 | 10865 | 220 | 320 |
-| `.github/copilot-instructions.md` (copilot) | 10924 characters | 12000 | 1076 | 173 | 200 |
+| `.claude/CLAUDE.md` (claude) | 10836 characters | 12000 | 1164 | 173 | 200 |
+| `AGENTS.md` (codex) | 13715 bytes | 24576 | 10861 | 221 | 320 |
+| `.github/copilot-instructions.md` (copilot) | 10928 characters | 12000 | 1072 | 174 | 200 |
 
 <!-- docs-claims:end always-on-sizes -->
 
@@ -1014,12 +1014,13 @@ different runner without a script changing.
 
 **Each entry declares** an id, a script and a stage. It may also declare whether filenames
 are passed, whether it always runs, its technologies, a matcher and a manager. The manager
-routes the hook to one of three surfaces.
+routes the hook to one of four native surfaces through shared Lefthook configuration.
 
 | Manager | Surface it writes | Stages in use |
 | --- | --- | --- |
-| git | a managed local block in the pre-commit configuration, foreign hooks preserved | pre-commit, commit-msg, pre-push |
-| claude | the agent-hook section of `.claude/settings.json` | pre-tool-use, post-tool-use, session-start |
+| git | Git launchers run the shared Lefthook configuration, chaining existing hooks | post-merge, pre-commit, commit-msg, pre-push |
+| claude | one launcher per event in `.claude/settings.json` | pre-tool-use, post-tool-use, session-start |
+| codex | one launcher per event in `.codex/hooks.json` | pre-tool-use, session-start |
 | copilot | one managed JSON file per hook under Copilot's hooks directory | post-tool-use, session-start |
 
 **What ships is not counted here.** The generated `catalog-hooks` block in
@@ -1062,15 +1063,48 @@ subcommands, flags, flag values and variable prefixes. The counter therefore cre
 wrapped tool and not only the wrapper. The file is the input for a cull of idle tools and
 skills from the catalog.
 
-**A consumer's own hooks survive.** The projector merges its managed block into an
-existing configuration. It preserves a foreign repository and a foreign hook, and the
-merge is idempotent. This repository dogfoods the catalog directly, so its own pre-commit
-configuration points straight at the catalog scripts. One hook in it is the Markdown
-linter. That one is a hand-maintained consumer block the projector preserves and does not
-own.
+**A consumer's own hooks survive.** `lefthook.yml` extends the managed
+`.basicly/lefthook.yml`; existing consumer jobs and comments remain. Foreign Git
+scripts are chained, including pre-commit's previously saved `.legacy` hook, and
+restored on uninstall. The installer respects `core.hooksPath` and resolves the
+shared hook directory in linked worktrees. Its launcher resolves the runtime in
+the checkout Git is committing, so another worktree's absolute path never enters
+the installed script. A foreign pre-commit configuration is refused before hook
+projection; its owner must migrate those checks to Lefthook first.
 
-The choice of pre-commit over a compiled runner, and the four triggers that reopen it, are
-in [D-32](#d-32--pre-commit-rather-than-a-compiled-hook-runner).
+**The runner is bundled in distributions.** Git stores the Lefthook version,
+SHA-256 manifest, MIT license and preparation code. Explicit preparation accepts
+local artifacts or downloads the pinned release and verifies every hash into
+ignored `build/lefthook/`. Package builds require those artifacts and perform no
+downloads. Wheel and source distributions carry all six compressed binaries,
+upstream checksums and source archive outside the projected catalog. Install
+verifies and materializes only `.basicly/bin/lefthook[.exe]` and its license,
+without fetching or requiring a global runner. Consumers receive no vendor
+archive directory. Source developers prepare artifacts explicitly; consumers
+install bundled release wheels.
+
+**Agent protocol is preserved outside the runner.** A binary probe established
+that 2.2.2 normalizes a child's exit code 2 to 1 and frames its stdout. Each event
+therefore runs one dispatcher, which replays stdin to matcher-selected scripts.
+A private result file carries combined protocol output, stderr and the original
+status back to the outer launcher. Native projections contain launchers; the
+script list and matchers live in shared Lefthook configuration.
+
+**Git requires dispatcher completion.** The private result channel also records
+Git completion. When 2.2.2 skips a command because its native file selection is
+empty, the outer launcher selects only the managed job and requests execution
+without the empty-file skip. Completed jobs never run again, foreign job filters
+remain intact, and a missing completion record blocks the operation. Original
+Git arguments reach native consumer commands as well as the managed dispatcher.
+
+**Git validates the staged snapshot.** Pre-commit checks run in an isolated
+checkout of a copied index, with the installed runtime and untracked non-dotenv
+files available. Successful mechanical fixes update the index only if it has not
+changed concurrently; working files with unstaged edits retain their bytes.
+Pre-push never stashes shared ledger writes or ordinary unstaged files.
+
+The earlier runner choice is amended in
+[D-32](#d-32--pre-commit-rather-than-a-compiled-hook-runner).
 
 ## 17. Model tiers
 
@@ -1283,7 +1317,7 @@ Three ways reach the same two verbs.
 
 | How a consumer invokes it | When to use it |
 | --- | --- |
-| `uvx --from git+https://github.com/niksavis/basicly@<ref> basicly install` | first install, and every upgrade of a pinned ref. Nothing is added to `PATH` |
+| `uvx --from <versioned-release-wheel> basicly install` | first install, and every upgrade of a pinned release. Nothing is added to `PATH` |
 | `uv run basicly install` | inside a checkout of this repository, where `basicly` is the project |
 | `basicly install` | when a `basicly` executable is already on `PATH` |
 
@@ -1370,9 +1404,11 @@ or agent is pruned when it carries the generated marker. An excluded managed hoo
 stripped from the configuration files.
 
 **The managed catalog ships inside the distribution.** The build projects the dogfooded
-source tree into the wheel, and the source distribution carries it, so a direct-from-git
-install resolves it. The locator prefers a source checkout and falls back to the packaged
-copy.
+source tree into the wheel, and the source distribution carries it. The locator
+prefers a source checkout and falls back to the packaged copy. Lefthook artifacts
+use a separate package location and are never projected into consumer catalogs.
+Git-based engine installs are replaced by bundled release wheels; explicit
+artifact preparation supports source and editable development.
 
 **A bootstrap shim exists for a consumer with no runtime.** It is a POSIX shell script and
 a PowerShell script, `.scripts/bootstrap.sh` and `.scripts/bootstrap.ps1`. Each installs
@@ -3633,7 +3669,7 @@ it in a tier.
 
 <!-- docs-claims:begin layering-contract -->
 
-The 64 tiers hold 149 modules and group into 9 bands. Every band may import every band below
+The 67 tiers hold 153 modules and group into 9 bands. Every band may import every band below
 it, and nothing above it. Every count here is derived from `.importlinter`. The band
 *boundaries* are not: 9 bands over the tier stack is an editorial reading the contract does not
 carry, so they are declared in `.scripts/docs_claim_layers.py` and the counts are derived
@@ -3645,11 +3681,11 @@ flowchart TB
   b2["2 · drivers — 14<br/>supervise · loop · release · usage_report"]
   b3["3 · loop mechanics — 41<br/>merge · decompose · policy · verify · board_snapshot · decisions · plan_gate"]
   b4["4 · configuration and isolation — 3<br/>config · worktree"]
-  b5["5 · agent runtime — 6<br/>runner · lane_log · lane_split · context_window · claude_settings"]
+  b5["5 · agent runtime — 7<br/>runner · lane_log · lane_split · context_window · claude_settings"]
   b6["6 · projection — 15<br/>loader · planner · renderers · skills · agents · hooks · permissions"]
   b7["7 · records and telemetry — 15<br/>run_record · artifact_record · lens_review · spend_calibration"]
   b8["8 · tracker seam — 25<br/>owned_store · mirror · dispatch_phase · board_schema · board_fields"]
-  b9["9 · leaf data and pure helpers — 29<br/>integrity · schema · redact · roles · read_cost · ui · stemmer"]
+  b9["9 · leaf data and pure helpers — 32<br/>integrity · schema · redact · roles · read_cost · ui · stemmer"]
 
   b1 --> b2 --> b3 --> b4 --> b5 --> b6 --> b7 --> b8 --> b9
   b3 -.->|"declared exemption:<br/>policy imports decisions"| b3
@@ -4435,7 +4471,7 @@ decision keeps its record and gains a `superseded by` line.
 | D-29 | Codex inlines a scoped fragment, and Copilot gets no scoped twin | accepted | §12.1 |
 | D-30 | The status view is generated from one source | accepted, one of three surfaces built | §2 |
 | D-31 | The two ladders are named, not lettered | accepted | §9 |
-| D-32 | Pre-commit rather than a compiled hook runner | accepted, with four reopen triggers | §16 |
+| D-32 | Pre-commit rather than a compiled hook runner | amended: bundled Lefthook for Git and agent hooks | §16 |
 | D-33 | An unknown configuration key is refused unconditionally | accepted | §20 |
 | D-34 | One kind for prose, and typed kinds for machine state | accepted, ten of eighteen kinds built | §32.3 |
 | D-35 | The external tracker binary is transitional, not a component | **discharged** at the flip | §37 |
@@ -4890,23 +4926,19 @@ rename in code needs a deprecation window. It is filed as basicly-3iaw0x.
 
 ### D-32 · Pre-commit rather than a compiled hook runner
 
-**Decision.** Hooks are orchestrated by pre-commit, not by a compiled runner.
+**Amended 2026-10-14.** The user requested one shared runner for Git, Claude,
+Codex and Copilot hooks. Lefthook 2.2.2 now orchestrates those events, with the
+existing Python checks and their runtime requirement retained.
 
-**Because.** The hooks are already runner-agnostic, so the projection layer holds the only
-runner-specific code. The decisive fact is that **every projected hook shells out to the
-Python runtime**. A committer needs that runtime whatever orchestrates the hooks. A static
-binary's headline advantage is that it needs no runtime, and that advantage buys this
-project nothing. It would add a binary-acquisition problem with no native answer.
+**Because.** Bundled, checksum-verified binaries remove the separate acquisition
+step that the earlier decision treated as a blocker. The YAML catalog remains
+authoritative. A protocol launcher addresses the pinned runner's measured exit
+code and stdout behavior, and index snapshots preserve staged-file correctness
+without stashing live ledger writes.
 
-**Four triggers reopen the decision.**
-
-1. Consumers stop reliably having the runtime on `PATH`.
-2. The project drops the runtime requirement for the checks themselves.
-3. Hook execution speed becomes a **measured** complaint that parallelism would fix.
-4. The provisioning seam regresses beyond what the fallback covers.
-
-**Consequence.** The manager field and the interface-free scripts keep the decision cheap to
-reopen.
+**Consequence.** Timing baselines follow the migration. No speed improvement is
+claimed here, and Nx, affected-project selection and caching remain deferred.
+The section number and title remain for existing citations.
 
 ### D-33 · An unknown configuration key is refused unconditionally
 
@@ -5516,33 +5548,23 @@ discriminator, and its absence is unambiguous precisely because every new record
 
 ### D-51 · The repository is the distribution channel, and there is no package index
 
-**Decision.** `basicly` and every kit it ships are installed from this repository with
-`uvx`. Nothing is published to PyPI, and no work is planned that assumes a package index
-exists. The install line a consumer runs names the repository and the package's
-subdirectory; that shape is the permanent one, not a placeholder for a shorter one.
+**Amended 2026-10-14.** The engine installs from a pinned wheel attached to this
+repository's GitHub release. The release tag remains the version boundary
+[D-27](#d-27--everything-is-a-plain-git-tracked-file). No package index is required.
+Standalone kit source entrypoints remain available.
 
-**Because.** A package index is a second place a version can be current, and the failure it
-invites is the one this design spends most of its rules avoiding: two stores of one truth,
-where the reader that exists reads the weaker one. A tag in this repository is already the
-release boundary
-[D-27](#d-27--everything-is-a-plain-git-tracked-file), so a consumer pinning a git ref pins
-exactly what was reviewed, gated and tagged — there is no second artefact to go stale, to be
-yanked, or to be published from a tree nobody gated.
+**Because.** Lefthook's immutable upstream archives must ship inside the engine
+package without entering Git. Maintainers explicitly prepare and verify the
+archives before building the wheel and source distribution. A build refuses
+missing artifacts instead of downloading them. A consumer extracts its platform's
+binary and license from the installed package without a separate download.
 
-It also keeps the dependency direction the kits already commit to. A kit imports nothing but
-the standard library and reaches no network at runtime; making its *distribution* depend on
-a hosted index would put a third party in the path of an install that otherwise needs only
-git.
-
-**What it costs, stated rather than implied.** The install line is longer than a package
-name, and a consumer must have `uv`. Neither is free and neither is the reason to take an
-index: the line is copied once from the documentation, and `uv` is already the floor every
-other command here assumes.
-
-**What it refuses.** A proposal to publish "just the kits" for convenience, and any argument
-from discoverability. Discoverability is a documentation problem, and the answer to it is a
-page that carries the line — not a second release channel with its own version, its own
-metadata and its own way of disagreeing with the tag.
+**Consequence.** Engine install instructions pin a release wheel instead of a
+Git source reference. Offline users transfer that wheel and provision its Python
+dependencies. Source developers prepare artifacts before building distributions
+or installing the harness into a repository. The repository's release assets
+carry the distributions; publishing to a separate package index remains outside
+this decision.
 
 ---
 
@@ -5603,7 +5625,8 @@ item** and nothing else. D-34 records the rejection.
 
 - Agent Skills specification: <https://agentskills.io/specification>
 - AGENTS.md specification: <https://agents.md/>
-- pre-commit: <https://pre-commit.com/>
+- Lefthook: <https://lefthook.dev/configuration/>
+- Codex hooks: <https://learn.chatgpt.com/docs/hooks>
 - Claude Agent SDK: <https://code.claude.com/docs/en/agent-sdk/overview>
 - OpenAI SDKs and CLI: <https://developers.openai.com/api/docs/libraries>
 - Codex agent configuration: <https://learn.chatgpt.com/docs/agent-configuration/agents-md>

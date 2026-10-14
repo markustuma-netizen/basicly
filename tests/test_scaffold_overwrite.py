@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from basicly import __version__, cli
+from basicly import cli
 from basicly.scaffolds import (
     CONSUMER_CI_WORKFLOW,
     DIST_SOURCE,
@@ -68,7 +68,7 @@ def test_the_ci_workflow_scaffold_honours_the_flag_too(tmp_path: Path) -> None:
     assert workflow.with_suffix(workflow.suffix + BACKUP).exists()
 
 
-OLD_PIN = DIST_SOURCE.replace(f"v{__version__}", "v0.0.1")
+OLD_PIN = "git+https://github.com/niksavis/basicly@v0.0.1"
 
 
 def test_an_upgrade_moves_a_stale_pin_without_the_flag(
@@ -143,3 +143,12 @@ def test_a_pin_that_is_not_ours_is_never_rewritten() -> None:
     foreign = "uvx --from git+https://github.com/someone/other@v0.0.1 other run\n"
 
     assert repin(foreign) == (foreign, 0)
+
+
+def test_upgrade_repins_release_wheels_without_rewriting_standalone_kits() -> None:
+    old = "https://github.com/niksavis/basicly/releases/download/v0.1.0/basicly-0.1.0-py3-none-any.whl"
+    kit = "git+https://github.com/niksavis/basicly@v0.1.0#subdirectory=packages/basicly-tracker"
+    assert repin(f"uvx --from {old} basicly install\n{kit}") == (
+        f"uvx --from {DIST_SOURCE} basicly install\n{kit}",
+        1,
+    )

@@ -126,6 +126,9 @@ sources of truth: two branches each rebuild it, and git cannot union-merge a rec
 changed on both sides. That breaks requirement 1 in §4.3.
 
 - A reader rebuilds the snapshot when it finds the snapshot stale.
+- If access controls prevent snapshot publication, a reader returns the current fold
+  and reports the unavailable cache on stderr. It never serves a stale snapshot instead.
+  Explicit refresh and rebuild commands still require write access; other I/O errors fail.
 - The first line of the snapshot is a header. It carries the id of the last folded event,
   the event count, the log line count and the snapshot format version, which is 2.
 - A snapshot is stale when its line count, last event or format version differs from the

@@ -25,14 +25,28 @@ is needed:
 
 ```sh
 uv sync --group dev        # one-time: create the dev environment
-uv run basicly hooks-build # activate the git gates for all three stages
+uv run python src/basicly/lefthook_artifacts.py --download
+uv run basicly hooks-build # activate the git gates
 ```
 
-Use `basicly hooks-build`, not `pre-commit install`. A bare `pre-commit install`
-rewrites the pre-push hook without the ledger guard `hooks-build` writes, and
-`basicly hooks-check` then still reports pre-push as not installed. Run
-`basicly hooks-check` after setup: a clone starts with no active git hook at
-all, and that command names any stage still missing.
+Artifact preparation verifies the committed Lefthook version and SHA-256
+manifest. To use previously supplied archives without network access, replace
+`--download` with `--from-dir <directory>`. The directory must contain all six
+platform gzip archives, `lefthook_checksums.txt` and `source.tar.gz`.
+Prepared assets live in ignored `build/lefthook/`; they are never committed.
+Run preparation before hook checks, tests or `uv build` in a source checkout.
+
+Release preparation performs this same explicit download and verification.
+`uv build` embeds the prepared assets into both wheel and source distribution
+without downloading them. A published source distribution can rebuild its wheel
+offline when its Python build dependencies are available. Missing or changed
+artifacts refuse the build with a preparation command.
+
+`basicly hooks-build` installs and activates the bundled Lefthook runner.
+Git and agent events share `.basicly/lefthook.yml`; `lefthook.yml` can also carry
+consumer checks. Git pre-commit validates an isolated index snapshot and preserves
+unstaged edits. Pre-push runs without a stash, including while a ledger writer
+is active.
 
 Note: the markdownlint hook runs on Node.js; have a Linux/macOS-native `node`
 on `PATH` (on WSL, a Windows Node install will not work for hooks).

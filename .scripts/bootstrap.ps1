@@ -2,7 +2,7 @@
 
 
 param(
-    [string]$Ref = "main",
+    [string]$Ref = "latest",
     [Parameter(ValueFromRemainingArguments = $true)][string[]]$InstallArgs = @()
 )
 $ErrorActionPreference = "Stop"
@@ -28,5 +28,16 @@ if (-not (Get-Command uv -ErrorAction SilentlyContinue)) {
 $InstallArgs = @($InstallArgs | Where-Object { $_ -ne "--" })
 
 Write-Host "bootstrap: installing basicly@$Ref"
-uv tool run --from "git+$RepoUrl@$Ref" basicly install @InstallArgs
+if ($Ref -eq "latest") {
+    $response = Invoke-WebRequest "$RepoUrl/releases/latest" -UseBasicParsing
+    $uri = $response.BaseResponse.ResponseUri
+    if (-not $uri) { $uri = $response.BaseResponse.RequestMessage.RequestUri }
+    $Ref = $uri.Segments[-1]
+}
+if ($Ref -notmatch '^v[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "bootstrap: -Ref must name a release such as v0.23.1; source branches require artifact preparation"
+}
+$version = $Ref.Substring(1)
+$wheel = "$RepoUrl/releases/download/$Ref/basicly-$version-py3-none-any.whl"
+uv tool run --from $wheel basicly install @InstallArgs
 exit $LASTEXITCODE

@@ -57,7 +57,7 @@ scripts that run inside your repo; older interpreters are not supported.
 Into any git repo, with [uv](https://docs.astral.sh/uv/) already on the machine:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly install
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -79,12 +79,19 @@ Windows (PowerShell):
 powershell -ExecutionPolicy Bypass -Command "irm https://raw.githubusercontent.com/niksavis/basicly/main/.scripts/bootstrap.ps1 | iex"
 ```
 
-Pin `@v0.23.1` for reproducible installs, or track `@main` for the latest. To
-pin through the shim, append `-s -- --ref v0.23.1` (POSIX) or download the
-script and pass `-Ref v0.23.1` (PowerShell). Where `git` is unavailable
-(proxied or air-gapped environments), every
-[release](https://github.com/niksavis/basicly/releases) attaches a built
-wheel: download it and run `uvx --from ./basicly-*.whl basicly install`.
+Use a versioned release wheel for reproducible installs. The bootstrap shim
+defaults to the latest release; append `-s -- --ref v0.23.1` (POSIX), or
+download the script and pass `-Ref v0.23.1` (PowerShell), to pin it.
+For offline installation, transfer the
+[release wheel](https://github.com/niksavis/basicly/releases) and pre-provision
+its Python dependencies, then run
+`uvx --offline --from ./basicly-0.23.1-py3-none-any.whl basicly install`.
+Lefthook's pinned platform binaries ship inside the package; install extracts
+only this checkout's executable and MIT license into ignored `.basicly/bin/`.
+
+Direct Git installations are replaced by release wheels. To develop from a
+source checkout, follow [the preparation steps](CONTRIBUTING.md#development-setup).
+Package builds and `basicly install` never download Lefthook implicitly.
 
 ### Upgrade
 
@@ -98,7 +105,7 @@ One command removes everything basicly manages; your overlay and
 `basicly.toml` survive:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly uninstall
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly uninstall
 ```
 
 Add `--purge` to also remove the user overlay, `basicly.toml`, and the
@@ -117,11 +124,10 @@ scaffolded VS Code tasks/CI workflow (only when still unedited).
   `.github/copilot-instructions.md`) rendered from shared fragments.
 - Projected skills at `.claude/skills/` and `.agents/skills/`, and subagents at
   `.claude/agents/` and `.github/agents/`.
-- Activated hooks across three surfaces: git stages (pre-commit, commit-msg,
-  pre-push — wired through the [pre-commit framework](https://pre-commit.com),
-  whose config file is fixed at `.pre-commit-config.yaml`; the *tool* is named
-  pre-commit, the file is not limited to that stage), Claude Code agent hooks,
-  and Copilot agent hooks.
+- Activated Git, Claude, Codex and Copilot hooks, orchestrated through shared
+  Lefthook configuration. The harness ships Lefthook 2.2.2 for Linux, macOS and
+  Windows on x86_64 and arm64. Install materializes `.basicly/bin/lefthook[.exe]`
+  with its MIT license without a separate download or global installation.
 - An owned work tracker — an append-only event ledger under `.basicly/ledger/`, read
   and written by `basicly tracker` — plus VS Code tasks and a CI gates workflow.
 - A gate that refuses a prose comment in a code file. The code is the source of truth, so
@@ -201,6 +207,10 @@ diagnoses a missing uv before it bites at commit time. The harness loop
 ledger this repository owns and commits, so there is no binary to install and no
 version to pin.
 
+Codex users can run `basicly permissions-build --codex-user` to project the
+shared permission profile and register `<repo>.worktrees` in their machine-local
+configuration. See [Configure Codex permissions for sibling worktrees](docs/how-to/configure-codex-permissions.md).
+
 ## How it works
 
 ```mermaid
@@ -274,8 +284,8 @@ tasks wrap the same pinned commands. To inspect or re-sync by hand, run these
 from the consumer repo root with the same pin used to install:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly check   # exit non-zero when generated files drifted
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly build   # regenerate agent instruction files
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly check   # exit non-zero when generated files drifted
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly build   # regenerate agent instruction files
 ```
 
 ## Roadmap

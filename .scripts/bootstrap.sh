@@ -2,7 +2,7 @@
 set -eu
 
 REPO_URL="https://github.com/niksavis/basicly"
-REF="main"
+REF="latest"
 
 fail() {
     printf 'bootstrap: %s\n' "$*" >&2
@@ -44,5 +44,14 @@ if ! command -v uv >/dev/null 2>&1; then
         || fail "uv was installed but is not on PATH; open a new shell and re-run"
 fi
 
+if [ "$REF" = latest ]; then
+    command -v curl >/dev/null 2>&1 || fail "curl is required to resolve the latest release"
+    release_url=$(curl -fsSL -o /dev/null -w '%{url_effective}' "$REPO_URL/releases/latest")
+    REF=${release_url##*/}
+fi
+printf '%s\n' "$REF" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' \
+    || fail "--ref must name a release such as v0.23.1; source branches require artifact preparation"
+version=${REF#v}
+wheel="$REPO_URL/releases/download/$REF/basicly-$version-py3-none-any.whl"
 printf 'bootstrap: installing basicly@%s\n' "$REF"
-exec uv tool run --from "git+${REPO_URL}@${REF}" basicly install "$@"
+exec uv tool run --from "$wheel" basicly install "$@"

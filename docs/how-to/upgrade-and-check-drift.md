@@ -1,12 +1,19 @@
 # How to upgrade, check drift, and uninstall
 
+The basicly release pins Lefthook in its artifact manifest. Re-running install
+replaces an older `.basicly/bin/lefthook` (or `lefthook.exe`) with that release's
+verified bundled executable and license. This upgrade needs no global Lefthook
+installation or separate binary download, and preserves consumer-owned hook
+configuration. Lefthook follows the basicly release you selected; it does not
+silently switch to an unreviewed upstream version.
+
 ## Upgrade
 
 There is no `update` command. **Re-running install *is* the upgrade** — it is
 idempotent and converges the repo onto whatever version you pin:
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly install
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -104,7 +111,7 @@ version to keep in step across a team.
 ## Uninstall
 
 ```sh
-uvx --from git+https://github.com/niksavis/basicly@v0.23.1 basicly uninstall
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.23.1/basicly-0.23.1-py3-none-any.whl basicly uninstall
 ```
 
 This removes everything basicly manages — the managed core, install state,

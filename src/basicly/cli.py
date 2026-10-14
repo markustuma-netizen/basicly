@@ -28,6 +28,7 @@ from . import (
     catalog_verify,
     checkout,
     claude_settings,
+    codex_hooks,
     codex_permissions,
     comment_rows,
     commit,
@@ -40,6 +41,7 @@ from . import (
     kit_load,
     lane_log,
     lane_split,
+    lefthook_binary,
     loop,
     loop_state,
     merge,
@@ -102,7 +104,6 @@ from .entry import line_buffer_stdout as _line_buffer_stdout
 from .entry import tolerate_narrow_consoles as _tolerate_narrow_consoles
 from .hooks import (
     AGENT_HOOK_HOSTS,
-    PRE_PUSH_STAGE,
     agent_hook_surface_present,
     check_copilot_hooks,
     check_hooks,
@@ -657,6 +658,18 @@ def _status_report(repo_root: Path, paths: ProjectPaths) -> dict[str, Any]:
                 ),
                 "host": AGENT_HOOK_HOSTS["copilot"],
                 "surface_present": agent_hook_surface_present("copilot"),
+            },
+            "codex": {
+                "selected_specs": sum(spec.manager == "codex" for spec in selected),
+                "mismatches": len(
+                    codex_hooks.mismatches(
+                        repo_root,
+                        [spec for spec in selected if spec.manager == "codex"],
+                        hooks_relpath,
+                    )
+                ),
+                "host": AGENT_HOOK_HOSTS["codex"],
+                "surface_present": agent_hook_surface_present("codex"),
             },
         },
         "permissions": {
@@ -1925,6 +1938,11 @@ def cmd_uninstall(args: argparse.Namespace) -> int:
         removed += copilot_removed
         print(f"Removed {copilot_removed} managed Copilot hook file(s) from .github/hooks/")
 
+    if codex_hooks.sync_hooks(repo_root, [], _core_hooks_dir(paths).as_posix()):
+        removed += 1
+        print("Removed managed Codex hooks")
+    removed += lefthook_binary.remove_binary(repo_root)
+
     for tree in (core_dst, (repo_root / paths.state_path).parent):
         if tree.is_dir():
             shutil.rmtree(tree)
@@ -1959,14 +1977,14 @@ def cmd_hooks_build(_args: argparse.Namespace) -> int:
     repo_root = _repo_root()
     paths = load_project_paths(repo_root)
     selection = load_technology_selection(repo_root)
-    config_path = repo_root / ".pre-commit-config.yaml"
+    config_path = repo_root / "lefthook.yml"
     config_existed = config_path.exists()
     result = sync_hooks(repo_root, _core_hooks_dir(paths), selection)
 
     rewrite_note = None
     if config_existed and config_path in result.written:
         rewrite_note = (
-            "Note: .pre-commit-config.yaml was rewritten to update managed hooks; "
+            "Note: lefthook.yml was rewritten to update managed hooks; "
             "comments/formatting outside them may have been normalized."
         )
     _report_sync(result, repo_root, noun="hook files", label="Hooks", extra_note=rewrite_note)
@@ -1983,19 +2001,22 @@ def cmd_hooks_build(_args: argparse.Namespace) -> int:
         else:
             print(f"Agent hooks in {claude_settings.CLAUDE_SETTINGS_PATH} are up to date.")
 
+    codex_specs = [
+        spec
+        for spec in selected_hook_specs(load_hook_specs(), selection)
+        if spec.manager == "codex"
+    ]
+    codex_hooks.sync_hooks(repo_root, codex_specs, _core_hooks_dir(paths).as_posix())
+
     copilot_result = sync_copilot_hooks(repo_root, _core_hooks_dir(paths), selection)
     _report_sync(copilot_result, repo_root, noun="copilot hook files", label="Copilot hooks")
 
     stages = hook_stages(selected_hook_specs(load_hook_specs(), selection))
     if getattr(_args, "no_install", False):
-        stage_flags = " ".join(f"-t {stage}" for stage in stages)
-        print(
-            "Skipped activation (--no-install). Run "
-            f"`uvx pre-commit install --install-hooks {stage_flags}`."
-        )
+        print("Skipped activation (--no-install). Run `basicly hooks-build` to activate.")
         return 0
 
-    ok, message = install_hooks(repo_root, stages)
+    ok, message = install_hooks(repo_root, stages, _core_hooks_dir(paths))
     if ok:
         print(f"Activated git hooks for stages: {', '.join(stages)}.")
     else:
@@ -2048,6 +2069,14 @@ def _hook_mismatches(repo_root: Path) -> list[tuple[Path, str]]:
         mismatches.append((settings_path, reason))
 
     mismatches.extend(check_copilot_hooks(repo_root, _core_hooks_dir(paths), selection))
+    codex_specs = [
+        spec
+        for spec in selected_hook_specs(load_hook_specs(), selection)
+        if spec.manager == "codex"
+    ]
+    mismatches.extend(
+        codex_hooks.mismatches(repo_root, codex_specs, _core_hooks_dir(paths).as_posix())
+    )
     return mismatches
 
 
@@ -2079,16 +2108,7 @@ def cmd_hooks_check(_args: argparse.Namespace) -> int:
         repo_root, hook_stages(selected_hook_specs(load_hook_specs(), selection))
     )
     if missing:
-        stage_flags = " ".join(f"-t {stage}" for stage in missing)
-        remedy = (
-            f"Run `basicly hooks-build` or `uvx pre-commit install --install-hooks "
-            f"{stage_flags}` to activate them locally."
-        )
-        if PRE_PUSH_STAGE in missing:
-            remedy = (
-                "Run `basicly hooks-build` to activate them locally — pre-push also carries "
-                "a ledger guard that `pre-commit install` does not write."
-            )
+        remedy = "Run `basicly hooks-build` to activate them locally."
         print(
             f"Note: git hooks are not installed for stages: {', '.join(missing)}. {remedy}",
             file=sys.stderr,
@@ -5429,12 +5449,12 @@ def _build_parser() -> argparse.ArgumentParser:
     _add_agents_parsers(subparsers)
 
     hooks_build_parser = subparsers.add_parser(
-        "hooks-build", help="Project git hooks into .pre-commit-config.yaml"
+        "hooks-build", help="Project Git and agent hooks into shared Lefthook configuration"
     )
     hooks_build_parser.add_argument(
         "--no-install",
         action="store_true",
-        help="Only write wiring; do not run `pre-commit install` to activate the hooks",
+        help="Only write wiring; do not activate Git hooks",
     )
     subparsers.add_parser("hooks-check", help="Check projected hooks are up to date")
 

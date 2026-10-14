@@ -187,4 +187,7 @@ def work_repo(tmp_path: Path, _tracked_repo_files: tuple[Path, ...]) -> Path:
         destination = work / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO_ROOT / relative, destination)
+    artifacts = REPO_ROOT / "build/lefthook"
+    if artifacts.is_dir():
+        shutil.copytree(artifacts, work / "build/lefthook")
     return work

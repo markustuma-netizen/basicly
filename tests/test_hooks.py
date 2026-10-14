@@ -3,12 +3,13 @@ from __future__ import annotations
 import json
 import shutil
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
-from basicly import claude_settings
+from basicly import claude_settings, lefthook_binary, lefthook_config
 from basicly import hooks as hooks_module
 from basicly.hooks import (
     COPILOT_EVENTS,
@@ -59,11 +60,14 @@ def _write_bytecode_cache(hooks_dir: Path) -> list[str]:
 
 
 def _local_hook_ids(config: dict) -> set[str]:
-    ids: set[str] = set()
-    for repo in config.get("repos", []):
-        if repo.get("repo") == "local":
-            ids.update(hook["id"] for hook in repo.get("hooks", []))
-    return ids
+    return {
+        spec["id"]
+        for name, group in config.items()
+        if isinstance(group, dict)
+        for command in group.get("commands", {}).values()
+        for spec in json.loads(command["env"]["BASICLY_HOOK_SPECS"])
+        if spec["manager"] == "git"
+    }
 
 
 def test_manifest_lists_every_catalog_hook() -> None:
@@ -94,6 +98,10 @@ def test_manifest_lists_every_catalog_hook() -> None:
         "tool-usage-copilot",
         "session-start",
         "session-start-copilot",
+        "tracker-fold",
+        "tier-injection",
+        "protect-generated-codex",
+        "session-start-codex",
     }
 
 
@@ -143,8 +151,11 @@ def test_copilot_hooks_sync_check_and_remove_roundtrip(tmp_path: Path) -> None:
     assert config["version"] == 1
     entry = config["hooks"]["postToolUse"][0]
     assert entry["type"] == "command"
-    assert entry["bash"] == "uv run --no-project python .basicly/core/hooks/tool-usage.py"
-    assert "tool-usage.py" in entry["powershell"]
+    assert (
+        entry["bash"] == "uv run --no-project --no-python-downloads python "
+        ".basicly/core/hooks/lefthook-runtime.py copilot posttooluse"
+    )
+    assert "lefthook-runtime.py" in entry["powershell"]
 
     assert check_copilot_hooks(tmp_path, CORE_HOOKS_DIR) == []
     again = sync_copilot_hooks(tmp_path, CORE_HOOKS_DIR)
@@ -205,7 +216,7 @@ def test_sync_hooks_scaffolds_and_check_round_trips(tmp_path: Path) -> None:
     result = sync_hooks(tmp_path, CORE_HOOKS_DIR)
     assert result.written
 
-    config = tmp_path / ".pre-commit-config.yaml"
+    config = tmp_path / ".basicly/lefthook.yml"
     assert config.is_file()
     for script in ("pre-commit.py", "commit-msg.py", "tracker-commit-msg.py", "pre-push.py"):
         assert (tmp_path / CORE_HOOKS_DIR / script).is_file()
@@ -245,12 +256,12 @@ def test_sync_hooks_prunes_hook_excluded_by_selection(
     monkeypatch.setattr(hooks_module, "load_hook_specs", lambda *_a, **_k: [*real_specs, tagged])
 
     sync_hooks(tmp_path, CORE_HOOKS_DIR)
-    config = tmp_path / ".pre-commit-config.yaml"
+    config = tmp_path / ".basicly/lefthook.yml"
     assert "uv-lock-check" in _local_hook_ids(yaml.safe_load(config.read_text(encoding="utf-8")))
 
     selection = frozenset({"zsh"})
     mismatches = check_hooks(tmp_path, CORE_HOOKS_DIR, selection)
-    assert any("excluded by technology selection" in reason for _, reason in mismatches)
+    assert any("out of sync" in reason for _, reason in mismatches)
 
     result = sync_hooks(tmp_path, CORE_HOOKS_DIR, selection)
     assert result.written == [config]
@@ -263,16 +274,13 @@ def test_sync_hooks_prunes_hook_excluded_by_selection(
 def test_check_detects_wiring_drift(tmp_path: Path) -> None:
     _materialize_hooks(tmp_path)
     sync_hooks(tmp_path, CORE_HOOKS_DIR)
-    config = tmp_path / ".pre-commit-config.yaml"
-
+    config = tmp_path / ".basicly/lefthook.yml"
     data = yaml.safe_load(config.read_text(encoding="utf-8"))
-    for repo in data["repos"]:
-        if repo.get("repo") == "local":
-            repo["hooks"] = [h for h in repo["hooks"] if h["id"] != "pre-push-script"]
-    config.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-
-    mismatches = check_hooks(tmp_path, CORE_HOOKS_DIR)
-    assert any(reason == "managed hook 'pre-push-script' missing" for _, reason in mismatches)
+    data.pop("pre-push")
+    config.write_text(yaml.safe_dump(data), encoding="utf-8")
+    assert (config, "managed Lefthook configuration out of sync") in check_hooks(
+        tmp_path, CORE_HOOKS_DIR
+    )
 
 
 def _git(cwd: Path, *args: str) -> None:
@@ -284,7 +292,7 @@ def _init_repo(root: Path) -> None:
     _git(root, "config", "user.name", "Test")
     _git(root, "config", "user.email", "test@example.com")
     _git(root, "add", "-A")
-    _git(root, "commit", "-m", "init", "--no-verify")
+    _git(root, "commit", "-m", "init", "--allow-empty")
 
 
 def test_check_reports_consumer_hook_script_drift(tmp_path: Path) -> None:
@@ -339,6 +347,7 @@ def test_check_ignores_a_hook_edit_in_a_sibling_worktree(
 
     linked = tmp_path / "repo.worktrees" / "wt"
     _git(repo, "worktree", "add", "-b", "harness/wt", str(linked))
+    assert install_hooks(linked, hook_stages(load_hook_specs()))[0]
     script = linked / CORE_HOOKS_DIR / "pre-commit.py"
     script.write_text(script.read_text(encoding="utf-8") + "\n# the change under review\n", "utf-8")
 
@@ -370,13 +379,10 @@ def test_dogfood_config_passes_check() -> None:
 def test_semantically_synced_config_is_left_untouched(tmp_path: Path) -> None:
     _materialize_hooks(tmp_path)
     sync_hooks(tmp_path, CORE_HOOKS_DIR)
-    config = tmp_path / ".pre-commit-config.yaml"
-
-    commented = "# pinned for CVE-2024-1234\n" + config.read_text(encoding="utf-8")
+    config = tmp_path / "lefthook.yml"
+    commented = "# consumer comment\n" + config.read_text(encoding="utf-8")
     config.write_text(commented, encoding="utf-8")
-
-    result = sync_hooks(tmp_path, CORE_HOOKS_DIR)
-    assert result.written == []
+    assert sync_hooks(tmp_path, CORE_HOOKS_DIR).written == []
     assert config.read_text(encoding="utf-8") == commented
     assert check_hooks(tmp_path, CORE_HOOKS_DIR) == []
 
@@ -384,21 +390,12 @@ def test_semantically_synced_config_is_left_untouched(tmp_path: Path) -> None:
 def test_out_of_sync_managed_hook_triggers_rewrite(tmp_path: Path) -> None:
     _materialize_hooks(tmp_path)
     sync_hooks(tmp_path, CORE_HOOKS_DIR)
-    config = tmp_path / ".pre-commit-config.yaml"
-
+    config = tmp_path / ".basicly/lefthook.yml"
     data = yaml.safe_load(config.read_text(encoding="utf-8"))
-    for repo in data["repos"]:
-        if repo.get("repo") == "local":
-            for hook in repo["hooks"]:
-                if hook["id"] == "pre-push-script":
-                    hook["entry"] = "echo tampered"
-    config.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
-
-    mismatches = check_hooks(tmp_path, CORE_HOOKS_DIR)
-    assert any(reason == "managed hook 'pre-push-script' out of sync" for _, reason in mismatches)
-
-    result = sync_hooks(tmp_path, CORE_HOOKS_DIR)
-    assert config in result.written
+    data["pre-push"]["commands"]["basicly-dispatch"]["run"] = "echo tampered"
+    config.write_text(yaml.safe_dump(data), encoding="utf-8")
+    assert check_hooks(tmp_path, CORE_HOOKS_DIR)
+    assert config in sync_hooks(tmp_path, CORE_HOOKS_DIR).written
     assert check_hooks(tmp_path, CORE_HOOKS_DIR) == []
 
 
@@ -416,7 +413,9 @@ def test_hook_stages_returns_distinct_stages_in_order() -> None:
 def test_missing_hook_installations_detects_uninstalled_and_unmanaged(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)  # nosec B603 B607
     hooks_dir = tmp_path / ".git" / "hooks"
-    (hooks_dir / "pre-commit").write_text("#!/usr/bin/env bash\n# pre-commit\n", encoding="utf-8")
+    (hooks_dir / "pre-commit").write_text(
+        "#!/usr/bin/env bash\n# basicly Lefthook launcher\n", encoding="utf-8"
+    )
     (hooks_dir / "pre-push").write_text("#!/bin/sh\necho hi\n", encoding="utf-8")
 
     missing = missing_hook_installations(tmp_path, ["pre-commit", "commit-msg", "pre-push"])
@@ -433,43 +432,33 @@ def test_missing_hook_installations_degrades_when_git_is_absent(
     monkeypatch.setattr(hooks_module.subprocess, "run", _no_git)
     hooks_dir = tmp_path / ".git" / "hooks"
     hooks_dir.mkdir(parents=True)
-    (hooks_dir / "pre-commit").write_text("# pre-commit\n", encoding="utf-8")
+    (hooks_dir / "pre-commit").write_text("# basicly Lefthook launcher\n", encoding="utf-8")
 
     assert missing_hook_installations(tmp_path, ["pre-commit", "pre-push"]) == ["pre-push"]
 
 
-def test_install_hooks_returns_guidance_when_precommit_unavailable(
+def test_install_hooks_returns_guidance_when_uv_unavailable(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     (tmp_path / ".git").mkdir()
     monkeypatch.setattr(shutil, "which", lambda _name: None)
     ok, message = install_hooks(tmp_path, ["pre-commit", "commit-msg", "pre-push"])
-    assert ok is False
-    assert "neither pre-commit nor uv is on PATH" in message
-    assert "uvx pre-commit install --install-hooks" in message
+    assert not ok
+    assert "uv is not on PATH" in message
+    assert "basicly hooks-build" in message
 
 
-def test_install_hooks_uses_uvx_when_precommit_absent_but_uv_present(
+def test_install_hooks_uses_bundled_binary_without_a_global_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / ".git").mkdir()
+    _init_repo(tmp_path)
     monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
-    captured: dict[str, list[str]] = {}
-
-    class _Proc:
-        returncode = 0
-        stdout = "hooks installed"
-        stderr = ""
-
-    def _fake_run(cmd, **_kwargs):
-        captured["cmd"] = cmd
-        return _Proc()
-
-    monkeypatch.setattr(hooks_module.subprocess, "run", _fake_run)
-    ok, _message = install_hooks(tmp_path, ["pre-commit", "commit-msg"])
-    assert ok is True
-    assert captured["cmd"][:4] == ["uv", "tool", "run", "pre-commit"]
-    assert "install" in captured["cmd"] and "--install-hooks" in captured["cmd"]
+    ok, message = install_hooks(tmp_path, ["pre-commit", "commit-msg"])
+    assert ok, message
+    assert missing_hook_installations(tmp_path, ["pre-commit", "commit-msg"]) == []
+    assert (tmp_path / ".basicly/bin/lefthook").exists() or (
+        tmp_path / ".basicly/bin/lefthook.exe"
+    ).exists()
 
 
 def test_install_hooks_no_git_gives_clear_guidance_without_spawning(
@@ -486,21 +475,144 @@ def test_install_hooks_no_git_gives_clear_guidance_without_spawning(
     assert "basicly hooks-build" in message
 
 
-def test_uninstall_hooks_uses_uvx_fallback(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(shutil, "which", lambda name: "/usr/bin/uv" if name == "uv" else None)
-    captured: dict[str, list[str]] = {}
+@pytest.mark.parametrize("content", [b"#!/bin/sh\necho foreign\n", b"#!/bin/sh\necho '\xff'\n"])
+def test_uninstall_hooks_restores_a_foreign_hook(tmp_path: Path, content: bytes) -> None:
+    _init_repo(tmp_path)
+    foreign = tmp_path / ".git/hooks/pre-commit"
+    foreign.write_bytes(content)
+    foreign.chmod(0o755)
+    assert install_hooks(tmp_path, ["pre-commit"])[0]
+    assert (foreign.parent / "pre-commit.basicly-original").read_bytes() == content
+    assert install_hooks(tmp_path, ["pre-commit"])[0]
+    assert uninstall_hooks(tmp_path, ["pre-commit"])[0]
+    assert foreign.read_bytes() == content
 
-    class _Proc:
-        returncode = 0
-        stdout = "hooks uninstalled"
-        stderr = ""
 
-    def _fake_run(cmd, **_kwargs):
-        captured["cmd"] = cmd
-        return _Proc()
+@pytest.mark.parametrize("valid, stale_lock", [(True, False), (False, False), (True, True)])
+def test_staged_checks_reuse_prepared_uv_environment_without_building(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, valid: bool, stale_lock: bool
+) -> None:
+    monkeypatch.delenv("UV_NO_SYNC", raising=False)
+    monkeypatch.setenv("UV_OFFLINE", "1")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "uv-cache"))
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(tmp_path / ".venv")], check=True
+    )
+    (tmp_path / ".gitignore").write_text(".venv/\n.basicly/bin/\nuv-cache/\n")
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname = "snapshot-check"\nversion = "0.0.0"\n'
+        '[build-system]\nrequires = ["missing-snapshot-build-backend"]\n'
+        'build-backend = "missing_snapshot_build_backend"\n'
+    )
+    subprocess.run(["uv", "lock", "--offline"], cwd=tmp_path, check=True)
+    if stale_lock:
+        project = tmp_path / "pyproject.toml"
+        project.write_text(
+            project.read_text().replace(
+                'version = "0.0.0"',
+                'version = "0.0.0"\ndependencies = ["missing-snapshot-dependency"]',
+            )
+        )
+    _materialize_hooks(tmp_path)
+    lefthook_binary.sync_binary(tmp_path)
+    source = tmp_path / CORE_HOOKS_DIR / "uv-check.py"
+    source.write_text(
+        "import subprocess\nraise SystemExit(subprocess.call("
+        '["uv", "run", "python", "-c", '
+        "\"from pathlib import Path; assert Path('file.txt').read_text() == 'staged-ok'\"]))\n"
+    )
+    lefthook_config.sync_config(
+        tmp_path,
+        [HookSpec("uv-check", "uv-check.py", "pre-commit", always_run=True)],
+        CORE_HOOKS_DIR.as_posix(),
+    )
+    target = tmp_path / "file.txt"
+    target.write_text("staged-ok" if valid else "invalid")
+    subprocess.run(["git", "add", "."], cwd=tmp_path, check=True)
+    target.write_text("staged-ok")
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(tmp_path / CORE_HOOKS_DIR / "lefthook-runtime.py"),
+            "git",
+            "pre-commit",
+        ],
+        cwd=tmp_path,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert (result.returncode == 0) == (valid and not stale_lock), result.stdout + result.stderr
+    assert target.read_text() == "staged-ok"
+    assert "missing-snapshot-build-backend" not in result.stdout + result.stderr
+    if not valid:
+        assert "AssertionError" in result.stdout + result.stderr
+    if stale_lock:
+        assert "missing-snapshot-dependency" in result.stdout + result.stderr
 
-    monkeypatch.setattr(hooks_module.subprocess, "run", _fake_run)
-    ok, _message = uninstall_hooks(tmp_path, ["pre-commit"])
-    assert ok is True
-    assert captured["cmd"][:4] == ["uv", "tool", "run", "pre-commit"]
-    assert "uninstall" in captured["cmd"]
+
+@pytest.mark.parametrize("stage", ["pre-commit", "pre-push"])
+@pytest.mark.parametrize("changed", [False, True])
+@pytest.mark.parametrize("gate_code", [0, 1])
+def test_native_gate_runs_once_without_changing_foreign_file_filters(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, stage: str, changed: bool, gate_code: int
+) -> None:
+    tmp_path = tmp_path / "repo"
+    tmp_path.mkdir()
+    monkeypatch.setenv("UV_PYTHON", sys.executable)
+    monkeypatch.setenv("UV_PYTHON_DOWNLOADS", "never")
+    monkeypatch.setenv("UV_CACHE_DIR", str(tmp_path / "uv-cache"))
+    counter = tmp_path.parent / (tmp_path.name + ".runs")
+    foreign_counter = tmp_path.parent / (tmp_path.name + ".foreign")
+    monkeypatch.setenv("BASICLY_TEST_GATE_COUNTER", str(counter))
+    monkeypatch.setenv("BASICLY_TEST_FOREIGN_COUNTER", str(foreign_counter))
+    subprocess.run(["git", "init", "-qb", "main"], cwd=tmp_path, check=True)
+    for key, value in (("user.name", "Test"), ("user.email", "test@example.invalid")):
+        subprocess.run(["git", "config", key, value], cwd=tmp_path, check=True)
+    (tmp_path / "seed.txt").write_text("initial")
+    subprocess.run(["git", "add", "seed.txt"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "commit", "-qm", "initial"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "remote", "add", "origin", "."], cwd=tmp_path, check=True)
+    subprocess.run(
+        ["git", "update-ref", "refs/remotes/origin/main", "HEAD"], cwd=tmp_path, check=True
+    )
+    for key, value in (("branch.main.remote", "origin"), ("branch.main.merge", "refs/heads/main")):
+        subprocess.run(["git", "config", key, value], cwd=tmp_path, check=True)
+    if changed:
+        (tmp_path / "seed.txt").write_text("changed")
+        subprocess.run(["git", "add", "seed.txt"], cwd=tmp_path, check=True)
+        if stage == "pre-push":
+            subprocess.run(["git", "commit", "-qm", "changed"], cwd=tmp_path, check=True)
+    _materialize_hooks(tmp_path)
+    lefthook_binary.sync_binary(tmp_path)
+    (tmp_path / CORE_HOOKS_DIR / "gate.py").write_text(
+        'import os\nfrom pathlib import Path\np=Path(os.environ["BASICLY_TEST_GATE_COUNTER"])\n'
+        'p.write_text(p.read_text()+"run\\n" if p.exists() else "run\\n")\n'
+        f"raise SystemExit({gate_code})\n"
+    )
+    (tmp_path / CORE_HOOKS_DIR / "foreign-marker.py").write_text(
+        "import os\nfrom pathlib import Path\n"
+        'Path(os.environ["BASICLY_TEST_FOREIGN_COUNTER"]).write_text("unexpected")\n'
+    )
+    (tmp_path / "lefthook.yml").write_text(
+        stage + ':\n  commands:\n    foreign:\n      glob: "*.foreign"\n'
+        "      run: uv run --no-project --no-python-downloads python "
+        ".basicly/core/hooks/foreign-marker.py\n"
+    )
+    lefthook_config.sync_config(
+        tmp_path, [HookSpec("gate", "gate.py", stage, always_run=True)], CORE_HOOKS_DIR.as_posix()
+    )
+    assert install_hooks(tmp_path, [stage])[0]
+    result = subprocess.run(
+        ["sh", str(tmp_path / ".git/hooks" / stage)],
+        cwd=tmp_path,
+        input="",
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == gate_code, result.stdout + result.stderr
+    assert counter.read_text() == "run\n"
+    assert not foreign_counter.exists()

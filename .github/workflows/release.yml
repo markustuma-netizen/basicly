@@ -23,6 +23,10 @@ jobs:
           node-version: 22
       - name: Install Python dependencies
         run: uv sync
+      - name: Prepare pinned Lefthook runtime
+        run: |
+          python3 src/basicly/lefthook_artifacts.py --download
+          uv run python -c "from pathlib import Path; from basicly.lefthook_binary import sync_binary; sync_binary(Path.cwd())"
       - name: Install Node dependencies
         run: npm install --no-fund --no-audit
       - name: Lint markdown
@@ -40,19 +44,25 @@ jobs:
       github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
-      - name: Install from the tag into a fresh repo then check and uninstall
+      - name: Prepare pinned Lefthook artifacts
+        run: python3 src/basicly/lefthook_artifacts.py --download
+      - name: Build the distribution to exercise
+        run: uv build
+      - name: Install the prepared wheel into a fresh repo then check and uninstall
         shell: bash
         run: |
-          repo="https://github.com/${GITHUB_REPOSITORY}"
           tag="${GITHUB_REF_NAME}"
+          wheel="${GITHUB_WORKSPACE}/dist/basicly-${tag#v}-py3-none-any.whl"
           mkdir smoke && cd smoke
           git init -q
           git config user.email ci@example.invalid
           git config user.name ci
-          uvx --from "git+${repo}@${tag}" basicly install
-          uvx --from "git+${repo}@${tag}" basicly check
-          uvx --from "git+${repo}@${tag}" basicly uninstall
+          uvx --from "$wheel" basicly install
+          uvx --from "$wheel" basicly check
+          uvx --from "$wheel" basicly hooks-check
+          uvx --from "$wheel" basicly uninstall
 
   release:
     name: Publish GitHub release
@@ -111,6 +121,9 @@ jobs:
             --repo-url "https://github.com/${GITHUB_REPOSITORY}" > release-notes.md
 
       - uses: astral-sh/setup-uv@v7
+
+      - name: Prepare pinned Lefthook artifacts
+        run: python3 src/basicly/lefthook_artifacts.py --download
 
       - name: Build distribution artifacts
         run: uv build
