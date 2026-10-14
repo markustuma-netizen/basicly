@@ -1,0 +1,1 @@
+- Generate release-page install commands from the pinned release wheel so fresh installs receive bundled Lefthook without building an unprepared Git checkout.
