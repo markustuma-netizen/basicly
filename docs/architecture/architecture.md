@@ -1158,7 +1158,20 @@ interpreter, a package manager, a command wrapper, an `Agent` rule or a `Monitor
 | --- | --- | --- |
 | claude | the file-edit rule form | the two write-tool variants a reader would expect. The permission check ignores both |
 | copilot | invocation flags injected at dispatch, because there is no config-file deny | an infix wildcard. That pattern language matches by token prefix, so it cannot express Claude's globs |
-| codex | invocation-only guardrails: a sandbox mode and an approval policy on the argv | a project-scope override. Codex forbids setting either at repository scope |
+| codex | trusted project permission profiles and approval settings, plus explicitly requested runner overrides | a portable relative path grant to a sibling outside the repository |
+
+Codex projects the catalog's `codex-profile.yaml` into `.codex/config.toml`.
+The `basicly-workspace` base extends `:workspace`, preserving protected metadata
+and adding dotenv denials. A repository-specific derived profile carries a stable
+identity that survives clones. Shared configuration contains no machine paths.
+
+`basicly install --codex-user` registers the main checkout's sibling worktree
+root in that repository profile's local user configuration. Registration does not
+change an existing user default or add global review instructions or command rules.
+Separate repositories have separate profile identities and sibling grants. Explicit
+consumer selections remain unchanged. Default Codex dispatch inherits the project
+settings; decision-only dispatch selects the read-only profile. See
+[the consumer setup](../how-to/configure-codex-permissions.md).
 
 **The list is a partial backstop. It is never the source of a prohibition.** Several
 destructive git commands are denied on no target, and still need a human confirmation.
@@ -3611,7 +3624,7 @@ it in a tier.
 
 <!-- docs-claims:begin layering-contract -->
 
-The 64 tiers hold 148 modules and group into 9 bands. Every band may import every band below
+The 64 tiers hold 149 modules and group into 9 bands. Every band may import every band below
 it, and nothing above it. Every count here is derived from `.importlinter`. The band
 *boundaries* are not: 9 bands over the tier stack is an editorial reading the contract does not
 carry, so they are declared in `.scripts/docs_claim_layers.py` and the counts are derived
@@ -3623,7 +3636,7 @@ flowchart TB
   b2["2 · drivers — 14<br/>supervise · loop · release · usage_report"]
   b3["3 · loop mechanics — 41<br/>merge · decompose · policy · verify · board_snapshot · decisions · plan_gate"]
   b4["4 · configuration and isolation — 3<br/>config · worktree"]
-  b5["5 · agent runtime — 5<br/>runner · lane_log · lane_split · context_window · claude_settings"]
+  b5["5 · agent runtime — 6<br/>runner · lane_log · lane_split · context_window · claude_settings"]
   b6["6 · projection — 15<br/>loader · planner · renderers · skills · agents · hooks · permissions"]
   b7["7 · records and telemetry — 15<br/>run_record · artifact_record · lens_review · spend_calibration"]
   b8["8 · tracker seam — 25<br/>owned_store · mirror · dispatch_phase · board_schema · board_fields"]

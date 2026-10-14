@@ -28,6 +28,7 @@ from . import (
     catalog_verify,
     checkout,
     claude_settings,
+    codex_permissions,
     comment_rows,
     commit,
     contention,
@@ -1592,7 +1593,11 @@ def cmd_install(args: argparse.Namespace) -> int:
         ("hooks-build", cmd_hooks_build, argparse.Namespace(no_install=False)),
         ("tier-hook", cmd_tier_hook, argparse.Namespace()),
         ("tracker-hook", cmd_tracker_hook, argparse.Namespace()),
-        ("permissions-build", cmd_permissions_build, argparse.Namespace()),
+        (
+            "permissions-build",
+            cmd_permissions_build,
+            argparse.Namespace(codex_user=getattr(args, "codex_user", False)),
+        ),
     ]
     if dry_run:
         return _report_install_steps(steps, upgrade=upgrade)
@@ -1641,6 +1646,8 @@ def _report_install_steps(
     would_rewrite: list[str] = []
     for step, _handler, _namespace in steps:
         probe, handler, namespace = counterparts[step]
+        if step == "permissions-build":
+            namespace = argparse.Namespace(codex_user=getattr(_namespace, "codex_user", False))
         ui.heading(f"\n== basicly {probe} ==")
         if handler(namespace) != 0:
             would_rewrite.append(step)
@@ -2044,13 +2051,15 @@ def _hook_mismatches(repo_root: Path) -> list[tuple[Path, str]]:
     return mismatches
 
 
-def _permission_mismatches(repo_root: Path) -> list[tuple[Path, str]]:
+def _permission_mismatches(
+    repo_root: Path, *, user_config: Path | None = None
+) -> list[tuple[Path, str]]:
     settings_path = repo_root / claude_settings.CLAUDE_SETTINGS_PATH
     managed = permissions.load_claude_permissions()
     return [
         (settings_path, reason)
         for reason in claude_settings.permission_mismatches(repo_root, managed)
-    ]
+    ] + codex_permissions.mismatches(repo_root, user_config=user_config)
 
 
 def cmd_hooks_check(_args: argparse.Namespace) -> int:
@@ -2098,8 +2107,20 @@ def cmd_hooks_check(_args: argparse.Namespace) -> int:
     return 0
 
 
+def _codex_user_config(args: argparse.Namespace) -> Path | None:
+    if not getattr(args, "codex_user", False):
+        return None
+    return Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "config.toml"
+
+
 def cmd_permissions_build(_args: argparse.Namespace) -> int:
     repo_root = _repo_root()
+    user_config = _codex_user_config(_args)
+    for changed in codex_permissions.sync_permissions(repo_root, user_config=user_config):
+        if changed == user_config:
+            print("Registered this repository's sibling worktrees in local Codex permissions.")
+        else:
+            print("Wrote .codex/config.toml (basicly-workspace policy and repository identity).")
     managed = permissions.load_claude_permissions()
     if claude_settings.sync_permissions(repo_root, managed):
         print(f"Wrote {claude_settings.CLAUDE_SETTINGS_PATH} (managed permissions allow and deny)")
@@ -2122,7 +2143,7 @@ def cmd_permissions_build(_args: argparse.Namespace) -> int:
 
 def cmd_permissions_check(_args: argparse.Namespace) -> int:
     repo_root = _repo_root()
-    mismatches = _permission_mismatches(repo_root)
+    mismatches = _permission_mismatches(repo_root, user_config=_codex_user_config(_args))
     for line in automode_trust.single_repository_findings(user_skills.user_home()):
         ui.say(line, style="warn")
     if _report_mismatches(
@@ -4554,6 +4575,11 @@ def _add_lifecycle_parsers(subparsers: argparse._SubParsersAction) -> None:
         ),
     )
     install_parser.add_argument(
+        "--codex-user",
+        action="store_true",
+        help="Also register this repository's sibling worktrees in local Codex configuration",
+    )
+    install_parser.add_argument(
         "--technologies",
         help=(
             "Comma-separated technology selection to record in basicly.toml "
@@ -5412,12 +5438,16 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     subparsers.add_parser("hooks-check", help="Check projected hooks are up to date")
 
-    subparsers.add_parser(
-        "permissions-build", help="Project the agent-permissions allow and deny lists"
-    )
-    subparsers.add_parser(
-        "permissions-check", help="Check the projected permissions allow and deny lists"
-    )
+    for command, help_text in (
+        ("permissions-build", "Project agent permissions and the Codex workspace policy"),
+        ("permissions-check", "Check projected agent permissions and the Codex workspace policy"),
+    ):
+        permissions_parser = subparsers.add_parser(command, help=help_text)
+        permissions_parser.add_argument(
+            "--codex-user",
+            action="store_true",
+            help="Register or check this repository's local Codex sibling-worktree grant",
+        )
 
     _add_catalog_parser(subparsers)
     _add_worktree_parser(subparsers)

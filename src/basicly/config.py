@@ -205,9 +205,10 @@ default = "auto"
 #                      # than falling back to another tier's model. `model` wins if both.
 # vendor = "openai"    # optional: whose model a tier resolves to. Only meaningful on a
 #                      # multi-vendor surface (copilot serves four); defaults per family.
-# sandbox = "workspace-write"   # optional: injects `--sandbox workspace-write` (codex
-#                               # defaults this); network is disabled by default in it
-# approval = "never"            # optional: injects `-a never` (codex defaults this).
+# sandbox = "workspace-write"   # optional: injects `--sandbox workspace-write`;
+#                               # Codex inherits project permissions when omitted
+# approval = "on-request"       # optional: injects `-a on-request`; Codex inherits
+#                               # project approval policy when omitted.
 #                               # Validated against the CLI's own enum by
 #                               # `basicly runner dry-run`: a value it rejects
 #                               # fails every dispatch at argument parsing.

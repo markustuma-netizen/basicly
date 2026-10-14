@@ -113,7 +113,9 @@ def test_a_legacy_link_still_folds_and_a_new_one_is_refused(tmp_path: Path) -> N
 
 def test_every_ledger_record_has_a_declared_type() -> None:
 
-    states = queries.folded(REPO_ROOT / ".basicly" / "ledger")
+    found, quarantined = events.read_events(REPO_ROOT / ".basicly" / "ledger")
+    assert quarantined == []
+    states = events.fold(found).records
     undeclared = sorted(
         f"{record}={state.fields.get('issue_type')!r}"
         for record, state in states.items()
