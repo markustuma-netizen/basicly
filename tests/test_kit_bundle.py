@@ -121,7 +121,7 @@ def test_bundle_refuses_the_source_tree(tmp_path: Path) -> None:
     assert not (tmp_path / "x.pyz").exists()
 
 
-def test_the_fold_hook_is_wired_only_on_request(pyz: Path, tmp_path: Path) -> None:
+def test_the_read_only_fold_reminder_is_wired_only_on_request(pyz: Path, tmp_path: Path) -> None:
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q", str(repo)], check=True)  # nosec B603 B607
@@ -130,12 +130,15 @@ def test_the_fold_hook_is_wired_only_on_request(pyz: Path, tmp_path: Path) -> No
 
     plain = _run(pyz, repo, cache, "init", "--sandbox")
     assert plain.returncode == 0, plain.stderr
-    assert "no post-merge fold is wired" in plain.stdout
+    assert "no post-merge reminder is wired" in plain.stdout
     assert not hook.exists()
 
     folding = _run(pyz, repo, cache, "update", "--sandbox", "--fold-on-merge")
     assert folding.returncode == 0, folding.stderr
-    assert '.basicly/tracker.pyz" compact' in hook.read_text(encoding="utf-8")
+    written = hook.read_text(encoding="utf-8")
+    assert ".basicly/tracker.pyz compact" in written
+    assert "outside Git hooks" in written
+    assert "git commit" not in written
 
 
 def test_init_offers_a_beads_backlog_and_imports_it_on_the_flag(pyz: Path, tmp_path: Path) -> None:

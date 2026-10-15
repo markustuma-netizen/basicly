@@ -62,7 +62,7 @@ def _hook_file(hook, root: Path) -> Path:
     return root / ".git" / "hooks" / hook.HOOK_NAME
 
 
-def test_a_fresh_checkout_gets_a_hook_that_folds_shards(hook, repo: Path) -> None:
+def test_a_fresh_checkout_gets_a_read_only_compaction_reminder(hook, repo: Path) -> None:
     _install(hook, repo)
 
     text = _hook_file(hook, repo).read_text(encoding="utf-8")
@@ -71,15 +71,16 @@ def test_a_fresh_checkout_gets_a_hook_that_folds_shards(hook, repo: Path) -> Non
     assert hook.BEGIN in text and hook.END in text
 
 
-def test_the_hook_carries_no_absolute_path_or_bare_python(hook, repo: Path) -> None:
+def test_the_hook_carries_no_absolute_path_or_interpreter_invocation(hook, repo: Path) -> None:
     _install(hook, repo)
 
     text = _hook_file(hook, repo).read_text(encoding="utf-8")
     assert str(repo) not in text, "an absolute path breaks the next clone"
-    assert '""|*WindowsApps*) continue' in text, (
-        "a python3 on Windows can be an execution alias that opens a store page"
-    )
-    assert "RUNNER" in text, "the control: the declared interpreter is what runs the kit"
+    assert "RUNNER" in text
+    assert "tracker_run" not in text
+    assert "printf" in text
+    assert "outside Git hooks" in text
+    assert "git commit" not in text
 
 
 def test_the_hook_does_nothing_unless_the_ledger_is_the_only_dirt(hook, repo: Path) -> None:
@@ -109,7 +110,7 @@ def test_a_second_install_changes_nothing(hook, repo: Path) -> None:
     said = _install(hook, repo)
 
     assert _hook_file(hook, repo).read_text(encoding="utf-8") == once
-    assert "already folds" in said
+    assert "already reports" in said
 
 
 def test_uninstall_removes_only_the_block_it_wrote(hook, repo: Path) -> None:
@@ -222,7 +223,7 @@ def test_a_host_command_replaces_the_kit_call(hook, repo: Path) -> None:
     assert "git commit" not in written
 
 
-def test_a_host_command_reports_a_failed_fold(hook, repo: Path) -> None:
+def test_a_host_command_is_reported_without_execution(hook, repo: Path) -> None:
     hook.install(
         repo,
         ledger=repo / LEDGER,
@@ -233,7 +234,8 @@ def test_a_host_command_reports_a_failed_fold(hook, repo: Path) -> None:
     )
 
     written = _hook_file(hook, repo).read_text(encoding="utf-8")
-    assert "are not folded" in written
+    assert "pending shards are unchanged" in written
+    assert "printf" in written
     assert "`" not in written
 
 
@@ -316,38 +318,38 @@ def _shards(root: Path) -> list[str]:
 
 
 @_POSIX_HOOK
-def test_the_hook_folds_with_python3_when_uv_is_absent(tmp_path: Path) -> None:
+def test_the_hook_reports_compaction_without_folding_when_python_is_present(tmp_path: Path) -> None:
     root = _checkout_with_a_shard(tmp_path)
     assert _shards(root) == ["pending-main.jsonl"]
 
     done = _run_hook(root, _tool_dir(tmp_path, sys.executable))
 
     assert done.returncode == 0
-    assert done.stderr == ""
-    assert _shards(root) == []
+    assert "pending shards are unchanged" in done.stderr
+    assert _shards(root) == ["pending-main.jsonl"]
     log = subprocess.run(
         ["git", "-C", str(root), "log", "-1", "--format=%s"],
         capture_output=True,
         text=True,
         check=True,
     )
-    assert log.stdout.strip() == "chore(tracker): fold pending shards into the trunk log"
+    assert log.stdout.strip() == "s"
 
 
 @_POSIX_HOOK
-def test_the_hook_says_so_when_no_interpreter_is_on_the_path(tmp_path: Path) -> None:
+def test_the_hook_reports_compaction_without_needing_an_interpreter(tmp_path: Path) -> None:
     root = _checkout_with_a_shard(tmp_path)
 
     done = _run_hook(root, _tool_dir(tmp_path, None))
 
     assert done.returncode == 0
-    assert "no uv or python on PATH" in done.stderr
+    assert "pending shards are unchanged" in done.stderr
     assert "compact .basicly/ledger" in done.stderr
     assert _shards(root) == ["pending-main.jsonl"]
 
 
 @_POSIX_HOOK
-def test_the_hook_reports_a_fold_that_fails(tmp_path: Path) -> None:
+def test_the_hook_does_not_invoke_a_failing_interpreter(tmp_path: Path) -> None:
     root = _checkout_with_a_shard(tmp_path)
     failing = tmp_path / "failing-python"
     failing.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
@@ -356,7 +358,8 @@ def test_the_hook_reports_a_fold_that_fails(tmp_path: Path) -> None:
     done = _run_hook(root, _tool_dir(tmp_path, str(failing)))
 
     assert done.returncode == 0
-    assert "the pending shards are not folded; run python" in done.stderr
+    assert "pending shards are unchanged" in done.stderr
+    assert "compact .basicly/ledger" in done.stderr
     assert _shards(root) == ["pending-main.jsonl"]
 
 
@@ -376,7 +379,7 @@ def test_the_hook_leaves_a_feature_branch_unfolded(tmp_path: Path) -> None:
 
 
 @_POSIX_HOOK
-def test_the_hook_folds_on_the_branch_the_remote_names_default(tmp_path: Path) -> None:
+def test_the_hook_reports_on_the_branch_the_remote_names_default(tmp_path: Path) -> None:
     root = _checkout_with_a_shard(tmp_path)
     subprocess.run(["git", "-C", str(root), "checkout", "-q", "-b", "trunk"], check=True)
     head = subprocess.run(
@@ -391,4 +394,5 @@ def test_the_hook_folds_on_the_branch_the_remote_names_default(tmp_path: Path) -
     done = _run_hook(root, _tool_dir(tmp_path, sys.executable))
 
     assert done.returncode == 0
-    assert _shards(root) == []
+    assert "pending shards are unchanged" in done.stderr
+    assert _shards(root) == ["pending-main.jsonl"]

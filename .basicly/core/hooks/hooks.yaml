@@ -5,7 +5,7 @@
 # See docs/architecture/architecture.md §16.
 hooks:
   - id: tracker-fold
-    description: Fold tracker shards after a merge when the repository opted in.
+    description: Report pending tracker shards after a merge without changing the repository.
     script: tracker-fold.py
     stage: post-merge
     always_run: true

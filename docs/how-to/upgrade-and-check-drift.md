@@ -9,6 +9,21 @@ silently switch to an unreviewed upstream version.
 
 ## Upgrade
 
+### From v0.24.1: tracker compaction
+
+Post-merge tracker hooks now report pending shards without folding, staging or creating
+commits. Re-running install replaces the managed hook behavior while preserving foreign
+hooks and consumer settings. The existing `fold_on_merge = true` setting enables the
+read-only reminder. The standalone tracker's `update --fold-on-merge` refreshes its marked
+hook block in the same way.
+
+Run `basicly tracker fold` explicitly outside Git hooks when the reminder names pending
+shards. The harness loop already folds at its explicit tracker commit boundaries.
+Standalone consumers run `basicly-tracker compact .basicly/ledger` and commit the result
+through their normal Git checks. Pending shards remain readable until compaction.
+
+### Re-run install
+
 There is no `update` command. **Re-running install *is* the upgrade** — it is
 idempotent and converges the repo onto whatever version you pin:
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import shutil
 import subprocess  # nosec B404
 import sys
@@ -33,19 +34,21 @@ def main() -> int:
     if pending.returncode == 0 and pending.stdout.strip() == "0":
         return 0
     status = git(root, "status", "--porcelain", "--", ".", ":(exclude).basicly/ledger")
-    if status.returncode or status.stdout.strip():
+    if (
+        status.returncode
+        or status.stdout.strip()
+        or not any((root / ".basicly/ledger").glob("pending-*.jsonl"))
+    ):
         return 0
     engine = shutil.which("basicly")
     command = (
-        [engine, "tracker", "fold"] if engine else json.loads(os.environ["BASICLY_FOLD_COMMAND"])
+        ["basicly", "tracker", "fold"] if engine else json.loads(os.environ["BASICLY_FOLD_COMMAND"])
     )
-    result = subprocess.run(command, cwd=root, check=False)  # nosec B603
-    if result.returncode:
-        print(
-            "tracker: the pending shards are not folded; run `basicly tracker fold`",
-            file=sys.stderr,
-        )
-    return result.returncode
+    print(
+        f"tracker: pending shards are unchanged; run {shlex.join(command)} outside Git hooks",
+        file=sys.stderr,
+    )
+    return 0
 
 
 if __name__ == "__main__":
