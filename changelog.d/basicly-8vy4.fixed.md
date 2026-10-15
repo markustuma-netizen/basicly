@@ -1,0 +1,1 @@
+- Stream named verification progress through the CLI and managed Lefthook Git hooks while checks run, preserving existing failures, foreign hooks and agent protocol output.

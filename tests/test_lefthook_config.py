@@ -20,6 +20,20 @@ def test_merge_preserves_foreign_hooks_and_is_idempotent() -> None:
     assert root_config(result) == result
 
 
+def test_only_git_hook_groups_follow_child_output() -> None:
+    specs = [
+        HookSpec("check", "check.py", "pre-push"),
+        HookSpec("guard", "guard.py", "PreToolUse", manager="claude"),
+        HookSpec("guard", "guard.py", "pretooluse", manager="codex"),
+        HookSpec("guard", "guard.py", "preToolUse", manager="copilot"),
+    ]
+    config = yaml.safe_load(managed_config(specs, ".basicly/core/hooks"))
+    assert config["pre-push"]["follow"] is True
+    assert all(
+        "follow" not in group for name, group in config.items() if name.startswith("basicly-")
+    )
+
+
 def test_hook_entry_quotes_paths_with_spaces() -> None:
     spec = HookSpec("check", "check.py", "pre-commit")
     config = yaml.safe_load(managed_config([spec], "agent config/hooks"))

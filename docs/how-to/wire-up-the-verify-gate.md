@@ -243,6 +243,13 @@ the first landing and the post-merge verification separately. Match their
 
 ## Run it
 
+Fresh checks print `==> <name>` before starting. Managed Git hooks enable
+Lefthook's live output, so these markers and child output arrive while the check
+runs, including through a pipe. Matching cached compiler results name their
+original run instead of printing an execution marker. Streaming preserves check
+failures and the existing order of required checks; agent hook protocol output
+keeps its separate handling.
+
 ```sh
 basicly verify --mode fast
 ```

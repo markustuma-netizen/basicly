@@ -318,10 +318,10 @@ def run_checks(repo_root: Path, mode: str, *, scope_to_diff: bool = False) -> in
     outcomes: list[dict] = []
     for name, command in checks:
         if name in skips:
-            print(f"==> {name} SKIPPED: {skips[name]}")
+            print(f"==> {name} SKIPPED: {skips[name]}", flush=True)
             outcomes.append({"name": name, "disposition": "not-selected", "reason": skips[name]})
             continue
-        print(f"==> {name}")
+        print(f"==> {name}", flush=True)
         start = time.perf_counter()
         try:
             result = subprocess.run(command, cwd=repo_root, check=False)  # nosec B603
