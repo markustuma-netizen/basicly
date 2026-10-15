@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly now uses release wheels when the catalog hook needs an engine, so it receives the bundled Lefthook artifacts. Manual handoffs can commit without claiming a model that never ran.
+
+- Hooks and installation: use pinned release wheels for catalog fallback and release-page commands; refuse invalid install state and fetch failures (basicly-cdd1iob).
+- Agent workflow: distinguish manual handoffs from executed model dispatches while retaining provenance refusals for unresolved tiers (basicly-cdd1iob).
+
 ## v0.24.0 - 2026-10-14
 
 Delta: v0.23.1..v0.24.0
