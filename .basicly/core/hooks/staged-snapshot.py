@@ -69,6 +69,7 @@ def prepare(root: Path, directory: Path) -> Snapshot:
         "PYTHONPATH": str(snapshot / "src") + os.pathsep + os.environ.get("PYTHONPATH", ""),
     }
     original_tree = git(root, "write-tree", env=env).strip()
+    env["BASICLY_SNAPSHOT_TREE"] = original_tree.decode("ascii")
     files = git(root, "ls-files", "-z", env=env).split(b"\0")
     changed = git(root, "diff", "--cached", "--name-only", "-z", env=env).split(b"\0")
     if any(Path(os.fsdecode(path)).name.startswith(".env") for path in changed if path):
@@ -116,7 +117,7 @@ def prepare(root: Path, directory: Path) -> Snapshot:
         if source.is_dir() and not destination.exists():
             shutil.copytree(source, destination)
     local_config = root / "basicly.local.toml"
-    if local_config.is_file():
+    if local_config.is_file() and not (snapshot / local_config.name).exists():
         shutil.copyfile(local_config, snapshot / local_config.name)
     return Snapshot(root, snapshot, temporary_index, before, env, original_tree)
 

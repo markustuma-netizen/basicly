@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 import time
@@ -9,7 +8,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import pyright_inputs, tracker, tracker_paths, usage, verify_log, worktree
+from . import affected, pyright_inputs, tracker, tracker_paths, usage, verify_log, worktree
 from .config import VERIFY_GATE_PROVIDER, VerifyCheck, VerifyConfig, load_verify_config
 from .runner import sanitised_project_env
 from .verify_artifact import write_run_artifact
@@ -69,6 +68,7 @@ class VerifyReport:
     run_id: str = ""
     receipts: tuple[CheckReceipt, ...] = ()
     duration_s: float = 0.0
+    selection: dict | None = None
 
     @property
     def passed(self) -> bool:
@@ -114,8 +114,9 @@ def staged_files(repo_root: Path, suffix: str) -> list[str] | None:
 
     try:
         proc = subprocess.run(
-            ["git", "diff", "--cached", "--name-only", "--diff-filter=ACM"],  # noqa: S607 — PATH git
+            ["git", "diff", "--cached", "--name-only", "-z", "--diff-filter=ACM"],  # noqa: S607 — PATH git
             cwd=repo_root,
+            env=affected.environment(repo_root),
             capture_output=True,
             text=True,
             check=False,
@@ -124,7 +125,7 @@ def staged_files(repo_root: Path, suffix: str) -> list[str] | None:
         return None
     if proc.returncode != 0:
         return None
-    return [line for line in proc.stdout.splitlines() if line.endswith(suffix)]
+    return [path for path in proc.stdout.split("\0") if path.endswith(suffix)]
 
 
 def run_check(
@@ -167,7 +168,7 @@ def _run(
             )
         if not files:
             return CheckResult(name, "skip", 0)
-        command += files
+        command += [f"./{path}" if path.startswith("-") else path for path in files]
     started = time.perf_counter()
     try:
         proc = _spawn(command, repo_root, capture=capture)
@@ -211,7 +212,7 @@ def _spawn(
     command: Sequence[str], repo_root: Path, *, capture: bool
 ) -> subprocess.CompletedProcess[str]:
 
-    env = sanitised_project_env(os.environ, repo_root)
+    env = sanitised_project_env(affected.environment(repo_root), repo_root)
     if capture:
         return subprocess.run(  # noqa: S603 — repo-declared argv, list form, no shell
             command, cwd=repo_root, env=env, check=False, capture_output=True, text=True
@@ -273,6 +274,19 @@ def run_verify(
     started = time.perf_counter()
     config = config or load_verify_config(repo_root)
     checks = config.for_mode(mode)
+    selection = (
+        affected.select(repo_root, config.affected, [check.name for check in checks])
+        if affected.active(repo_root)
+        else None
+    )
+    if selection and selection["invalid_snapshot"]:
+        report = VerifyReport(
+            mode,
+            (CheckResult("affected-provider", "fail", 1, selection["fallback"]),),
+            selection=selection,
+        )
+        write_run_artifact(repo_root, report)
+        return report
     eligible = {
         check.name
         for check in checks
@@ -282,6 +296,9 @@ def run_verify(
     before, reason = _inputs(repo_root) if proving else ("", "")
     results: list[CheckResult] = []
     for check in checks:
+        if selection is not None and check.name not in selection["selected"]:
+            results.append(CheckResult(check.name, "skip", 0, selection["reasons"][check.name]))
+            continue
         borrowed = _receipt_result(check, mode, before, reuse) if check.name in eligible else None
         if borrowed is not None:
             print(f"{check.name}: reused verified result from {borrowed.reused_from}", flush=True)
@@ -319,7 +336,7 @@ def run_verify(
         else ()
     )
     report = VerifyReport(
-        mode, tuple(results), run_id, receipts, round(time.perf_counter() - started, 3)
+        mode, tuple(results), run_id, receipts, round(time.perf_counter() - started, 3), selection
     )
     write_run_artifact(repo_root, report)
     return report

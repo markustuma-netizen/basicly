@@ -5,9 +5,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from functools import cache
 from pathlib import Path
+from typing import Any
 
 from . import (
     __version__,
+    affected,
     dropin,
     owned_store,
     permissions,
@@ -332,7 +334,10 @@ CONFIG_SCHEMA: dict[str, Table] = {
         keys=frozenset({"base_branch", "concurrency", "append_only_paths"}),
         tables={"regenerate_commands": _OPEN_TABLE},
     ),
-    "verify": Table(arrays={"checks": _VERIFY_CHECK_TABLE}),
+    "verify": Table(
+        arrays={"checks": _VERIFY_CHECK_TABLE},
+        tables={"affected": Table(keys=frozenset({"command", "checks", "timeout_seconds"}))},
+    ),
     "ratchet": Table(
         keys=frozenset({"base_commit"}),
         tables={
@@ -729,6 +734,7 @@ class VerifyCheck:
 @dataclass(frozen=True)
 class VerifyConfig:
     checks: tuple[VerifyCheck, ...]
+    affected: dict[str, Any] | None = None
 
     def for_mode(self, mode: str) -> tuple[VerifyCheck, ...]:
         return tuple(check for check in self.checks if mode in check.modes)
@@ -737,15 +743,22 @@ class VerifyConfig:
 def load_verify_config(repo_root: Path) -> VerifyConfig:
 
     declared: list[object] = []
+    provider = None
     for filename, data in _validated_documents(repo_root).items():
         section = data.get("verify")
+        if isinstance(section, dict) and "affected" in section:
+            provider = section["affected"]
         checks = section.get("checks") if isinstance(section, dict) else None
         if isinstance(checks, list):
             declared = list(checks) if filename == LOCAL_CONFIG_FILE else [*declared, *checks]
-    override = session.overrides_for("verify").get("checks")
+    overrides = session.overrides_for("verify")
+    if "affected" in overrides:
+        provider = overrides["affected"]
+    override = overrides.get("checks")
     if isinstance(override, list):
         declared = list(override)
-    return VerifyConfig(tuple(_parse_verify_check(entry) for entry in declared))
+    checks = tuple(_parse_verify_check(entry) for entry in declared)
+    return VerifyConfig(checks, affected.parse_provider(provider, [check.name for check in checks]))
 
 
 def _parse_verify_check(entry: object) -> VerifyCheck:

@@ -20,6 +20,7 @@ from typing import Any
 
 from . import (
     __version__,
+    affected,
     agents,
     automode_trust,
     board_cli,
@@ -3154,27 +3155,27 @@ def _cmd_policy_rework(args: argparse.Namespace) -> int:
 
 def cmd_verify(args: argparse.Namespace) -> int:
     repo_root = _repo_root()
+    scoped = getattr(args, "affected", False)
+    if scoped and (args.fix or args.issue):
+        ui.fail(
+            "--affected cannot combine with --fix or --issue; "
+            "use basicly verify --fix or basicly verify --issue ID"
+        )
+        return 1
     if args.issue:
         reason = verify.linked_worktree_guard(repo_root)
         if reason is not None:
             ui.fail(f"refusing to record gate for {args.issue}: {reason}")
             return 1
-    config = load_verify_config(repo_root)
-    if not config.for_mode(args.mode):
-        print(f"No verify checks configured for mode '{args.mode}' in {CONFIG_FILE}.")
-
-    if args.fix:
-        fixes = verify.apply_fixes(repo_root, args.mode, config)
-        for result in fixes.results:
-            if result.status == "pass":
-                print(f"[fix] applied {result.name}")
-            elif result.status == "fail":
-                detail = f" — {result.detail}" if result.detail else ""
-                print(f"[fix] {result.name} failed{detail}", file=sys.stderr)
-
-    report = verify.run_verify(repo_root, args.mode, config)
+    if scoped:
+        with affected.snapshot(repo_root) as tree:
+            report = verify.run_verify(tree, args.mode, load_verify_config(tree))
+    else:
+        report = _verify_working_tree(repo_root, args)
 
     print("\n" + "=" * 60)
+    if report.selection and report.selection.get("fallback"):
+        print(f"[affected] {report.selection['fallback']}")
     for result in report.results:
         suffix = f" — {result.detail}" if result.detail else ""
         print(f"  {result.name}: {result.status.upper()}{suffix}")
@@ -3195,6 +3196,23 @@ def cmd_verify(args: argparse.Namespace) -> int:
         return 0
     print(f"[verify] FAIL: {', '.join(report.failures)}", file=sys.stderr)
     return 1
+
+
+def _verify_working_tree(repo_root: Path, args: argparse.Namespace) -> verify.VerifyReport:
+    config = load_verify_config(repo_root)
+    if not config.for_mode(args.mode):
+        print(f"No verify checks configured for mode '{args.mode}' in {CONFIG_FILE}.")
+
+    if args.fix:
+        fixes = verify.apply_fixes(repo_root, args.mode, config)
+        for result in fixes.results:
+            if result.status == "pass":
+                print(f"[fix] applied {result.name}")
+            elif result.status == "fail":
+                detail = f" — {result.detail}" if result.detail else ""
+                print(f"[fix] {result.name} failed{detail}", file=sys.stderr)
+
+    return verify.run_verify(repo_root, args.mode, config)
 
 
 def cmd_commit(args: argparse.Namespace) -> int:
@@ -4768,6 +4786,11 @@ def _add_worktree_parser(subparsers: argparse._SubParsersAction) -> None:
 def _add_verify_parser(subparsers: argparse._SubParsersAction) -> None:
     verify_parser = subparsers.add_parser(
         "verify", help="Run the configured verify checks and optionally record a br gate"
+    )
+    verify_parser.add_argument(
+        "--affected",
+        action="store_true",
+        help="Run an optional consumer provider against staged contents",
     )
     verify_parser.add_argument(
         "--mode",

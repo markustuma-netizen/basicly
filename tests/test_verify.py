@@ -1271,3 +1271,29 @@ def test_successful_streamed_output_is_retained_for_confirmation(
     assert result.output == "actual outputdiagnostic"
     assert result.command == ("check",)
     assert result.returncode == 0
+
+
+@pytest.mark.parametrize("name", ["plain.py", "space name.py", "line\nbreak.py", "-flag.py"])
+def test_staged_inventory_keeps_literal_git_names(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    name: str,
+) -> None:
+    def git_result(command: list[str], **_kwargs: object) -> subprocess.CompletedProcess[str]:
+        return subprocess.CompletedProcess(command, 0, stdout=name + "\0")
+
+    monkeypatch.setattr(verify.subprocess, "run", git_result)
+    assert verify.staged_files(tmp_path, ".py") == [name]
+
+
+def test_staged_filename_cannot_become_a_checker_option(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(verify, "staged_files", lambda _root, _suffix: ["-flag.py"])
+    captured: list[str] = []
+    monkeypatch.setattr(
+        verify, "_spawn", _as_spawn(lambda command, **_kw: (captured.extend(command), _Proc(0))[1])
+    )
+    verify.run_check(_check("ruff", ("staged",), ".py"), tmp_path, "staged")
+    assert captured == ["ruff", "./-flag.py"]
