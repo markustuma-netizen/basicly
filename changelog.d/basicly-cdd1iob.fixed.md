@@ -1,1 +1,0 @@
-- Use release wheels for release-page commands and the catalog hook fallback. Refuse invalid install versions and propagate fallback fetch failures. Let manual handoffs commit without claiming an unexecuted model, while retaining provenance refusals for real dispatches.
