@@ -4,7 +4,7 @@ import subprocess
 import sys
 import time
 import uuid
-from dataclasses import dataclass, replace
+from dataclasses import replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -20,7 +20,13 @@ from . import (
 )
 from .config import VERIFY_GATE_PROVIDER, VerifyCheck, VerifyConfig, load_verify_config
 from .runner import sanitised_project_env
-from .verify_artifact import write_run_artifact
+from .verify_artifact import (
+    CheckResult,
+    VerifyReport,
+    blocked_result,
+    receipt_result,
+    write_run_artifact,
+)
 from .verify_receipt import CheckReceipt, supported_command
 
 if TYPE_CHECKING:
@@ -53,39 +59,6 @@ def linked_worktree_guard(repo_root: Path) -> str | None:
         "the base checkout when it lands the worktree — run without --issue "
         "here, or record the gate from the base checkout."
     )
-
-
-@dataclass(frozen=True)
-class CheckResult:
-    name: str
-    status: str
-    returncode: int
-    detail: str = ""
-    output: str = ""
-    command: tuple[str, ...] = ()
-    duration_s: float = 0.0
-    reused_from: str = ""
-    reuse_reason: str = ""
-    source_duration_s: float = 0.0
-    input_fingerprint: str = ""
-
-
-@dataclass(frozen=True)
-class VerifyReport:
-    mode: str
-    results: tuple[CheckResult, ...]
-    run_id: str = ""
-    receipts: tuple[CheckReceipt, ...] = ()
-    duration_s: float = 0.0
-    selection: dict | None = None
-
-    @property
-    def passed(self) -> bool:
-        return not any(r.status == "fail" for r in self.results)
-
-    @property
-    def failures(self) -> tuple[str, ...]:
-        return tuple(r.name for r in self.results if r.status == "fail")
 
 
 _REMEDY_CHARS = 400
@@ -250,25 +223,48 @@ def _inputs(repo_root: Path) -> tuple[str, str]:
         return "", str(exc)
 
 
-def _receipt_result(
-    check: VerifyCheck, mode: str, inputs: str, source: VerifyReport | None
+def _cached_result(
+    check: VerifyCheck, mode: str, inputs: str, cached: tuple[verify_cache.CachedCheck, ...]
 ) -> CheckResult | None:
-    if source is None or not source.passed or not inputs:
+    previous = next(
+        (
+            entry
+            for entry in cached
+            if (entry.name, entry.command, entry.mode, entry.inputs)
+            == (check.name, check.command, mode, inputs)
+        ),
+        None,
+    )
+    if previous is None:
         return None
-    receipt = next((r for r in source.receipts if r.name == check.name), None)
-    if receipt != CheckReceipt(check.name, check.command, mode, inputs, source.run_id):
-        return None
-    original = next((r for r in source.results if r.name == check.name), None)
-    if original is None or original.status != "pass" or original.reused_from:
-        return None
-    return replace(
-        original,
-        duration_s=0.0,
-        reused_from=source.run_id,
-        reuse_reason="matching same-landing inputs",
-        source_duration_s=original.duration_s,
+    return CheckResult(
+        check.name,
+        "pass",
+        0,
+        command=check.command,
+        reused_from=previous.origin,
+        reuse_reason="matching local cache inputs",
+        source_duration_s=previous.duration_s,
         input_fingerprint=inputs,
     )
+
+
+def _refresh_unstable_results(
+    repo_root: Path, mode: str, config: VerifyConfig, results: list[CheckResult], reason: str
+) -> None:
+    blocked_by = next((r.name for r in results if config.fail_fast and r.status == "fail"), "")
+    for index, (check, result) in enumerate(zip(config.for_mode(mode), results, strict=True)):
+        if not result.reused_from:
+            continue
+        if blocked_by:
+            results[index] = blocked_result(check.name, check.command, blocked_by)
+            continue
+        results[index] = replace(
+            run_check(check, repo_root, mode),
+            reuse_reason=reason or "inputs changed during verification",
+        )
+        if config.fail_fast and results[index].status == "fail":
+            blocked_by = check.name
 
 
 def run_verify(
@@ -306,32 +302,23 @@ def run_verify(
     before, reason = _inputs(repo_root) if proving else ("", "")
     cached, cache_reason = verify_cache.read(repo_root) if caching and before else ((), "")
     results: list[CheckResult] = []
+    blocked_by = ""
     for check in checks:
         if selection is not None and check.name not in selection["selected"]:
             results.append(CheckResult(check.name, "skip", 0, selection["reasons"][check.name]))
             continue
-        borrowed = _receipt_result(check, mode, before, reuse) if check.name in eligible else None
+        if blocked_by:
+            result = blocked_result(check.name, check.command, blocked_by)
+            print(f"==> {check.name} NOT RUN: {result.detail}", flush=True)
+            results.append(result)
+            continue
+        borrowed = (
+            receipt_result(check.name, check.command, mode, before, reuse)
+            if check.name in eligible
+            else None
+        )
         if borrowed is None and check.name in eligible and before:
-            previous = next(
-                (
-                    entry
-                    for entry in cached
-                    if (entry.name, entry.command, entry.mode, entry.inputs)
-                    == (check.name, check.command, mode, before)
-                ),
-                None,
-            )
-            if previous is not None:
-                borrowed = CheckResult(
-                    check.name,
-                    "pass",
-                    0,
-                    command=check.command,
-                    reused_from=previous.origin,
-                    reuse_reason="matching local cache inputs",
-                    source_duration_s=previous.duration_s,
-                    input_fingerprint=before,
-                )
+            borrowed = _cached_result(check, mode, before, cached)
         if borrowed is not None:
             print(f"{check.name}: reused verified result from {borrowed.reused_from}", flush=True)
             results.append(borrowed)
@@ -352,15 +339,12 @@ def run_verify(
                 )
             result = replace(result, reuse_reason=explanation, input_fingerprint=before)
         results.append(result)
+        if config.fail_fast and result.status == "fail":
+            blocked_by = check.name
     after, after_reason = _inputs(repo_root) if proving else ("", "")
     stable = bool(before) and before == after
     if not stable:
-        for index, (check, result) in enumerate(zip(checks, results, strict=True)):
-            if result.reused_from:
-                results[index] = replace(
-                    run_check(check, repo_root, mode),
-                    reuse_reason=after_reason or "inputs changed during verification",
-                )
+        _refresh_unstable_results(repo_root, mode, config, results, after_reason)
     run_id = uuid.uuid4().hex
     passed = all(r.status == "pass" for r in results)
     receipts = (
@@ -404,17 +388,39 @@ def rerun_failures(
     capture: bool = False,
 ) -> VerifyReport:
 
-    failed = set(report.failures)
+    failed = {r.name for r in report.results if r.status in {"fail", "blocked"}}
     if not failed:
         return report
     config = config or load_verify_config(repo_root)
     checks = [check for check in config.for_mode(mode) if check.name in failed]
     if not checks:
         return report
-    return VerifyReport(
-        mode=mode,
-        results=tuple(run_check(c, repo_root, mode, capture=capture) for c in checks),
-    )
+    missing = failed - {check.name for check in checks}
+    if missing:
+        return VerifyReport(
+            mode,
+            (
+                CheckResult(
+                    "retry-config",
+                    "fail",
+                    1,
+                    f"cannot retry checks removed from configuration: {', '.join(sorted(missing))}",
+                ),
+                *report.results,
+            ),
+        )
+    results: list[CheckResult] = []
+    blocked_by = ""
+    for check in checks:
+        result = (
+            blocked_result(check.name, check.command, blocked_by)
+            if blocked_by
+            else run_check(check, repo_root, mode, capture=capture)
+        )
+        results.append(result)
+        if config.fail_fast and result.status == "fail":
+            blocked_by = check.name
+    return VerifyReport(mode=mode, results=tuple(results))
 
 
 DEPENDENCY_DEFECT_SIGNATURES: tuple[tuple[tuple[str, ...], str], ...] = (

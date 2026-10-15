@@ -302,6 +302,7 @@ def _planned_skips(
 
 def run_checks(repo_root: Path, mode: str, *, scope_to_diff: bool = False) -> int:
 
+    fail_fast = load_fail_fast(repo_root)
     checks = load_checks(repo_root, mode)
     if not checks:
         print(f"No verify checks configured for mode '{mode}' in {CONFIG_FILE}; nothing to gate.")
@@ -320,6 +321,9 @@ def run_checks(repo_root: Path, mode: str, *, scope_to_diff: bool = False) -> in
         if name in skips:
             print(f"==> {name} SKIPPED: {skips[name]}", flush=True)
             outcomes.append({"name": name, "disposition": "not-selected", "reason": skips[name]})
+            continue
+        if fail_fast and failed:
+            outcomes.append(_blocked_outcome(name, failed[0]))
             continue
         print(f"==> {name}", flush=True)
         start = time.perf_counter()
@@ -353,8 +357,10 @@ def run_checks(repo_root: Path, mode: str, *, scope_to_diff: bool = False) -> in
     total_elapsed = time.perf_counter() - total_start
     if selection is not None:
         _record_selection(repo_root, selection, outcomes)
-    ran = len(checks) - len(skips)
+    blocked = [r["name"] for r in outcomes if r["disposition"] == "not-run"]
+    ran = len(checks) - len(skips) - len(blocked)
     tail = f" ({len(skips)} skipped: {', '.join(sorted(skips))})" if skips else ""
+    tail += f" ({len(blocked)} not run: {', '.join(blocked)})" if blocked else ""
     if failed:
         print(
             f"checks failed: {ran - len(failed)}/{ran} passed in {total_elapsed:.2f}s "
@@ -367,3 +373,20 @@ def run_checks(repo_root: Path, mode: str, *, scope_to_diff: bool = False) -> in
         return 1
     print(f"checks passed: {ran}/{ran} in {total_elapsed:.2f}s{tail}")
     return 0
+
+
+def load_fail_fast(repo_root: Path) -> bool:
+    enabled = False
+    for _, document in _documents(repo_root):
+        section = document.get("verify", {})
+        if isinstance(section, dict) and "fail_fast" in section:
+            enabled = section["fail_fast"]
+    if not isinstance(enabled, bool):
+        raise SystemExit("verify.fail_fast must be true or false")
+    return enabled
+
+
+def _blocked_outcome(name: str, failed: str) -> dict:
+    reason = f"not run after failed check {failed}"
+    print(f"==> {name} NOT RUN: {reason}", flush=True)
+    return {"name": name, "disposition": "not-run", "reason": reason}

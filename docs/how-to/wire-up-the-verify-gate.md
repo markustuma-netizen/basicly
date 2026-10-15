@@ -243,6 +243,14 @@ the first landing and the post-merge verification separately. Match their
 
 ## Run it
 
+Set `fail_fast = true` in the `[verify]` table to stop after the first failed check in the
+configured order. Later selected checks are reported as not run, and the
+operation still fails. Both the engine and installed Git hooks honor the
+setting. It defaults to false; every selected check still runs when earlier
+checks pass. Set it to false in `basicly.local.toml` to collect all failures.
+Incomplete runs cannot supply successful verification receipts, and retrying
+them includes checks that were blocked by the failure.
+
 Fresh checks print `==> <name>` before starting. Managed Git hooks enable
 Lefthook's live output, so these markers and child output arrive while the check
 runs, including through a pipe. Matching cached compiler results name their

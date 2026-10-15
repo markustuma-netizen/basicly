@@ -1,0 +1,1 @@
+- Add opt-in `verify.fail_fast` to stop verification after a failed check, report remaining checks as not run and preserve retry coverage; enable it for basicly itself.
