@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -17,7 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from basicly import cli, lefthook_binary
+from basicly import cli, lefthook_binary, write_preflight
 from basicly.agents import GENERATED_MARKER as AGENT_GENERATED_MARKER
 from basicly.config import (
     CONFIG_FILE,
@@ -164,6 +165,111 @@ def test_cli_install_is_idempotent_and_preserves_edits(tmp_path: Path) -> None:
     assert "No files changed" in result.stdout
     assert "No skill files changed" in result.stdout
     assert config.read_text(encoding="utf-8") == marker
+
+
+def test_install_refuses_a_protected_codex_destination_before_syncing_the_core(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    consumer = tmp_path / "consumer"
+    (consumer / ".codex").mkdir(parents=True)
+    target = consumer / ".codex" / "hooks.json"
+    target.write_text('{"foreign": true}\n', encoding="utf-8")
+    before = {
+        path.relative_to(consumer): path.read_bytes()
+        for path in consumer.rglob("*")
+        if path.is_file()
+    }
+    monkeypatch.setattr(cli, "_repo_root", lambda: consumer)
+    monkeypatch.setattr(sys, "argv", ["basicly", "install"])
+    original = write_preflight.tempfile.TemporaryFile
+
+    def probe(*args, **kwargs):
+        if Path(kwargs["dir"]) == target.parent:
+            raise OSError(errno.EROFS, "Read-only file system")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(write_preflight.tempfile, "TemporaryFile", probe)
+
+    assert cli.main(["install"]) == 1
+    message = capsys.readouterr().err
+    assert str(target) in message
+    assert "`basicly install`" in message
+    assert "execution review" in message
+    assert {
+        path.relative_to(consumer): path.read_bytes()
+        for path in consumer.rglob("*")
+        if path.is_file()
+    } == before
+    assert not (consumer / ".basicly").exists()
+    assert not (consumer / "basicly.toml").exists()
+
+
+def test_install_preflight_ignores_unchanged_protected_configuration_and_foreign_skills(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    installed = run_basicly_consumer(consumer, "install")
+    assert installed.returncode == 0, installed.stderr
+    foreign = consumer / ".agents" / "skills" / "consumer-owned" / "SKILL.md"
+    foreign.parent.mkdir()
+    foreign.write_text("consumer guidance\n", encoding="utf-8")
+    original = write_preflight.tempfile.TemporaryFile
+
+    def probe(*args, **kwargs):
+        parent = Path(kwargs["dir"])
+        if any(part in {".codex", ".agents"} for part in parent.parts):
+            pytest.fail(f"unchanged or foreign protected destination was probed: {parent}")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(write_preflight.tempfile, "TemporaryFile", probe)
+    monkeypatch.setattr(cli, "_repo_root", lambda: consumer)
+    monkeypatch.setattr(sys, "argv", ["basicly", "install"])
+
+    assert cli.main(["install"]) == 0
+    assert foreign.read_text(encoding="utf-8") == "consumer guidance\n"
+
+
+def test_upgrade_preflights_incoming_skill_content_before_updating_its_owned_source(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    consumer = tmp_path / "consumer"
+    consumer.mkdir()
+    assert run_basicly_consumer(consumer, "install").returncode == 0
+    source = consumer / ".basicly/core/skills/harness-loop/skill.yaml"
+    source.write_text(
+        source.read_text(encoding="utf-8").replace("# Harness Loop", "# Earlier Loop"),
+        encoding="utf-8",
+    )
+    state_path = consumer / ".basicly/state/install.json"
+    provenance = json.loads(state_path.read_text(encoding="utf-8"))
+    provenance["core"]["skills/harness-loop/skill.yaml"] = (
+        "sha256:" + hashlib.sha256(source.read_bytes()).hexdigest()
+    )
+    state_path.write_text(json.dumps(provenance), encoding="utf-8")
+    assert run_basicly_consumer(consumer, "skills-build").returncode == 0
+    before = {
+        path.relative_to(consumer): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in consumer.rglob("*")
+        if path.is_file()
+    }
+    original = write_preflight.tempfile.TemporaryFile
+
+    def probe(*args, **kwargs):
+        if Path(kwargs["dir"]).is_relative_to(consumer / ".agents"):
+            raise OSError(errno.EROFS, "Read-only file system")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(write_preflight.tempfile, "TemporaryFile", probe)
+    monkeypatch.setattr(cli, "_repo_root", lambda: consumer)
+    monkeypatch.setattr(sys, "argv", ["basicly", "install"])
+    assert cli.main(["install"]) == 1
+    assert ".agents/skills/harness-loop/SKILL.md" in capsys.readouterr().err
+    assert {
+        path.relative_to(consumer): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in consumer.rglob("*")
+        if path.is_file()
+    } == before
 
 
 def test_cli_help_groups_commands_by_audience(tmp_path: Path) -> None:

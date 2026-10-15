@@ -448,6 +448,36 @@ def test_install_hooks_returns_guidance_when_uv_unavailable(
     assert "basicly hooks-build" in message
 
 
+def test_reinstall_does_not_rewrite_unchanged_launchers_or_foreign_hook_backups(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)  # nosec B603 B607
+    directory = tmp_path / ".git" / "hooks"
+    hook = directory / "post-merge"
+    body = b"#!/bin/sh\nprintf 'foreign\\n'\n"
+    hook.write_bytes(body)
+    hook.chmod(0o750)
+    assert install_hooks(tmp_path, ["post-merge"])[0]
+    before = {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in directory.iterdir()
+        if path.is_file()
+    }
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail("an unchanged Git hook was rewritten")
+
+    monkeypatch.setattr(hooks_module, "write_if_changed", unexpected)
+    assert hooks_module.hook_installation_writes(tmp_path, ["post-merge"], CORE_HOOKS_DIR) == []
+    assert install_hooks(tmp_path, ["post-merge"])[0]
+    assert {
+        path.name: (path.read_bytes(), path.stat().st_mtime_ns)
+        for path in directory.iterdir()
+        if path.is_file()
+    } == before
+    assert (directory / "post-merge.basicly-original").read_bytes() == body
+
+
 def test_install_hooks_uses_bundled_binary_without_a_global_runner(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

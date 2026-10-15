@@ -77,6 +77,12 @@ A worktree name replaces dots with hyphens: `myrepo-9vf.1` provisions
 
 ## Handing over to a different agent
 
+If landing stopped because a planned destination is protected, the refusal names
+the normal merge command and the path that needs access. For an already-authorized
+landing, request task-scoped execution review for that command in the base
+checkout, inspect its result, then resume the loop. Keep the ordinary hooks and
+checkpoints active. See [protected agent configuration](upgrade-and-check-drift.md#protected-agent-configuration).
+
 Because state lives in the tracker rather than in a session, a track can start
 under Claude and finish under Codex or Copilot. The new agent reads the same
 projected instructions and the same work graph. Nothing else transfers — and
