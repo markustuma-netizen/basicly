@@ -127,7 +127,16 @@ def runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     binary.mkdir()
     interpreter = binary / "python"
     interpreter.write_bytes(b"python-runtime")
-    (binary / "pyright").write_text(f"#!{interpreter}\n", encoding="utf-8")
+    body = (
+        "# -*- coding: utf-8 -*-\nimport sys\nfrom pyright.cli import entrypoint\n"
+        'if __name__ == "__main__":\n'
+        '    if sys.argv[0].endswith("-script.pyw"):\n'
+        "        sys.argv[0] = sys.argv[0][:-11]\n"
+        '    elif sys.argv[0].endswith(".exe"):\n'
+        "        sys.argv[0] = sys.argv[0][:-4]\n"
+        "    sys.exit(entrypoint())\n"
+    )
+    (binary / "pyright").write_text(f"#!{interpreter}\n{body}", encoding="utf-8")
     (binary / "node").write_bytes(b"node-runtime")
     site = tmp_path / "site"
     (site / "pyright/dist").mkdir(parents=True)
@@ -182,4 +191,13 @@ def test_runtime_overrides_refuse_reuse(runtime: Path, override: str) -> None:
 def test_new_compiler_version_executes_fresh_until_recipe_is_reviewed(runtime: Path) -> None:
     (runtime / "site/pyright/dist/package.json").write_text('{"version":"1.2.0"}', encoding="utf-8")
     with pytest.raises(pyright_inputs.UnsupportedInputsError, match="unsupported Pyright version"):
+        pyright_inputs._runtime(runtime)
+
+
+def test_custom_launcher_cannot_claim_the_reviewed_compiler_recipe(runtime: Path) -> None:
+    launcher = runtime / "bin/pyright"
+    launcher.write_text(
+        launcher.read_text(encoding="utf-8") + 'print("custom behavior")\n', encoding="utf-8"
+    )
+    with pytest.raises(pyright_inputs.UnsupportedInputsError, match="unreviewed Pyright launcher"):
         pyright_inputs._runtime(runtime)

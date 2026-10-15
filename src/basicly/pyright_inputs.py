@@ -159,6 +159,11 @@ def _runtime(root: Path) -> dict[str, str]:
     interpreter = Path(sys.executable)
     if first != f"#!{interpreter}":
         raise UnsupportedInputsError("Pyright uses a different Python runtime")
+    launcher_body = "\n".join(lines[1:]).strip().encode()
+    if hashlib.sha256(launcher_body).hexdigest() != (
+        "9eba366535d11962cd60ee4af4e473368f6614d49634270693c4c46da99af261"
+    ):
+        raise UnsupportedInputsError("unreviewed Pyright launcher")
     site = Path(sysconfig.get_path("purelib"))
     if importlib.util.find_spec("nodejs_wheel") is not None or env.get(
         "PYRIGHT_PYTHON_GLOBAL_NODE", "true"

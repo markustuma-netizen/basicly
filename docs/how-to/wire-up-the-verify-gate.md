@@ -97,7 +97,7 @@ During post-merge verification, it can reuse a matching compiler result.
 Ordinary `basicly verify` and Git hooks still execute their checks afresh.
 The `inputs` globs above select staged checks and cannot establish reusable proof.
 
-The initial recipe supports bundled Pyright 1.1.411 through a POSIX Python launcher
+The initial recipe supports bundled Pyright 1.1.411 through its reviewed POSIX console launcher
 and an existing global Node executable. It supports the Linux, Darwin and Windows
 analysis targets. Windows hosts and unsupported launcher strategies run fresh.
 The project must configure `.venv` under its checkout in `pyproject.toml`.
