@@ -335,6 +335,7 @@ CONFIG_SCHEMA: dict[str, Table] = {
         tables={"regenerate_commands": _OPEN_TABLE},
     ),
     "verify": Table(
+        keys=frozenset({"cache"}),
         arrays={"checks": _VERIFY_CHECK_TABLE},
         tables={"affected": Table(keys=frozenset({"command", "checks", "timeout_seconds"}))},
     ),
@@ -735,6 +736,7 @@ class VerifyCheck:
 class VerifyConfig:
     checks: tuple[VerifyCheck, ...]
     affected: dict[str, Any] | None = None
+    cache: bool = False
 
     def for_mode(self, mode: str) -> tuple[VerifyCheck, ...]:
         return tuple(check for check in self.checks if mode in check.modes)
@@ -744,21 +746,29 @@ def load_verify_config(repo_root: Path) -> VerifyConfig:
 
     declared: list[object] = []
     provider = None
+    cache = False
     for filename, data in _validated_documents(repo_root).items():
         section = data.get("verify")
+        if isinstance(section, dict) and "cache" in section:
+            cache = section["cache"]
         if isinstance(section, dict) and "affected" in section:
             provider = section["affected"]
         checks = section.get("checks") if isinstance(section, dict) else None
         if isinstance(checks, list):
             declared = list(checks) if filename == LOCAL_CONFIG_FILE else [*declared, *checks]
     overrides = session.overrides_for("verify")
+    cache = overrides.get("cache", cache)
+    if not isinstance(cache, bool):
+        raise ValueError("verify.cache must be true or false")
     if "affected" in overrides:
         provider = overrides["affected"]
     override = overrides.get("checks")
     if isinstance(override, list):
         declared = list(override)
     checks = tuple(_parse_verify_check(entry) for entry in declared)
-    return VerifyConfig(checks, affected.parse_provider(provider, [check.name for check in checks]))
+    return VerifyConfig(
+        checks, affected.parse_provider(provider, [check.name for check in checks]), cache
+    )
 
 
 def _parse_verify_check(entry: object) -> VerifyCheck:

@@ -4,11 +4,37 @@ from pathlib import Path
 
 import pytest
 
-from basicly import lefthook_binary, worktree
+from basicly import lefthook_binary, verify_cache, worktree, worktree_contents
 from tests import test_worktree_safety
 from tests.test_worktree import _git
 
 safety_repo = test_worktree_safety.safety_repo
+
+
+@pytest.mark.parametrize(
+    ("status", "path", "allowed"),
+    [
+        ("!!", verify_cache.CACHE_PATH.as_posix(), True),
+        ("??", verify_cache.CACHE_PATH.as_posix(), True),
+        (" M", verify_cache.CACHE_PATH.as_posix(), False),
+        ("!!", ".basicly/usage/consumer-cache.json", False),
+    ],
+)
+def test_cleanup_recognizes_only_untracked_generated_verification_cache(
+    status: str, path: str, allowed: bool
+) -> None:
+    verdict = worktree_contents.classify_worktree_tree(0, f"{status} {path}\n")
+    assert verdict.may_remove is allowed
+
+
+def test_cleanup_reclaims_generated_verification_cache(safety_repo: Path) -> None:
+    session = worktree.create("cache-result", repo_root=safety_repo)
+    path = session.path / verify_cache.CACHE_PATH
+    path.parent.mkdir(parents=True)
+    path.with_name(".gitignore").write_text("*\n", encoding="utf-8")
+    path.write_text('{"checks": []}\n', encoding="utf-8")
+    worktree.cleanup("cache-result", repo_root=safety_repo)
+    assert not session.path.exists()
 
 
 @pytest.mark.parametrize("contents", ["bytecode", "unexpected", "symlink", "outside", "directory"])

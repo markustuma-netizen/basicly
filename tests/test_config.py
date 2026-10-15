@@ -49,6 +49,25 @@ from basicly.runner import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("enabled", [True, False])
+def test_verify_cache_is_explicit_and_preserved(tmp_path: Path, enabled: bool) -> None:
+    (tmp_path / CONFIG_FILE).write_text(
+        f"[verify]\ncache = {str(enabled).lower()}\n", encoding="utf-8"
+    )
+    assert load_verify_config(tmp_path).cache is enabled
+
+
+@pytest.mark.parametrize("value", ['"true"', "1", "[]", "{}"])
+def test_verify_cache_refuses_non_boolean_values(tmp_path: Path, value: str) -> None:
+    (tmp_path / CONFIG_FILE).write_text(f"[verify]\ncache = {value}\n", encoding="utf-8")
+    with pytest.raises(ValueError, match=r"verify.cache must be true or false"):
+        load_verify_config(tmp_path)
+
+
+def test_verify_cache_defaults_to_fresh(tmp_path: Path) -> None:
+    assert not load_verify_config(tmp_path).cache
+
+
 @pytest.mark.parametrize("recipe", ["pyright", None])
 def test_verify_reuse_recipe_is_explicit(tmp_path: Path, recipe: str | None) -> None:
     setting = f'reuse = "{recipe}"\n' if recipe else ""

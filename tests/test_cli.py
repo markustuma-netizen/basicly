@@ -18,7 +18,7 @@ from pathlib import Path
 import pytest
 import yaml
 
-from basicly import cli, lefthook_binary, write_preflight
+from basicly import cli, lefthook_binary, verify, write_preflight
 from basicly.agents import GENERATED_MARKER as AGENT_GENERATED_MARKER
 from basicly.config import (
     CONFIG_FILE,
@@ -31,6 +31,23 @@ from basicly.skills import GENERATED_MARKER
 from tests.conftest import WORK_REPO_LEFT_OUT
 
 REPO_ROOT = Path(__file__).parent.parent
+
+
+@pytest.mark.parametrize("fresh", [True, False])
+def test_verify_cli_fresh_control_overrides_enabled_cache(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fresh: bool
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / CONFIG_FILE).write_text("[verify]\ncache=true\n", encoding="utf-8")
+    settings: list[bool] = []
+
+    def run(_root, mode, config):
+        settings.append(config.cache)
+        return verify.VerifyReport(mode, ())
+
+    monkeypatch.setattr(verify, "run_verify", run)
+    assert cli.main(["verify", *(["--no-cache"] if fresh else [])]) == 0
+    assert settings == [not fresh]
 
 
 def run_basicly(cwd: Path, *args: str) -> subprocess.CompletedProcess[str]:

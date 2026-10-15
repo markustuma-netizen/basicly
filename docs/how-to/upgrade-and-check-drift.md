@@ -9,6 +9,15 @@ silently switch to an unreviewed upstream version.
 
 ## Upgrade
 
+### Optional compiler verification cache
+
+Existing consumers continue to execute verification freshly. To enable local
+reuse of proven Pyright results after upgrading, set `cache = true` under
+`[verify]` and declare `reuse = "pyright"` on supported checks. Unsupported
+commands and tests remain fresh. Use `basicly verify --no-cache` for an explicit
+fresh run. See [the verification cache](wire-up-the-verify-gate.md#reuse-compiler-results-across-commands)
+for input guards, evidence and runtime limits.
+
 ### Protected agent configuration
 
 An agent sandbox can protect `.codex`, `.agents` and the Git hook directory even

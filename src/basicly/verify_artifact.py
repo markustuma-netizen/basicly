@@ -98,6 +98,7 @@ def write_run_artifact(repo_root: Path, report: RunVerdict) -> Path | None:
         "checks": [
             {
                 "name": r.name,
+                "command": list(r.command),
                 "status": r.status,
                 "returncode": r.returncode,
                 "detail": recorded_detail(r),
