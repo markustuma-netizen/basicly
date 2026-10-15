@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Iterator
-from pathlib import Path
+from pathlib import Path, PurePath
 
 CATALOG_DIRNAME = "catalog"
 
@@ -30,6 +30,14 @@ def iter_catalog_files(src: Path) -> Iterator[Path]:
     for path in sorted(src.rglob("*")):
         if path.is_dir():
             continue
-        if "__pycache__" in path.parts or path.suffix == ".pyc":
+        if not is_catalog_resource(path.relative_to(src)):
             continue
         yield path
+
+
+def is_catalog_resource(path: PurePath) -> bool:
+    return (
+        "__pycache__" not in path.parts
+        and path.suffix != ".pyc"
+        and (".basicly", "usage") not in zip(path.parts, path.parts[1:], strict=False)
+    )

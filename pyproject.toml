@@ -617,15 +617,11 @@ declared_count = 1
 packages = ["src/basicly"]
 exclude = ["**/__pycache__", "**/*.pyc"]
 
+[tool.hatch.build.targets.sdist]
+exclude = ["/.basicly/core", "/.basicly/usage", "/.basicly/bin", "/.import_linter_cache"]
+
 [tool.hatch.build.hooks.custom]
 path = "hatch_build.py"
-
-# Ship the managed core catalog inside the wheel so `basicly install` can
-# materialize it into a fresh consumer repo. The authoring source stays at
-# `.basicly/core/` (dogfooded here); it is projected to `basicly/catalog/` in
-# the built distribution only. See src/basicly/catalog.py for the locator.
-[tool.hatch.build.targets.wheel.force-include]
-".basicly/core" = "basicly/catalog"
 
 [tool.uv]
 package = true

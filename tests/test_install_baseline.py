@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import io
+import json
 import os
 import subprocess
 import sys
@@ -71,6 +72,22 @@ def test_old_shipped_files_update_without_force(tmp_path: Path) -> None:
     assert "unknown origin" not in result.stderr
     assert _catalog(core) == _catalog(bundled_catalog_root())
     assert not (core / DROPPED_SKILL).exists()
+
+
+def test_upgrade_preserves_consumer_runtime_without_claiming_it(tmp_path: Path) -> None:
+    installed = _install(tmp_path)
+    assert installed.returncode == 0, installed.stdout + installed.stderr
+    relative = "kit/tracker/.basicly/usage/tool-usage.json"
+    runtime = tmp_path / CORE / relative
+    runtime.parent.mkdir(parents=True, exist_ok=True)
+    before = b'{"consumer-owned": true}\n'
+    runtime.write_bytes(before)
+
+    updated = _install(tmp_path)
+
+    assert updated.returncode == 0, updated.stdout + updated.stderr
+    assert runtime.read_bytes() == before
+    assert relative not in json.loads((tmp_path / STATE).read_text())["core"]
 
 
 def test_a_real_hand_edit_is_still_kept_without_force(tmp_path: Path) -> None:
