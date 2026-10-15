@@ -397,6 +397,32 @@ def test_a_dispatch_that_asked_for_no_model_carries_no_trailer(
     assert envelope.message == "feat(commit): carry the resolved model (basicly-kjc5.42)"
 
 
+@pytest.mark.parametrize("model", [None, "unexecuted-model"])
+def test_a_manual_handoff_does_not_claim_a_dispatched_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, model: str | None
+) -> None:
+    repo_root = _tracker(tmp_path, BOUND_TASK)
+    _dispatch(repo_root, "basicly-kjc5.42", phase="build", model="earlier-model")
+    handoff = run_record.build_record(
+        agent="manual",
+        handoff=True,
+        returncode=None,
+        duration_s=None,
+        command=(),
+        phase="build",
+        model=model,
+        model_tier="high",
+        model_source="family default tier",
+    )
+    run_record.record(repo_root, "basicly-kjc5.42", handoff)
+    monkeypatch.setattr(commit, "git", _FakeGit("9\t1\tsrc/basicly/commit.py\n"))
+
+    envelope = commit.assemble(repo_root, "describe the manual repair")
+
+    assert envelope.model is None
+    assert envelope.trailers == ()
+
+
 def test_an_unhonoured_tier_refuses_the_envelope_instead_of_an_empty_trailer(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
