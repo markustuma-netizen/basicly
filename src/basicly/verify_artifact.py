@@ -2,14 +2,72 @@ from __future__ import annotations
 
 import json
 import os
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
-if TYPE_CHECKING:
-    from .verify_receipt import CheckReceipt
+from .verify_receipt import CheckReceipt
 
 RUN_ARTIFACT = Path(".basicly/usage/verify-run.json")
+
+
+@dataclass(frozen=True)
+class CheckResult:
+    name: str
+    status: str
+    returncode: int
+    detail: str = ""
+    output: str = ""
+    command: tuple[str, ...] = ()
+    duration_s: float = 0.0
+    reused_from: str = ""
+    reuse_reason: str = ""
+    source_duration_s: float = 0.0
+    input_fingerprint: str = ""
+
+
+@dataclass(frozen=True)
+class VerifyReport:
+    mode: str
+    results: tuple[CheckResult, ...]
+    run_id: str = ""
+    receipts: tuple[CheckReceipt, ...] = ()
+    duration_s: float = 0.0
+    selection: dict | None = None
+
+    @property
+    def passed(self) -> bool:
+        return not any(r.status in {"fail", "blocked"} for r in self.results)
+
+    @property
+    def failures(self) -> tuple[str, ...]:
+        return tuple(r.name for r in self.results if r.status == "fail")
+
+
+def blocked_result(name: str, command: tuple[str, ...], failed: str) -> CheckResult:
+    return CheckResult(name, "blocked", 0, f"not run after failed check {failed}", command=command)
+
+
+def receipt_result(
+    name: str, command: tuple[str, ...], mode: str, inputs: str, source: VerifyReport | None
+) -> CheckResult | None:
+    if source is None or not source.passed or not inputs:
+        return None
+    receipt = next((r for r in source.receipts if r.name == name), None)
+    if receipt != CheckReceipt(name, command, mode, inputs, source.run_id):
+        return None
+    original = next((r for r in source.results if r.name == name), None)
+    if original is None or original.status != "pass" or original.reused_from:
+        return None
+    return replace(
+        original,
+        duration_s=0.0,
+        reused_from=source.run_id,
+        reuse_reason="matching same-landing inputs",
+        source_duration_s=original.duration_s,
+        input_fingerprint=inputs,
+    )
 
 
 @runtime_checkable
@@ -104,6 +162,8 @@ def write_run_artifact(repo_root: Path, report: RunVerdict) -> Path | None:
                 "detail": recorded_detail(r),
                 "disposition": "reused"
                 if r.reused_from
+                else "not-run"
+                if r.status == "blocked"
                 else "skipped"
                 if r.status == "skip"
                 else "executed",

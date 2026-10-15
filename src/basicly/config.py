@@ -335,7 +335,7 @@ CONFIG_SCHEMA: dict[str, Table] = {
         tables={"regenerate_commands": _OPEN_TABLE},
     ),
     "verify": Table(
-        keys=frozenset({"cache"}),
+        keys=frozenset({"cache", "fail_fast"}),
         arrays={"checks": _VERIFY_CHECK_TABLE},
         tables={"affected": Table(keys=frozenset({"command", "checks", "timeout_seconds"}))},
     ),
@@ -737,6 +737,7 @@ class VerifyConfig:
     checks: tuple[VerifyCheck, ...]
     affected: dict[str, Any] | None = None
     cache: bool = False
+    fail_fast: bool = False
 
     def for_mode(self, mode: str) -> tuple[VerifyCheck, ...]:
         return tuple(check for check in self.checks if mode in check.modes)
@@ -747,10 +748,13 @@ def load_verify_config(repo_root: Path) -> VerifyConfig:
     declared: list[object] = []
     provider = None
     cache = False
+    fail_fast = False
     for filename, data in _validated_documents(repo_root).items():
         section = data.get("verify")
         if isinstance(section, dict) and "cache" in section:
             cache = section["cache"]
+        if isinstance(section, dict) and "fail_fast" in section:
+            fail_fast = section["fail_fast"]
         if isinstance(section, dict) and "affected" in section:
             provider = section["affected"]
         checks = section.get("checks") if isinstance(section, dict) else None
@@ -758,8 +762,11 @@ def load_verify_config(repo_root: Path) -> VerifyConfig:
             declared = list(checks) if filename == LOCAL_CONFIG_FILE else [*declared, *checks]
     overrides = session.overrides_for("verify")
     cache = overrides.get("cache", cache)
+    fail_fast = overrides.get("fail_fast", fail_fast)
     if not isinstance(cache, bool):
         raise ValueError("verify.cache must be true or false")
+    if not isinstance(fail_fast, bool):
+        raise ValueError("verify.fail_fast must be true or false")
     if "affected" in overrides:
         provider = overrides["affected"]
     override = overrides.get("checks")
@@ -767,7 +774,10 @@ def load_verify_config(repo_root: Path) -> VerifyConfig:
         declared = list(override)
     checks = tuple(_parse_verify_check(entry) for entry in declared)
     return VerifyConfig(
-        checks, affected.parse_provider(provider, [check.name for check in checks]), cache
+        checks,
+        affected.parse_provider(provider, [check.name for check in checks]),
+        cache,
+        fail_fast,
     )
 
 
