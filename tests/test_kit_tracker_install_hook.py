@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.kit_deployment_helpers import KIT_RELATIVE, REPO_ROOT, _load
+from tests.kit_deployment_helpers import KIT_RELATIVE, REPO_ROOT, _load, events
 
 VENDORED = Path(".basicly") / "kit" / "tracker"
 LEDGER = Path(".basicly") / "ledger"
@@ -24,7 +24,7 @@ def _consumer(root: Path) -> Path:
     shutil.copytree(
         REPO_ROOT / KIT_RELATIVE, root / VENDORED, ignore=shutil.ignore_patterns("__pycache__")
     )
-    (root / LEDGER).mkdir(parents=True)
+    (root / LEDGER).mkdir(parents=True, exist_ok=True)
     return root / VENDORED
 
 
@@ -396,3 +396,46 @@ def test_the_hook_reports_on_the_branch_the_remote_names_default(tmp_path: Path)
     assert done.returncode == 0
     assert "pending shards are unchanged" in done.stderr
     assert _shards(root) == ["pending-main.jsonl"]
+
+
+@_POSIX_HOOK
+def test_a_shared_hook_stays_silent_in_a_linked_checkout_without_the_tracker(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "source"
+    root.mkdir()
+    subprocess.run(["git", "init", "-q", "-b", "feature", str(root)], check=True)
+    for key, value in (("user.name", "Test"), ("user.email", "test@example.invalid")):
+        subprocess.run(["git", "-C", str(root), "config", key, value], check=True)
+    (root / ".gitignore").write_text("__pycache__/\n", encoding="utf-8")
+    ledger = root / LEDGER
+    ledger.mkdir(parents=True)
+    events.append(
+        ledger,
+        [events.Draft("probe-linked", events.KIND_CREATED, {"title": "Pending linked record"})],
+        actor="test",
+        writer="feature",
+    )
+    subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+    subprocess.run(["git", "-C", str(root), "commit", "-qm", "seed"], check=True)
+    linked = root.parent / (root.name + ".worktrees") / "main"
+    linked.parent.mkdir()
+    subprocess.run(
+        ["git", "-C", str(root), "worktree", "add", "-q", "-b", "main", str(linked)], check=True
+    )
+    hook = _module(root)
+    _install(hook, root)
+    assert not (linked / VENDORED / "cli.py").exists()
+    before = (linked / LEDGER / "pending-feature.jsonl").read_bytes()
+
+    done = subprocess.run(
+        ["git", "hook", "run", "post-merge"],
+        cwd=linked,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert done.returncode == 0, done.stderr
+    assert done.stderr == ""
+    assert (linked / LEDGER / "pending-feature.jsonl").read_bytes() == before

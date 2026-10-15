@@ -75,10 +75,11 @@ def body(interpreter: str, script: str, ledger: str, command: str = "", advice: 
         "tracker: pending shards are unchanged; run "
         f"{advice or command or manual} outside Git hooks"
     )
+    available = f"[ -f {shlex.quote(script)} ] &&" if not command else ""
     return "\n".join((
         BEGIN,
         *ON_DEFAULT_BRANCH[:-1],
-        f"if {ON_DEFAULT_BRANCH[-1]}",
+        f"if {ON_DEFAULT_BRANCH[-1]} {available}",
         HAS_WORK_TO_PUSH,
         f'  [ -z "$(git status --porcelain -- . {shlex.quote(":(exclude)" + ledger)})" ]; then',
         f"  for tracker_shard in {shlex.quote(ledger)}/pending-*.jsonl; do",
@@ -286,7 +287,7 @@ def uninstall_fold(root: Path, *, dry_run: bool, stream: Any, hooks: Path | None
 
 def _fold_script(root: Path, args: argparse.Namespace) -> str:
 
-    if args.command or args.runner or not args.tracker_at:
+    if args.command or not args.tracker_at:
         return ""
     found = next((one for one in args.tracker_at if (root / one).is_file()), "")
     if not found:
@@ -414,10 +415,7 @@ def main(argv: Any = None) -> int:
             dry_run=args.dry_run,
             interpreter=args.interpreter,
             stream=sys.stdout,
-            command=args.command
-            or (
-                f"{args.runner} compact {shlex.quote(_within(ledger, root))}" if args.runner else ""
-            ),
+            command=args.command,
             advice=args.advice,
             script=_fold_script(root, args),
             hooks=hooks,
