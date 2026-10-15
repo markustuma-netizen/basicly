@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import shutil
+import subprocess
+import sys
 from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from types import SimpleNamespace
 
@@ -201,3 +203,25 @@ def test_custom_launcher_cannot_claim_the_reviewed_compiler_recipe(runtime: Path
     )
     with pytest.raises(pyright_inputs.UnsupportedInputsError, match="unreviewed Pyright launcher"):
         pyright_inputs._runtime(runtime)
+
+
+def test_isolated_engine_probes_the_tools_actual_interpreter(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    interpreter = Path(sys.executable)
+    monkeypatch.setattr(pyright_inputs, "sys", SimpleNamespace(executable="different-engine"))
+    data = pyright_inputs._interpreter_paths(interpreter, tmp_path, dict(pyright_inputs.os.environ))
+    assert Path(data["purelib"]).is_dir()
+    assert Path(data["stdlib"]).is_dir()
+    assert Path(data["pyright"]).name == "__init__.py"
+
+
+def test_unavailable_tools_interpreter_refuses_reuse(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(*_args, **_kw):
+        raise subprocess.TimeoutExpired("python", 10)
+
+    monkeypatch.setattr(pyright_inputs.subprocess, "run", fail)
+    with pytest.raises(pyright_inputs.UnsupportedInputsError, match="metadata unavailable"):
+        pyright_inputs._interpreter_paths(tmp_path / "unknown-python", tmp_path, {})

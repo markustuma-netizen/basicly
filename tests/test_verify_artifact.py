@@ -87,6 +87,7 @@ def test_a_passing_run_writes_a_non_empty_run_artifact(
     assert recorded["checks"] == [
         {
             "name": "ruff",
+            "command": ["ruff"],
             "status": "pass",
             "returncode": 0,
             "detail": "",
@@ -146,6 +147,7 @@ def test_the_run_artifact_records_a_failing_run_too(
     assert recorded["passed"] is False
     assert recorded["checks"][0] == {
         "name": "pytest",
+        "command": ["pytest"],
         "status": "fail",
         "returncode": 2,
         "detail": "output streamed rather than captured; reproduce with: pytest",

@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from . import lefthook_binary, tracker_paths, usage, verify_artifact
+from . import lefthook_binary, tracker_paths, usage, verify_artifact, verify_cache
 
 DEP_DIRS = (".venv", "node_modules")
 
@@ -35,6 +35,7 @@ def classify_worktree_tree(returncode: int, stdout: str) -> RemovalVerdict:
     known_artifacts = {
         usage.VERIFY_CHECKS_FILE.as_posix(),
         verify_artifact.RUN_ARTIFACT.as_posix(),
+        verify_cache.CACHE_PATH.as_posix(),
         (usage.VERIFY_CHECKS_FILE.parent / ".gitignore").as_posix(),
     }
     noise_prefixes = tuple(f"{d}/" for d in DEP_DIRS)

@@ -3308,6 +3308,8 @@ def _verify_working_tree(repo_root: Path, args: argparse.Namespace) -> verify.Ve
                 detail = f" — {result.detail}" if result.detail else ""
                 print(f"[fix] {result.name} failed{detail}", file=sys.stderr)
 
+    if getattr(args, "no_cache", False):
+        return verify.run_verify(repo_root, args.mode, replace(config, cache=False))
     return verify.run_verify(repo_root, args.mode, config)
 
 
@@ -4882,6 +4884,9 @@ def _add_worktree_parser(subparsers: argparse._SubParsersAction) -> None:
 def _add_verify_parser(subparsers: argparse._SubParsersAction) -> None:
     verify_parser = subparsers.add_parser(
         "verify", help="Run the configured verify checks and optionally record a br gate"
+    )
+    verify_parser.add_argument(
+        "--no-cache", action="store_true", help="Execute every selected check freshly"
     )
     verify_parser.add_argument(
         "--affected",

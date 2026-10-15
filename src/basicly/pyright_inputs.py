@@ -6,6 +6,7 @@ import json
 import os
 import platform
 import shutil
+import subprocess
 import sys
 import sysconfig
 import tomllib
@@ -137,6 +138,7 @@ def _runtime(root: Path) -> dict[str, str]:
     env = sanitised_project_env(os.environ, root)
     unsupported = (
         "PYTHONPATH",
+        "PYTHONHOME",
         "NODE_PATH",
         "NODE_OPTIONS",
         "PYRIGHT_PYTHON_FORCE_VERSION",
@@ -156,21 +158,22 @@ def _runtime(root: Path) -> dict[str, str]:
     if not lines:
         raise UnsupportedInputsError("empty Pyright launcher")
     first = lines[0]
-    interpreter = Path(sys.executable)
-    if first != f"#!{interpreter}":
-        raise UnsupportedInputsError("Pyright uses a different Python runtime")
+    interpreter = Path(first.removeprefix("#!"))
+    if not first.startswith("#!/") or not interpreter.is_file():
+        raise UnsupportedInputsError("unsupported Pyright interpreter")
     launcher_body = "\n".join(lines[1:]).strip().encode()
     if hashlib.sha256(launcher_body).hexdigest() != (
         "9eba366535d11962cd60ee4af4e473368f6614d49634270693c4c46da99af261"
     ):
         raise UnsupportedInputsError("unreviewed Pyright launcher")
-    site = Path(sysconfig.get_path("purelib"))
-    if importlib.util.find_spec("nodejs_wheel") is not None or env.get(
-        "PYRIGHT_PYTHON_GLOBAL_NODE", "true"
-    ).lower() not in {"true", "1"}:
+    runtime = _interpreter_paths(interpreter, launcher.parent, env)
+    site = Path(runtime["purelib"])
+    if runtime["nodejs_wheel"] or env.get("PYRIGHT_PYTHON_GLOBAL_NODE", "true").lower() not in {
+        "true",
+        "1",
+    }:
         raise UnsupportedInputsError("unsupported Node launcher strategy")
-    spec = importlib.util.find_spec("pyright")
-    if spec is None or spec.origin != str(site / "pyright/__init__.py"):
+    if runtime["pyright"] != str(site / "pyright/__init__.py"):
         raise UnsupportedInputsError("unsupported Pyright import location")
     version = json.loads((site / "pyright/dist/package.json").read_text(encoding="utf-8"))
     if version.get("version") != "1.1.411":
@@ -181,9 +184,48 @@ def _runtime(root: Path) -> dict[str, str]:
         "python": hashlib.sha256(interpreter.read_bytes()).hexdigest(),
         "node": hashlib.sha256(Path(node_name).read_bytes()).hexdigest(),
         "runtime": _digest_files(site, sources=False),
-        "stdlib": _digest_files(Path(sysconfig.get_path("stdlib")), sources=False),
+        "stdlib": _digest_files(Path(runtime["stdlib"]), sources=False),
         "platform": platform.platform(),
     }
+
+
+def _interpreter_paths(interpreter: Path, directory: Path, env: dict[str, str]) -> dict[str, str]:
+    if str(interpreter) == sys.executable:
+        spec = importlib.util.find_spec("pyright")
+        return {
+            "purelib": sysconfig.get_path("purelib"),
+            "stdlib": sysconfig.get_path("stdlib"),
+            "pyright": spec.origin if spec and spec.origin else "",
+            "nodejs_wheel": "present" if importlib.util.find_spec("nodejs_wheel") else "",
+        }
+    program = (
+        "import importlib.util,json,sysconfig;"
+        "p=importlib.util.find_spec('pyright');"
+        "print(json.dumps(dict(purelib=sysconfig.get_path('purelib'),"
+        "stdlib=sysconfig.get_path('stdlib'),pyright=p.origin if p else '',"
+        "nodejs_wheel='present' if importlib.util.find_spec('nodejs_wheel') else '')))"
+    )
+    try:
+        result = subprocess.run(  # noqa: S603 — exact reviewed launcher's interpreter, no shell
+            [str(interpreter), "-c", program],
+            cwd=directory,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=10,
+        )
+        data = json.loads(result.stdout)
+    except (subprocess.SubprocessError, OSError, ValueError) as exc:
+        raise UnsupportedInputsError("Pyright interpreter metadata unavailable") from exc
+    keys = {"purelib", "stdlib", "pyright", "nodejs_wheel"}
+    if (
+        not isinstance(data, dict)
+        or data.keys() != keys
+        or not all(isinstance(value, str) for value in data.values())
+    ):
+        raise UnsupportedInputsError("invalid Pyright interpreter metadata")
+    return data
 
 
 def fingerprint(repo_root: Path) -> str:
@@ -194,7 +236,7 @@ def fingerprint(repo_root: Path) -> str:
         if len(sites) != 1 or not sites[0].is_dir():
             raise UnsupportedInputsError("unsupported analysis environment layout")
         payload = {
-            "recipe": "pyright-1.1.411-v1",
+            "recipe": "pyright-1.1.411-v2",
             "source": _digest_files(root, sources=True),
             "analysis": _digest_files(sites[0], sources=True, workspace=root),
             "analysis_layout": sites[0].relative_to(root).as_posix(),

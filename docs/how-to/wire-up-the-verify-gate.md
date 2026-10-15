@@ -183,7 +183,7 @@ reuse = "pyright"
 
 The loop carries the actual successful report from its pre-merge verification.
 During post-merge verification, it can reuse a matching compiler result.
-Ordinary `basicly verify` and Git hooks still execute their checks afresh.
+Ordinary `basicly verify` executes its checks afresh by default.
 The `inputs` globs above select staged checks and cannot establish reusable proof.
 
 The initial recipe supports bundled Pyright 1.1.411 through its reviewed POSIX console launcher
@@ -205,8 +205,36 @@ Protected dotenv files are never read. Protected source inputs refuse reuse.
 The engine compares inputs before and after verification. A missing, failed,
 unsupported or changed receipt executes the check afresh. If another check
 changes inputs during post-merge verification, the borrowed checks execute again.
-Receipts stay within one process and one landing. They are never loaded from disk.
+Without an enabled cache, receipts stay within one process and one landing.
 Other checks, including tests, execute afresh.
+
+### Reuse compiler results across commands
+
+Enable the repository-local cache explicitly:
+
+```toml
+[verify]
+cache = true
+```
+
+Checks still need the reviewed `reuse = "pyright"` recipe above. The cache is
+bounded and stored in ignored `.basicly/usage/verify-cache.json`. The CLI and
+loop use the same cache. Standalone hooks without the engine keep fresh execution.
+An engine or repository identity change, corrupt cache, unsupported input or
+changed fingerprint runs the compiler freshly. Only stable, successful
+verification writes cache entries. Isolated engine installations fingerprint
+the actual Pyright interpreter independently from the engine's interpreter.
+
+To execute every check freshly for one command:
+
+```sh
+basicly verify --mode full --no-cache
+```
+
+This command leaves existing cache evidence intact. Reused outcomes name the
+original run and its compiler duration; their current execution duration is zero.
+The run's total duration includes fingerprinting and checks that ran freshly.
+Compiler reuse does not establish faster tests or constant-time repository scaling.
 
 `.basicly/usage/verify-run.json` records the run identity, duration, disposition,
 source run and input fingerprint. `.basicly/usage/landing-timings.json` records

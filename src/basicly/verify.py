@@ -8,7 +8,16 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import affected, pyright_inputs, tracker, tracker_paths, usage, verify_log, worktree
+from . import (
+    affected,
+    pyright_inputs,
+    tracker,
+    tracker_paths,
+    usage,
+    verify_cache,
+    verify_log,
+    worktree,
+)
 from .config import VERIFY_GATE_PROVIDER, VerifyCheck, VerifyConfig, load_verify_config
 from .runner import sanitised_project_env
 from .verify_artifact import write_run_artifact
@@ -292,26 +301,53 @@ def run_verify(
         for check in checks
         if check.reuse == "pyright" and supported_command(check.command, mode)
     }
-    proving = bool(eligible) and (capture_receipts or reuse is not None)
+    caching = config.cache and selection is None
+    proving = bool(eligible) and (capture_receipts or reuse is not None or caching)
     before, reason = _inputs(repo_root) if proving else ("", "")
+    cached, cache_reason = verify_cache.read(repo_root) if caching and before else ((), "")
     results: list[CheckResult] = []
     for check in checks:
         if selection is not None and check.name not in selection["selected"]:
             results.append(CheckResult(check.name, "skip", 0, selection["reasons"][check.name]))
             continue
         borrowed = _receipt_result(check, mode, before, reuse) if check.name in eligible else None
+        if borrowed is None and check.name in eligible and before:
+            previous = next(
+                (
+                    entry
+                    for entry in cached
+                    if (entry.name, entry.command, entry.mode, entry.inputs)
+                    == (check.name, check.command, mode, before)
+                ),
+                None,
+            )
+            if previous is not None:
+                borrowed = CheckResult(
+                    check.name,
+                    "pass",
+                    0,
+                    command=check.command,
+                    reused_from=previous.origin,
+                    reuse_reason="matching local cache inputs",
+                    source_duration_s=previous.duration_s,
+                    input_fingerprint=before,
+                )
         if borrowed is not None:
             print(f"{check.name}: reused verified result from {borrowed.reused_from}", flush=True)
             results.append(borrowed)
             continue
         result = run_check(check, repo_root, mode)
-        if check.reuse and (capture_receipts or reuse is not None):
+        if check.reuse and (capture_receipts or reuse is not None or caching):
             explanation = "unsupported command or mode"
             if check.name in eligible:
-                explanation = reason or (
-                    "missing or changed receipt inputs"
-                    if reuse
-                    else "executed to establish receipt"
+                explanation = (
+                    reason
+                    or cache_reason
+                    or (
+                        "missing or changed receipt inputs"
+                        if reuse
+                        else "executed to establish receipt"
+                    )
                 )
             result = replace(result, reuse_reason=explanation, input_fingerprint=before)
         results.append(result)
@@ -339,6 +375,22 @@ def run_verify(
         mode, tuple(results), run_id, receipts, round(time.perf_counter() - started, 3), selection
     )
     write_run_artifact(repo_root, report)
+    if caching and stable and passed:
+        verify_cache.write(
+            repo_root,
+            tuple(
+                verify_cache.CachedCheck(
+                    check.name,
+                    check.command,
+                    mode,
+                    before,
+                    result.reused_from or run_id,
+                    result.source_duration_s if result.reused_from else result.duration_s,
+                )
+                for check, result in zip(checks, results, strict=True)
+                if check.name in eligible
+            ),
+        )
     return report
 
 
