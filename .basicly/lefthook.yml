@@ -12,6 +12,7 @@ post-merge:
           "", "manager": "git", "technologies": [], "matcher": ""}]'
         BASICLY_FOLD_COMMAND: '["uvx", "--from", "https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly-0.25.1-py3-none-any.whl",
           "basicly", "tracker", "fold"]'
+  follow: true
 basicly-claude-pretooluse:
   commands:
     basicly-dispatch:
@@ -103,6 +104,7 @@ pre-commit:
           "technologies": [], "matcher": ""}]'
         BASICLY_FOLD_COMMAND: '["uvx", "--from", "https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly-0.25.1-py3-none-any.whl",
           "basicly", "tracker", "fold"]'
+  follow: true
 commit-msg:
   commands:
     basicly-dispatch:
@@ -121,6 +123,7 @@ commit-msg:
           [], "matcher": ""}]'
         BASICLY_FOLD_COMMAND: '["uvx", "--from", "https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly-0.25.1-py3-none-any.whl",
           "basicly", "tracker", "fold"]'
+  follow: true
 pre-push:
   commands:
     basicly-dispatch:
@@ -133,6 +136,7 @@ pre-push:
           "", "manager": "git", "technologies": [], "matcher": ""}]'
         BASICLY_FOLD_COMMAND: '["uvx", "--from", "https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly-0.25.1-py3-none-any.whl",
           "basicly", "tracker", "fold"]'
+  follow: true
 basicly-claude-posttooluse:
   commands:
     basicly-dispatch:

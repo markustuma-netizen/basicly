@@ -336,6 +336,7 @@ def run_verify(
             print(f"{check.name}: reused verified result from {borrowed.reused_from}", flush=True)
             results.append(borrowed)
             continue
+        print(f"==> {check.name}", flush=True)
         result = run_check(check, repo_root, mode)
         if check.reuse and (capture_receipts or reuse is not None or caching):
             explanation = "unsupported command or mode"
