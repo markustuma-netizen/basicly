@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import json
 import subprocess  # nosec B404
 import sys
@@ -7,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from basicly import merge, policy, rebase, run_record, verify
+from basicly import merge, policy, rebase, run_record, verify, write_preflight
 from basicly.config import PolicyConfig
 from basicly.worktree import Session
 from tests import fake_tracker, flipped_tracker
@@ -62,6 +63,8 @@ _REPLAY_CLEAN = {
     "rev-list --merges main..harness/feat": _Proc(0, ""),
     "rev-parse harness/feat": _Proc(0, ""),
     "ls-tree": _Proc(0, ""),
+    "merge-tree": _Proc(0, "merged-tree\n"),
+    "diff": _Proc(0, ""),
 }
 
 
@@ -69,6 +72,10 @@ def _patch_git[T](monkeypatch: pytest.MonkeyPatch, fake: T) -> T:
 
     if isinstance(fake, _FakeGit):
         fake.responses = {**_REPLAY_CLEAN, **fake.responses}
+        fake.responses.setdefault("diff", _Proc(0))
+        probe = fake.responses.get("merge-tree")
+        if probe is not None and probe.returncode == 0 and not probe.stdout:
+            fake.responses["merge-tree"] = _Proc(0, "merged-tree\n")
     monkeypatch.setattr(merge, "git", fake)
     monkeypatch.setattr(rebase, "git", fake)
     return fake
@@ -96,7 +103,7 @@ def test_merge_worktree_happy_path(monkeypatch: pytest.MonkeyPatch, tmp_path: Pa
         **_HAS_WORK,
         "status": _Proc(0, ""),
         "rebase": _Proc(0),
-        "merge-tree": _Proc(0),
+        "merge-tree": _Proc(0, "merged-tree\n"),
         "merge": _Proc(0),
         "rev-parse": _Proc(0, "def456"),
         "merge-base": _Proc(0),
@@ -236,7 +243,8 @@ def test_merge_worktree_rolls_up_tracker_dirt_before_landing(
     responses = {
         "rev-list": _Proc(0, "1"),
         "rebase": _Proc(0),
-        "merge-tree": _Proc(0),
+        "merge-tree": _Proc(0, "merged-tree\n"),
+        "diff": _Proc(0, ""),
         "merge": _Proc(0),
         "rev-parse": _Proc(0, "def456"),
         "ls-tree": _Proc(0, ""),
@@ -1551,6 +1559,73 @@ def _lane_worktree(tmp_path: Path, repo: Path) -> Session:
         worktree_path=str(lane),
         created_at="2026-08-06T00:00:00Z",
     )
+
+
+def test_landing_refuses_a_protected_incoming_path_before_tracker_commit_or_rebase(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = _seed_repo(tmp_path)
+    target = repo / ".codex" / "hooks.json"
+    target.parent.mkdir()
+    target.write_text("base\n", encoding="utf-8")
+    _git_here(repo, "add", ".codex/hooks.json")
+    _git_here(repo, "commit", "-m", "base adds hooks")
+    session = _lane_worktree(tmp_path, repo)
+    lane = session.path
+    (lane / ".codex/hooks.json").write_text("lane\n", encoding="utf-8")
+    _git_here(lane, "add", ".codex/hooks.json")
+    _git_here(lane, "commit", "-m", "lane adds hooks")
+
+    before = (_git_here(repo, "rev-parse", "HEAD"), _git_here(lane, "rev-parse", "HEAD"))
+    monkeypatch.setattr(merge, "load_session", lambda *_a: session)
+
+    def unexpected(*_args, **_kwargs):
+        pytest.fail("landing mutated tracker or lane before checking destination access")
+
+    monkeypatch.setattr(merge, "commit_tracker_state", unexpected)
+    monkeypatch.setattr(rebase, "replay", unexpected)
+    original = write_preflight.tempfile.TemporaryFile
+
+    def probe(*args, **kwargs):
+        if Path(kwargs["dir"]) == target.parent:
+            raise OSError(errno.EROFS, "Read-only file system")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(write_preflight.tempfile, "TemporaryFile", probe)
+    result = merge.merge_worktree(repo, session.name, bead="basicly-probe")
+
+    assert result.status == "not-ready"
+    assert str(target) in result.detail
+    assert "basicly worktree merge feat --bead basicly-probe --mode full" in result.detail
+    assert (_git_here(repo, "rev-parse", "HEAD"), _git_here(lane, "rev-parse", "HEAD")) == before
+    assert _git_here(repo, "status", "--porcelain") == ""
+    assert _git_here(lane, "status", "--porcelain") == ""
+    assert target.read_text(encoding="utf-8") == "base\n"
+
+
+def test_landing_leaves_newer_base_only_protected_configuration_untouched(
+    adding_lane: tuple[Path, Session], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo, session = adding_lane
+    target = repo / ".codex" / "hooks.json"
+    target.parent.mkdir()
+    target.write_text("newer base configuration\n", encoding="utf-8")
+    _git_here(repo, "add", ".codex/hooks.json")
+    _git_here(repo, "commit", "-m", "base adds protected configuration")
+    monkeypatch.setattr(merge, "load_session", lambda *_a: session)
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: verify.VerifyReport("full", ()))
+    original = write_preflight.tempfile.TemporaryFile
+
+    def probe(*args, **kwargs):
+        if Path(kwargs["dir"]) == target.parent:
+            pytest.fail("landing probed a protected path unchanged by its merged tree")
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(write_preflight.tempfile, "TemporaryFile", probe)
+    result = merge.merge_worktree(repo, session.name, bead="basicly-probe")
+    assert result.merged, result.detail
+    assert target.read_text(encoding="utf-8") == "newer base configuration\n"
+    assert (repo / "sources/d.txt").read_text(encoding="utf-8") == "d\n"
 
 
 def _fail_verify(monkeypatch: pytest.MonkeyPatch, output: str) -> None:

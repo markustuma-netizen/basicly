@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import shutil
 from pathlib import Path
 
 import yaml
@@ -35,14 +34,3 @@ def parse_config(path: Path, text: str) -> dict:
     if not isinstance(value, dict):
         raise ValueError(f"{path}: not a valid pre-commit config (expected a mapping)")
     return value
-
-
-def retire_tracker_block(stage: str, saved: Path) -> Path:
-    content = saved.read_bytes()
-    foreign_body = foreign_git_hook(stage, content)
-    if foreign_body == content:
-        return saved
-    foreign = saved.with_name(f"{stage}.basicly-foreign")
-    foreign.write_bytes(foreign_body)
-    shutil.copystat(saved, foreign)
-    return foreign

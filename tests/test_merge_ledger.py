@@ -68,6 +68,8 @@ def _refusing_git(monkeypatch: pytest.MonkeyPatch, refusals: int) -> list[list[s
                 "a gate refused `git commit`: `pre-commit-script` refused: "
                 "FAILED: release-notes (0.06s) \u00b7 checks failed: 32/33 passed"
             )
+        if args[0] == "merge-tree":
+            return _Proc("merged-tree\n")
         return _Proc(f" M {LEDGER}\n" if args[0] == "status" else "")
 
     monkeypatch.setattr(merge, "git", run)

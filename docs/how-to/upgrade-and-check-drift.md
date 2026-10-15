@@ -9,6 +9,21 @@ silently switch to an unreviewed upstream version.
 
 ## Upgrade
 
+### Protected agent configuration
+
+An agent sandbox can protect `.codex`, `.agents` and the Git hook directory even
+when ordinary source edits are allowed. Install checks planned catalog,
+instruction, skill, Codex configuration and Git hook changes before updating the
+repository. It skips unchanged protected outputs. Unchanged Git launchers and
+foreign hook backups are left in place.
+
+If preflight refuses access, it names the destination and the normal command to
+retry. For an upgrade you already authorized, the agent requests task-scoped
+execution review for that command in the same checkout. The standalone CLI
+cannot grant itself access; you can also run the command from your own terminal.
+This retry keeps hooks, signing, loop checkpoints and dotenv protections active.
+It does not require changing a machine-wide permissions profile.
+
 ### From v0.25.0: tracker compaction
 
 Post-merge tracker hooks now report pending shards without folding, staging or creating

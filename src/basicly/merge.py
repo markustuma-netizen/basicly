@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import shlex
 import time
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, replace
@@ -18,6 +19,7 @@ from . import (
     tracker,
     tracker_paths,
     verify,
+    write_preflight,
 )
 from .config import PolicyConfig, load_policy_config, load_worktree_config
 from .worktree import Session, current_branch, git, load_session
@@ -54,6 +56,7 @@ PRE_GATE_STATUSES = (
 class ProbeResult:
     safe: bool
     conflicts: tuple[str, ...]
+    tree: str = ""
 
 
 @dataclass(frozen=True)
@@ -195,10 +198,11 @@ def probe_merge(repo_root: Path, base: str, branch: str) -> ProbeResult:
         check=False,
     )
     if proc.returncode == 0:
-        return ProbeResult(safe=True, conflicts=())
+        tree = proc.stdout.splitlines()
+        return ProbeResult(safe=True, conflicts=(), tree=tree[0] if tree else "")
     lines = proc.stdout.splitlines()
     conflicts = tuple(lines[1:] if len(lines) > 1 else lines)
-    return ProbeResult(safe=False, conflicts=conflicts)
+    return ProbeResult(safe=False, conflicts=conflicts, tree=lines[0] if lines else "")
 
 
 def _session_branch_head(repo_root: Path, name: str) -> str | None:
@@ -608,6 +612,29 @@ def merge_worktree(  # noqa: PLR0913 — one keyword per independent landing inp
     clock.mark("preflight")
     if blocked is not None:
         return clock.close(blocked)
+
+    probe = probe_merge(repo_root, session.base, session.branch)
+    if not probe.tree:
+        raise RuntimeError("git merge-tree returned no merged tree for destination preflight")
+    changed = git(
+        ["diff", "--name-only", "-z", "--no-renames", session.base, probe.tree], cwd=repo_root
+    )
+    command = shlex.join([
+        "basicly",
+        "worktree",
+        "merge",
+        name,
+        "--bead",
+        bead,
+        "--mode",
+        verify_mode,
+    ])
+    try:
+        write_preflight.require_writable(
+            (repo_root / path for path in changed.stdout.split("\0") if path), command=command
+        )
+    except write_preflight.WriteDeniedError as exc:
+        return MergeResult(name, "not-ready", str(exc))
 
     retried: list[str] = []
     if current_branch(repo_root) == session.base:

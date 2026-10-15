@@ -9,10 +9,11 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 import tomllib
 from collections.abc import Callable, Mapping
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from datetime import UTC, datetime
 from functools import partial
 from pathlib import Path
@@ -72,6 +73,7 @@ from . import (
     verify,
     working_set,
     worktree,
+    write_preflight,
 )
 from . import session as session_config
 from .catalog import bundled_catalog_root, iter_catalog_files
@@ -111,6 +113,7 @@ from .hooks import (
     claude_hook_specs,
     copilot_hook_specs,
     git_hook_specs,
+    hook_installation_writes,
     hook_stages,
     install_hooks,
     load_hook_specs,
@@ -1573,6 +1576,92 @@ def _scaffold_repo(
     return True
 
 
+def _preflight_install(
+    repo_root: Path, paths: ProjectPaths, args: argparse.Namespace, technologies: list[str]
+) -> None:
+    selection = frozenset(technologies) if technologies else load_technology_selection(repo_root)
+    specs = selected_hook_specs(load_hook_specs(), selection)
+    destinations = [
+        path
+        for path, _reason in codex_hooks.mismatches(
+            repo_root,
+            [spec for spec in specs if spec.manager == "codex"],
+            _core_hooks_dir(paths).as_posix(),
+        )
+        + codex_permissions.mismatches(repo_root, user_config=_codex_user_config(args))
+    ]
+    source, installed = bundled_catalog_root(), repo_root / paths.core_root
+    try:
+        previous = state.read_install_state(repo_root / paths.state_path)
+    except ValidationError:
+        previous = None
+    report = (
+        _CatalogSyncReport()
+        if source.resolve() == installed.resolve()
+        else _sync_catalog(
+            source, installed, previous, force=bool(getattr(args, "force", False)), dry_run=True
+        )
+    )
+    destinations.extend(installed / rel for rel in report.new + report.updated + report.deleted)
+    with tempfile.TemporaryDirectory(prefix="basicly-install-preflight-") as preview:
+        catalog = installed
+        if report.new or report.updated or report.deleted:
+            catalog = Path(preview) / "core"
+            if installed.is_dir():
+                shutil.copytree(
+                    installed,
+                    catalog,
+                    ignore=shutil.ignore_patterns(".env", ".env.*", "__pycache__"),
+                )
+            for rel in report.new + report.updated:
+                target = catalog / rel
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(source / rel, target)
+            for rel in report.deleted:
+                (catalog / rel).unlink()
+
+        def projected_source(path: Path) -> Path:
+            return (
+                catalog / path.relative_to(paths.core_root)
+                if path.is_relative_to(paths.core_root)
+                else repo_root / path
+            )
+
+        preview_paths = replace(
+            paths,
+            core_fragments_dir=projected_source(paths.core_fragments_dir),
+            targets_dir=projected_source(paths.targets_dir),
+            templates_dir=projected_source(paths.templates_dir),
+        )
+        targets = load_targets(preview_paths.targets_dir)
+        roots = [(repo_root / path, hint) for path, hint in _fragment_roots(preview_paths)]
+        fragments = load_fragments_from_roots(roots, {target.name for target in targets})
+        fragments = [
+            fragment
+            for fragment in fragments
+            if technology_selected(fragment.technologies, selection)
+        ]
+        planned = plan_outputs(fragments, targets, repo_root)
+        for item in planned:
+            expected = _render_planned(repo_root, preview_paths, item).encode("utf-8")
+            if not item.output_path.is_file() or item.output_path.read_bytes() != expected:
+                destinations.append(item.output_path)
+        destinations.append(repo_root / paths.manifest_path)
+        skill_source = projected_source(SKILLS_SOURCE_DIR)
+        destinations.extend(
+            path
+            for path, reason in check_synced_skills(
+                repo_root, resolve_skill_roots(repo_root, None), skill_source, selection
+            )
+            if not reason.startswith(UNMANAGED_REASON_PREFIX)
+        )
+    destinations.extend(
+        hook_installation_writes(repo_root, hook_stages(specs), _core_hooks_dir(paths))
+    )
+    command = shlex.join(["basicly", *sys.argv[1:]])
+    write_preflight.require_writable(destinations, command=command)
+
+
 def cmd_install(args: argparse.Namespace) -> int:
 
     technologies = _validate_install_technologies(getattr(args, "technologies", None))
@@ -1584,6 +1673,13 @@ def cmd_install(args: argparse.Namespace) -> int:
         ui.heading("basicly install --dry-run: nothing below is written")
     repo_root = _repo_root()
     paths = load_project_paths(repo_root)
+
+    if not dry_run:
+        try:
+            _preflight_install(repo_root, paths, args, technologies)
+        except write_preflight.WriteDeniedError as exc:
+            print(str(exc), file=sys.stderr)
+            return 1
 
     upgrade = _sync_core(
         repo_root, paths, force=bool(getattr(args, "force", False)), dry_run=dry_run
