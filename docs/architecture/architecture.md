@@ -1090,6 +1090,10 @@ A private result file carries combined protocol output, stderr and the original
 status back to the outer launcher. Native projections contain launchers; the
 script list and matchers live in shared Lefthook configuration.
 
+Catalog lint uses an available engine or the installed version's release wheel.
+If that fallback lacks valid install state or cannot fetch its wheel, it refuses
+the operation.
+
 **Git requires dispatcher completion.** The private result channel also records
 Git completion. When 2.2.2 skips a command because its native file selection is
 empty, the outer launcher selects only the managed job and requests execution

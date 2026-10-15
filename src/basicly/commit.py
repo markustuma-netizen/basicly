@@ -246,7 +246,7 @@ def _work_dispatch(repo_root: Path, bead: str) -> dict | None:
 def dispatch_model(repo_root: Path, bead: str) -> str | None:
 
     entry = _work_dispatch(repo_root, bead)
-    if entry is None:
+    if entry is None or entry.get("outcome") == "handoff":
         return None
     model = entry.get("model")
     if isinstance(model, str) and model:
