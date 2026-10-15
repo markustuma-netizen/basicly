@@ -4,7 +4,10 @@ import json
 import os
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, runtime_checkable
+
+if TYPE_CHECKING:
+    from .verify_receipt import CheckReceipt
 
 RUN_ARTIFACT = Path(".basicly/usage/verify-run.json")
 
@@ -26,6 +29,21 @@ class CheckOutcome(Protocol):
     @property
     def command(self) -> tuple[str, ...]: ...
 
+    @property
+    def duration_s(self) -> float: ...
+
+    @property
+    def reused_from(self) -> str: ...
+
+    @property
+    def reuse_reason(self) -> str: ...
+
+    @property
+    def source_duration_s(self) -> float: ...
+
+    @property
+    def input_fingerprint(self) -> str: ...
+
 
 @runtime_checkable
 class RunVerdict(Protocol):
@@ -37,6 +55,15 @@ class RunVerdict(Protocol):
 
     @property
     def results(self) -> tuple[CheckOutcome, ...]: ...
+
+    @property
+    def run_id(self) -> str: ...
+
+    @property
+    def duration_s(self) -> float: ...
+
+    @property
+    def receipts(self) -> tuple[CheckReceipt, ...]: ...
 
 
 def recorded_detail(outcome: CheckOutcome) -> str:
@@ -55,12 +82,34 @@ def write_run_artifact(repo_root: Path, report: RunVerdict) -> Path | None:
         "mode": report.mode,
         "recorded_at": datetime.now(UTC).isoformat(),
         "passed": report.passed,
+        "run_id": report.run_id,
+        "duration_s": report.duration_s,
+        "receipts": [
+            {
+                "name": r.name,
+                "command": list(r.command),
+                "mode": r.mode,
+                "inputs": r.inputs,
+                "origin": r.origin,
+            }
+            for r in report.receipts
+        ],
         "checks": [
             {
                 "name": r.name,
                 "status": r.status,
                 "returncode": r.returncode,
                 "detail": recorded_detail(r),
+                "disposition": "reused"
+                if r.reused_from
+                else "skipped"
+                if r.status == "skip"
+                else "executed",
+                "duration_s": r.duration_s,
+                "reused_from": r.reused_from,
+                "reuse_reason": r.reuse_reason,
+                "source_duration_s": r.source_duration_s,
+                "input_fingerprint": r.input_fingerprint,
             }
             for r in report.results
         ],

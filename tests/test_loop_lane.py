@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -12,6 +13,32 @@ from basicly.policy import GateStatus
 from basicly.worktree import Session
 
 CONFIG = PolicyConfig(required_gates=("verify",), max_rework=2)
+
+
+def test_gate_verification_receives_actual_landing_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    origin = verify.VerifyReport("full", (), run_id="source-run")
+    observed: list[verify.VerifyReport | None] = []
+
+    def run(_root, mode, **kwargs):
+        observed.append(kwargs.get("reuse"))
+        return verify.VerifyReport(mode, (), run_id="post-merge-run", duration_s=2.5)
+
+    monkeypatch.setattr(verify, "run_verify", run)
+    monkeypatch.setattr(loop.handoff, "entry_verdict", lambda *_a: SimpleNamespace(admitted=True))
+    monkeypatch.setattr(loop, "_record_gate", lambda *_a: None)
+    ctx = loop._Ctx(tmp_path, "i", _state("build"), CONFIG, loop.Inputs())
+
+    result = loop._record_verify(ctx, "landed", verify_mode="full", landing_report=origin)
+
+    assert observed == [origin]
+    assert result.action == "merged"
+    entry = json.loads((tmp_path / merge.LANDING_TIMINGS_FILE).read_text(encoding="utf-8"))["i"][0]
+    assert entry["source_run_id"] == "source-run"
+    assert entry["verify_run_id"] == "post-merge-run"
+    assert entry["phase"] == "post-merge-verify"
+    assert entry["total_s"] == 2.5
 
 
 def _gate(can_advance: bool) -> GateStatus:

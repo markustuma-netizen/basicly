@@ -65,6 +65,7 @@ class MergeResult:
     checks: tuple[verify.CheckResult, ...] = ()
     culprits: tuple[str, ...] = ()
     landed_head: str = ""
+    verification: verify.VerifyReport | None = None
 
     @property
     def merged(self) -> bool:
@@ -126,7 +127,7 @@ def _verify_for_landing(
     name: str, worktree_path: Path, verify_mode: str, clock: _Landing
 ) -> MergeResult | None:
 
-    report = verify.run_verify(worktree_path, verify_mode)
+    report = verify.run_verify(worktree_path, verify_mode, capture_receipts=True)
     clock.note_checks(report)
     if report.passed:
         owed = verify.release_note_debt(clock.repo_root, worktree_path, verify_mode, clock.bead)
@@ -496,6 +497,7 @@ class _Landing:
         self._at = self.started
         self.stages: list[tuple[str, float]] = []
         self.checks: tuple[tuple[str, float], ...] = ()
+        self.report: verify.VerifyReport | None = None
 
     def mark(self, stage: str) -> None:
 
@@ -504,6 +506,7 @@ class _Landing:
         self._at = now
 
     def note_checks(self, report: verify.VerifyReport) -> None:
+        self.report = report
         ranked = sorted(((r.name, r.duration_s) for r in report.results), key=lambda c: -c[1])
         self.checks = tuple(ranked[:_SLOWEST_CHECKS])
 
@@ -522,6 +525,7 @@ class _Landing:
                 "unattributed_s": round(total - attributed, 3),
                 "stages": [list(span) for span in self.stages],
                 "slowest_checks": [list(check) for check in self.checks],
+                "verify_run_id": self.report.run_id if self.report else "",
             },
         )
         if not result.merged:
@@ -553,6 +557,25 @@ def _write_landing_timing(repo_root: Path, bead: str, entry: dict[str, object]) 
         tmp.replace(path)
     except OSError, ValueError:
         return
+
+
+def record_post_merge_verification(
+    repo_root: Path, bead: str, report: verify.VerifyReport, source: verify.VerifyReport | None
+) -> None:
+    _write_landing_timing(
+        repo_root,
+        bead,
+        {
+            "recorded_at": datetime.now(UTC).isoformat(),
+            "phase": "post-merge-verify",
+            "status": "pass" if report.passed else "fail",
+            "total_s": report.duration_s,
+            "verify_run_id": report.run_id,
+            "source_run_id": source.run_id if source else "",
+            "executed": [r.name for r in report.results if not r.reused_from],
+            "reused": [r.name for r in report.results if r.reused_from],
+        },
+    )
 
 
 def merge_worktree(  # noqa: PLR0913 — one keyword per independent landing input
@@ -635,7 +658,7 @@ def _replay_verify_merge(
     clock.mark("merge")
     if landed.merged and regenerated:
         landed = replace(landed, detail=f"{landed.detail} (regenerated {', '.join(regenerated)})")
-    return landed
+    return replace(landed, verification=clock.report) if landed.merged else landed
 
 
 @dataclass(frozen=True)

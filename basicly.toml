@@ -206,16 +206,19 @@ staged_suffix = ".py"
 [[verify.checks]]
 name = "pyright-linux"
 command = ["pyright", "--pythonplatform", "Linux"]
+reuse = "pyright"
 modes = ["full"]
 
 [[verify.checks]]
 name = "pyright-darwin"
 command = ["pyright", "--pythonplatform", "Darwin"]
+reuse = "pyright"
 modes = ["full"]
 
 [[verify.checks]]
 name = "pyright-windows"
 command = ["pyright", "--pythonplatform", "Windows"]
+reuse = "pyright"
 modes = ["full"]
 
 # Security scan of the Python this repo executes outside its own package (basicly-5gn2).

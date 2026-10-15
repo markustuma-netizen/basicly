@@ -3,13 +3,11 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
-from typing import TYPE_CHECKING
+
+import pytest
 
 from basicly import policy, verify, verify_artifact
 from basicly.config import PolicyConfig, VerifyCheck, VerifyConfig
-
-if TYPE_CHECKING:
-    import pytest
 
 
 class _Proc:
@@ -86,7 +84,22 @@ def test_a_passing_run_writes_a_non_empty_run_artifact(
     assert recorded["mode"] == "full"
     assert recorded["passed"] is True
     assert recorded["recorded_at"]
-    assert recorded["checks"] == [{"name": "ruff", "status": "pass", "returncode": 0, "detail": ""}]
+    assert recorded["checks"] == [
+        {
+            "name": "ruff",
+            "status": "pass",
+            "returncode": 0,
+            "detail": "",
+            "disposition": "executed",
+            "duration_s": pytest.approx(0, abs=1),
+            "reused_from": "",
+            "reuse_reason": "",
+            "source_duration_s": 0.0,
+            "input_fingerprint": "",
+        }
+    ]
+    assert recorded["run_id"]
+    assert recorded["duration_s"] >= 0
 
 
 def test_the_run_artifact_satisfies_a_declared_evidence_gate(
@@ -136,6 +149,12 @@ def test_the_run_artifact_records_a_failing_run_too(
         "status": "fail",
         "returncode": 2,
         "detail": "output streamed rather than captured; reproduce with: pytest",
+        "disposition": "executed",
+        "duration_s": pytest.approx(0, abs=1),
+        "reused_from": "",
+        "reuse_reason": "",
+        "source_duration_s": 0.0,
+        "input_fingerprint": "",
     }
 
 

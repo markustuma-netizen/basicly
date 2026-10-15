@@ -49,6 +49,26 @@ from basicly.runner import (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
+@pytest.mark.parametrize("recipe", ["pyright", None])
+def test_verify_reuse_recipe_is_explicit(tmp_path: Path, recipe: str | None) -> None:
+    setting = f'reuse = "{recipe}"\n' if recipe else ""
+    (tmp_path / CONFIG_FILE).write_text(
+        '[[verify.checks]]\nname="types"\ncommand=["pyright"]\nmodes=["full"]\n' + setting,
+        encoding="utf-8",
+    )
+    assert load_verify_config(tmp_path).checks[0].reuse == recipe
+
+
+@pytest.mark.parametrize("recipe", ['"unknown"', "true", "42"])
+def test_unknown_verify_reuse_recipe_is_refused(tmp_path: Path, recipe: str) -> None:
+    (tmp_path / CONFIG_FILE).write_text(
+        '[[verify.checks]]\nname="types"\ncommand=["pyright"]\nmodes=["full"]\nreuse=' + recipe,
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match=r"reuse.*pyright"):
+        load_verify_config(tmp_path)
+
+
 def test_default_config_toml_matches_builtin_defaults(tmp_path: Path) -> None:
 
     defaults = load_project_paths(tmp_path)
