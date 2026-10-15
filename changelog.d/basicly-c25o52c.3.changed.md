@@ -1,1 +1,0 @@
-- Make tracker post-merge hooks read-only reminders. Existing opt-ins stop folding or creating commits inside Git hooks; the loop retains explicit compaction, and standalone consumers run the reported command outside hooks. Upgrades preserve foreign hooks and consumer settings.

@@ -1,1 +1,0 @@
-- Landing can reuse unchanged Pyright platform checks through explicit input receipts; other checks still run fresh. Verification evidence now records reuse, input identity and post-merge timings.

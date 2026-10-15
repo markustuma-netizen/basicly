@@ -1,9 +1,9 @@
 {
   "version": "1",
-  "generated_at": "2026-10-15T17:03:36.757120+00:00",
+  "generated_at": "2026-10-15T17:27:39.396802+00:00",
   "outputs": {
     ".claude/CLAUDE.md": {
-      "hash": "sha256:a5ec264f088b41dba68504d064d0e3c030e3dde0afc2dda1872cb7f7003e3018",
+      "hash": "sha256:15c6f5c10d24b93e441af3b9d3e1b38218e29e5e74dfed575a953632b18cd912",
       "source_fragments": [
         "knowledge-priming",
         "code-is-authoritative",
@@ -26,37 +26,37 @@
       ]
     },
     ".claude/rules/external-review.md": {
-      "hash": "sha256:58d37a467e5829ea57fea88486df07cb329a3acb3e3987d3cb83bfc17811c784",
+      "hash": "sha256:a864d2afcfd64f6bf9a1bcabba5a91b33d0449eb1c17831d2a0dd20a366b8823",
       "source_fragments": [
         "external-review"
       ]
     },
     ".claude/rules/model-tier-routing.md": {
-      "hash": "sha256:5b4c9b549db0dea06df7bae3140af870af961f2c7eb7db661ac7100282267c5b",
+      "hash": "sha256:14f596028323e805fc7d7a1eade0f43f9e8ba81a5713b5f3abe47bf8265c9305",
       "source_fragments": [
         "model-tier-routing"
       ]
     },
     ".claude/rules/rendered-surfaces.md": {
-      "hash": "sha256:fe339096a3ab85c08ffdfa0d950842f6c0e5c988d05b90326e6f552c35482dd5",
+      "hash": "sha256:400befeee97f25634d3dd0ade7a0c692a3b80f219167ab1a03dcd73ec11d8ca5",
       "source_fragments": [
         "rendered-surfaces"
       ]
     },
     ".claude/rules/release-fragments.md": {
-      "hash": "sha256:949e15b56e57b9cf2f1f74d55898aa4c66ce0941cf1fe6c9d66024795c5a1c67",
+      "hash": "sha256:831f9af67784ad6785fcc738b1166becdd732d9045504e6bb591285fea2b69fa",
       "source_fragments": [
         "release-fragments"
       ]
     },
     ".claude/rules/platform-hermetic-tests.md": {
-      "hash": "sha256:980db06c55913d3d16e8a6166663e4f595d7b88b428ed2943cd285bd7eec5e53",
+      "hash": "sha256:fac5a8cf45d6b2ce4aa46551684f7bdc2480959278bfb9f1826b2523098262e1",
       "source_fragments": [
         "platform-hermetic-tests"
       ]
     },
     "AGENTS.md": {
-      "hash": "sha256:bbafee2702e7b58ffb5c7fe0a1b746b036d68305a3a561e6e02eb06d577958e0",
+      "hash": "sha256:477ad33956346f7915653d8ead0a61f9d5c03370c13dcc8fd755f665f26ad1b8",
       "source_fragments": [
         "knowledge-priming",
         "code-is-authoritative",
@@ -83,7 +83,7 @@
       ]
     },
     ".github/copilot-instructions.md": {
-      "hash": "sha256:4ec2dfe36858143203870686b0a208369e5eaed3fe4e7c142a8e928a2259bbfa",
+      "hash": "sha256:d6a679b9dec04b963a01a80ae0a4a9a53f0dc8fe34ac9b96050bd974da1370f7",
       "source_fragments": [
         "knowledge-priming",
         "code-is-authoritative",

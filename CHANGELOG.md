@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.25.0 - 2026-10-15
+
+Delta: v0.24.1..v0.25.0
+
 basicly can use a consumer-owned dependency graph to select checks against staged contents.
 This release also fixes validation retries and tracker hooks, and adds guarded reuse of unchanged Pyright checks.
 Existing verification stays broad unless a consumer enables the optional provider.
@@ -16,6 +20,22 @@ Existing verification stays broad unless a consumer enables the optional provide
 - Verification: reuse unchanged Pyright platform results only when input receipts match (basicly-2tfuwv).
 
 Multi-tech discovery, persistent caching and repository-size performance improvements remain future work.
+
+### Added
+
+- Add optional consumer-owned affected-check providers for Git pre-commit and `basicly verify --affected`, with shared index-snapshot execution, rename-aware inputs, broad fallback and recorded selection evidence. Existing verification and upgrades retain their defaults. (basicly-c25o52c.5)
+
+### Changed
+
+- Landing can reuse unchanged Pyright platform checks through explicit input receipts; other checks still run fresh. Verification evidence now records reuse, input identity and post-merge timings. (basicly-2tfuwv)
+
+- Make tracker post-merge hooks read-only reminders. Existing opt-ins stop folding or creating commits inside Git hooks; the loop retains explicit compaction, and standalone consumers run the reported command outside hooks. Upgrades preserve foreign hooks and consumer settings. (basicly-c25o52c.3)
+
+### Fixed
+
+- Preserve every consumer validation attempt and its newest verdict across retries, including repeated passes and failures. (basicly-c25o52c.2)
+
+- Preserve recurring verification failures after a successful retry while keeping identical current gate reports idempotent across independent records, gates and providers. (basicly-c25o52c.4)
 
 ## v0.24.1 - 2026-10-15
 
