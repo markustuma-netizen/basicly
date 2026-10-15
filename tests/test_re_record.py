@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from basicly import owned_store, owned_write, re_record, tracker, tracker_argv
+from basicly import integrity, owned_store, owned_write, re_record, tracker, tracker_argv
 from tests.test_owned_write import events_of, no_br, owned_repo, seed
 from tests.tracker_process_fixture import recorded_review
 
@@ -95,6 +95,36 @@ def test_a_gate_that_ran_twice_and_passed_twice_is_recorded_twice(tmp_path: Path
     kit = owned_store.kit(repo)
     assert landed
     assert len([e for e in events_of(repo, RECORD) if e.kind == kit.KIND_GATE]) == 2
+
+
+@pytest.mark.parametrize("provider", ["engine", "basicly-verify", "basicly-rubrics"])
+@pytest.mark.usefixtures("no_br")
+def test_each_validation_report_records_a_new_observation_without_a_repeat_flag(
+    tmp_path: Path, provider: str
+) -> None:
+    repo = owned_repo(tmp_path)
+    seed(repo, RECORD)
+    verdicts = [False, True, False, False, True, True]
+
+    for passed in verdicts:
+        owned_write.append(
+            repo,
+            [
+                "gate",
+                "report",
+                RECORD,
+                "--gate",
+                integrity.VALIDATE_GATE,
+                "--provider",
+                provider,
+                "--status",
+                "pass" if passed else "fail",
+            ],
+        )
+
+    kit = owned_store.kit(repo)
+    observations = [event for event in events_of(repo, RECORD) if event.kind == kit.KIND_GATE]
+    assert [event.payload["passed"] for event in observations] == verdicts
 
 
 @pytest.mark.usefixtures("no_br")

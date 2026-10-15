@@ -1,0 +1,1 @@
+- Preserve every consumer validation attempt and its newest verdict across retries, including repeated passes and failures.

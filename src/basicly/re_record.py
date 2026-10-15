@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from basicly import tracker_argv, tracker_usage
+from basicly import integrity, tracker_argv, tracker_usage
 from basicly.owned_store import TrackerDivergenceError
 
 if TYPE_CHECKING:
@@ -19,4 +19,9 @@ def read_the_seams_own_flags(args: Sequence[str]) -> tuple[list[str], bool]:
             f"reads: {', '.join(sorted(tracker_argv.GUARDED_FLAGS[surface]))}"
         )
     kept = tracker_argv.without_flags(args, {tracker_argv.REPEAT_FLAG}, ())
-    return kept, len(kept) != len(args)
+    validation_attempt = (
+        surface == "gate report"
+        and dict(tracker_argv.flag_pairs(kept, tracker_argv.VALUE_FLAGS[surface])).get("--gate")
+        == integrity.VALIDATE_GATE
+    )
+    return kept, len(kept) != len(args) or validation_attempt
