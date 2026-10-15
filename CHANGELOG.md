@@ -6,10 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.25.1 - 2026-10-15
+
+Delta: v0.25.0..v0.25.1
+
 basicly 0.25.1 detects protected harness destinations before an upgrade or landing changes the repository. It reports the ordinary command for a task-scoped reviewed retry and preserves consumer-owned configuration.
 
 - Upgrades and landings: check planned protected writes before catalog updates, tracker commits and rebases (basicly-c25o52c.7).
 - Git hooks: leave unchanged launchers and foreign hook backups in place during repeat installation (basicly-c25o52c.7).
+
+### Fixed
+
+- Preflight planned harness install and landing destinations before changing repository state, report protected paths with a task-scoped reviewed retry, and preserve unchanged Git launchers and foreign hook backups during repeat installs. (basicly-c25o52c.7)
 
 ## v0.25.0 - 2026-10-15
 

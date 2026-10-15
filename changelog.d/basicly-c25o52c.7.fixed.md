@@ -1,1 +1,0 @@
-- Preflight planned harness install and landing destinations before changing repository state, report protected paths with a task-scoped reviewed retry, and preserve unchanged Git launchers and foreign hook backups during repeat installs.
