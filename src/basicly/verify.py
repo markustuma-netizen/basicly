@@ -4,14 +4,16 @@ import os
 import subprocess
 import sys
 import time
+import uuid
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import tracker, tracker_paths, usage, verify_log, worktree
+from . import pyright_inputs, tracker, tracker_paths, usage, verify_log, worktree
 from .config import VERIFY_GATE_PROVIDER, VerifyCheck, VerifyConfig, load_verify_config
 from .runner import sanitised_project_env
 from .verify_artifact import write_run_artifact
+from .verify_receipt import CheckReceipt, supported_command
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -54,12 +56,19 @@ class CheckResult:
     output: str = ""
     command: tuple[str, ...] = ()
     duration_s: float = 0.0
+    reused_from: str = ""
+    reuse_reason: str = ""
+    source_duration_s: float = 0.0
+    input_fingerprint: str = ""
 
 
 @dataclass(frozen=True)
 class VerifyReport:
     mode: str
     results: tuple[CheckResult, ...]
+    run_id: str = ""
+    receipts: tuple[CheckReceipt, ...] = ()
+    duration_s: float = 0.0
 
     @property
     def passed(self) -> bool:
@@ -224,11 +233,94 @@ def _spawn(
     return subprocess.CompletedProcess(list(command), proc.returncode, "".join(kept), "")
 
 
-def run_verify(repo_root: Path, mode: str, config: VerifyConfig | None = None) -> VerifyReport:
+def _inputs(repo_root: Path) -> tuple[str, str]:
+    try:
+        return pyright_inputs.fingerprint(repo_root), ""
+    except pyright_inputs.UnsupportedInputsError as exc:
+        return "", str(exc)
 
+
+def _receipt_result(
+    check: VerifyCheck, mode: str, inputs: str, source: VerifyReport | None
+) -> CheckResult | None:
+    if source is None or not source.passed or not inputs:
+        return None
+    receipt = next((r for r in source.receipts if r.name == check.name), None)
+    if receipt != CheckReceipt(check.name, check.command, mode, inputs, source.run_id):
+        return None
+    original = next((r for r in source.results if r.name == check.name), None)
+    if original is None or original.status != "pass" or original.reused_from:
+        return None
+    return replace(
+        original,
+        duration_s=0.0,
+        reused_from=source.run_id,
+        reuse_reason="matching same-landing inputs",
+        source_duration_s=original.duration_s,
+        input_fingerprint=inputs,
+    )
+
+
+def run_verify(
+    repo_root: Path,
+    mode: str,
+    config: VerifyConfig | None = None,
+    *,
+    capture_receipts: bool = False,
+    reuse: VerifyReport | None = None,
+) -> VerifyReport:
+
+    started = time.perf_counter()
     config = config or load_verify_config(repo_root)
-    results = tuple(run_check(check, repo_root, mode) for check in config.for_mode(mode))
-    report = VerifyReport(mode=mode, results=results)
+    checks = config.for_mode(mode)
+    eligible = {
+        check.name
+        for check in checks
+        if check.reuse == "pyright" and supported_command(check.command, mode)
+    }
+    proving = bool(eligible) and (capture_receipts or reuse is not None)
+    before, reason = _inputs(repo_root) if proving else ("", "")
+    results: list[CheckResult] = []
+    for check in checks:
+        borrowed = _receipt_result(check, mode, before, reuse) if check.name in eligible else None
+        if borrowed is not None:
+            print(f"{check.name}: reused verified result from {borrowed.reused_from}", flush=True)
+            results.append(borrowed)
+            continue
+        result = run_check(check, repo_root, mode)
+        if check.reuse and (capture_receipts or reuse is not None):
+            explanation = "unsupported command or mode"
+            if check.name in eligible:
+                explanation = reason or (
+                    "missing or changed receipt inputs"
+                    if reuse
+                    else "executed to establish receipt"
+                )
+            result = replace(result, reuse_reason=explanation, input_fingerprint=before)
+        results.append(result)
+    after, after_reason = _inputs(repo_root) if proving else ("", "")
+    stable = bool(before) and before == after
+    if not stable:
+        for index, (check, result) in enumerate(zip(checks, results, strict=True)):
+            if result.reused_from:
+                results[index] = replace(
+                    run_check(check, repo_root, mode),
+                    reuse_reason=after_reason or "inputs changed during verification",
+                )
+    run_id = uuid.uuid4().hex
+    passed = all(r.status == "pass" for r in results)
+    receipts = (
+        tuple(
+            CheckReceipt(check.name, check.command, mode, before, run_id)
+            for check, result in zip(checks, results, strict=True)
+            if check.name in eligible and not result.reused_from
+        )
+        if capture_receipts and stable and passed
+        else ()
+    )
+    report = VerifyReport(
+        mode, tuple(results), run_id, receipts, round(time.perf_counter() - started, 3)
+    )
     write_run_artifact(repo_root, report)
     return report
 

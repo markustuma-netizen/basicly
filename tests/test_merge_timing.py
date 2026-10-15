@@ -168,6 +168,18 @@ def test_a_second_landing_appends_beside_the_first(tmp_path: Path) -> None:
     assert [entry["status"] for entry in _recorded(tmp_path)] == ["merged", "rebase-conflicts"]
 
 
+def test_successful_landing_carries_its_actual_verification_report(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _landed(monkeypatch)
+    report = verify.VerifyReport("full", (verify.CheckResult("types", "pass", 0),))
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: report)
+
+    result = merge.merge_worktree(tmp_path, "feat", bead=_BEAD)
+
+    assert result.verification is report
+
+
 def test_an_unreadable_log_costs_the_measurement_and_never_the_landing(tmp_path: Path) -> None:
     path = tmp_path / merge.LANDING_TIMINGS_FILE
     path.parent.mkdir(parents=True)

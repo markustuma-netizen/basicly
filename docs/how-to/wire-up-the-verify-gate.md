@@ -79,6 +79,51 @@ because it skips the check on every commit there is; this repo pins its own list
 against `git ls-files` in
 `tests/test_git_hooks/test_check_runner.py::test_every_declared_input_set_matches_something_in_this_repo`.
 
+## Reuse a proven compiler result during landing
+
+Legacy configurations need no changes. Checks run fresh unless they declare a
+reviewed recipe:
+
+```toml
+[[verify.checks]]
+name = "pyright-linux"
+command = ["pyright", "--pythonplatform", "Linux"]
+modes = ["full"]
+reuse = "pyright"
+```
+
+The loop carries the actual successful report from its pre-merge verification.
+During post-merge verification, it can reuse a matching compiler result.
+Ordinary `basicly verify` and Git hooks still execute their checks afresh.
+The `inputs` globs above select staged checks and cannot establish reusable proof.
+
+The initial recipe supports bundled Pyright 1.1.411 through its reviewed POSIX console launcher
+and an existing global Node executable. It supports the Linux, Darwin and Windows
+analysis targets. Windows hosts and unsupported launcher strategies run fresh.
+The project must configure `.venv` under its checkout in `pyproject.toml`.
+External search paths, configuration inheritance and other unsupported settings
+also run fresh.
+
+The receipt binds the command, mode, source names and contents, configuration,
+analysis environment, tool files, interpreter, Node executable and environment.
+It inventories Python sources and stubs, including untracked files, to detect new
+imports and shadowing. It excludes Git metadata and virtual environments from
+source discovery. Python files inside Node dependencies and bytecode directories
+remain inputs because explicit imports can reach them.
+Analysis search paths into excluded directories refuse reuse.
+Protected dotenv files are never read. Protected source inputs refuse reuse.
+
+The engine compares inputs before and after verification. A missing, failed,
+unsupported or changed receipt executes the check afresh. If another check
+changes inputs during post-merge verification, the borrowed checks execute again.
+Receipts stay within one process and one landing. They are never loaded from disk.
+Other checks, including tests, execute afresh.
+
+`.basicly/usage/verify-run.json` records the run identity, duration, disposition,
+source run and input fingerprint. `.basicly/usage/landing-timings.json` records
+the first landing and the post-merge verification separately. Match their
+`verify_run_id` and `source_run_id` fields when comparing elapsed times.
+
 ## Run it
 
 ```sh

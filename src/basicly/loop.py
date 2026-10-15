@@ -984,7 +984,13 @@ def _verify_and_land(
             evidence=_landing_evidence(result, mode),
         )
     held = _record_change_summary(ctx, changed, result)
-    return held if held is not None else _record_verify(ctx, result.detail, verify_mode=mode)
+    return (
+        held
+        if held is not None
+        else _record_verify(
+            ctx, result.detail, verify_mode=mode, landing_report=result.verification
+        )
+    )
 
 
 def _changed_paths(ctx: _Ctx, worktree_name: str) -> tuple[str, ...] | None:
@@ -1321,6 +1327,7 @@ def _build_children(ctx: _Ctx) -> AdvanceResult:
     items = [(_worktree_name(cid), cid) for cid, _ in children]
     live = {session.name for session in worktree.list_sessions(ctx.repo_root)}
     pending = [(name, cid) for name, cid in items if name in live]
+    landing_report = None
     if pending:
         results = merge.merge_queue(
             ctx.repo_root, pending, config=ctx.config, verify_mode=ctx.inputs.verify_mode
@@ -1330,18 +1337,31 @@ def _build_children(ctx: _Ctx) -> AdvanceResult:
             action = "escalated" if failed.escalate else "blocked"
             reason = f"merge failed for {failed.result.name}: {failed.result.detail}"
             return _blocked(ctx, reason, action=action)
+        landing_report = results[-1].result.verification if results else None
     detail = f"merged {len(pending)} child worktree(s)"
     if len(pending) < len(items):
         detail += f"; {len(items) - len(pending)} already self-landed"
-    return _record_verify(ctx, detail)
+    return _record_verify(ctx, detail, landing_report=landing_report)
 
 
-def _record_verify(ctx: _Ctx, detail: str, *, verify_mode: str | None = None) -> AdvanceResult:
+def _record_verify(
+    ctx: _Ctx,
+    detail: str,
+    *,
+    verify_mode: str | None = None,
+    landing_report: verify.VerifyReport | None = None,
+) -> AdvanceResult:
 
     summary = handoff.entry_verdict(ctx.repo_root, ctx.issue_id, handoff.CHANGE_SUMMARY)
     if not summary.admitted:
         return _blocked(ctx, summary.reason, needs_input="artifact")
-    report = verify.run_verify(ctx.repo_root, verify_mode or ctx.inputs.verify_mode)
+    mode = verify_mode or ctx.inputs.verify_mode
+    report = (
+        verify.run_verify(ctx.repo_root, mode, reuse=landing_report)
+        if landing_report is not None
+        else verify.run_verify(ctx.repo_root, mode)
+    )
+    merge.record_post_merge_verification(ctx.repo_root, ctx.issue_id, report, landing_report)
     gate_error = _record_gate(ctx, ctx.issue_id, report)
     if gate_error is not None:
         return _blocked(ctx, gate_error)

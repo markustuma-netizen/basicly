@@ -1143,7 +1143,7 @@ def test_merge_worktree_aborts_when_the_merge_commit_fails(
     monkeypatch.setattr(
         merge.verify,
         "run_verify",
-        lambda _p, _m: verify.VerifyReport(mode="full", results=()),
+        lambda _p, _m, **_kw: verify.VerifyReport(mode="full", results=()),
     )
 
     result = merge.merge_worktree(tmp_path, "feat", bead="proj-abc")

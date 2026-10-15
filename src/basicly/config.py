@@ -285,7 +285,7 @@ class ProjectPaths:
 _OPEN_TABLE = Table(open_keys=True)
 
 _VERIFY_CHECK_TABLE = Table(
-    keys=frozenset({"name", "command", "modes", "staged_suffix", "fix_command", "inputs"})
+    keys=frozenset({"name", "command", "modes", "staged_suffix", "fix_command", "inputs", "reuse"})
 )
 
 _RATCHET_TABLE = Table(
@@ -723,6 +723,7 @@ class VerifyCheck:
     modes: frozenset[str]
     staged_suffix: str | None = None
     fix_command: tuple[str, ...] | None = None
+    reuse: str | None = None
 
 
 @dataclass(frozen=True)
@@ -780,12 +781,17 @@ def _parse_verify_check(entry: object) -> VerifyCheck:
     ):
         raise ValueError(f"verify check {name!r} 'fix_command' must be a non-empty list of strings")
 
+    reuse = entry.get("reuse")
+    if reuse is not None and reuse != "pyright":
+        raise ValueError(f"verify check {name!r} 'reuse' must be 'pyright' or absent")
+
     return VerifyCheck(
         name=name.strip(),
         command=tuple(command),
         modes=frozenset(modes),
         staged_suffix=staged_suffix or None,
         fix_command=tuple(fix_command) if fix_command else None,
+        reuse=reuse,
     )
 
 
