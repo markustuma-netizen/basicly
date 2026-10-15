@@ -6,6 +6,17 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly can use a consumer-owned dependency graph to select checks against staged contents.
+This release also fixes validation retries and tracker hooks, and adds guarded reuse of unchanged Pyright checks.
+Existing verification stays broad unless a consumer enables the optional provider.
+
+- Affected checks: share snapshot execution between Git pre-commit and `basicly verify --affected`, with broad fallback and selection evidence (basicly-c25o52c.5).
+- Validation: preserve the latest consumer verdict and recurring gate outcomes across retries (basicly-c25o52c.2, basicly-c25o52c.4).
+- Tracker hooks: keep post-merge reads free of automatic commits (basicly-c25o52c.3).
+- Verification: reuse unchanged Pyright platform results only when input receipts match (basicly-2tfuwv).
+
+Multi-tech discovery, persistent caching and repository-size performance improvements remain future work.
+
 ## v0.24.1 - 2026-10-15
 
 Delta: v0.24.0..v0.24.1
