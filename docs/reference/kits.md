@@ -15,8 +15,9 @@ exception: they run from a user install, or from one `.basicly/<name>.pyz` file 
 ## Getting a kit
 
 **With basicly.** `basicly install` brings all three and wires the tier hook. It wires the
-tracker's `post-merge` fold only when `basicly.toml` sets `[tracker] fold_on_merge = true`,
-which is right only where one writer lands on the default branch. The engine also folds
+tracker's read-only `post-merge` reminder when `basicly.toml` sets `[tracker] fold_on_merge = true`.
+The reminder reports the explicit compaction command without changing the ledger or creating
+a commit. The engine folds
 at the seam that commits tracker state, with a record id the commit-msg gate accepts.
 
 **Without basicly.** One line each, and no dependency beyond a Python 3.9 floor:
@@ -60,7 +61,7 @@ flag `init` says the block is available and where to read it.
 | Kit | Files vendored | Skill roots | Host or repository configuration |
 | --- | --- | --- | --- |
 | `comments` | 10 | `.claude/skills/comments`, `.agents/skills/comments` | none |
-| `tracker` | 24 | `.claude/skills/tracker`, `.agents/skills/tracker` | `.gitattributes` gains `events-*.jsonl` and `pending-*.jsonl`, each `-text merge=union`; `.gitignore` gains the snapshot, checkpoint and vendored-cache paths; a `post-merge` git hook folds pending shards |
+| `tracker` | 24 | `.claude/skills/tracker`, `.agents/skills/tracker` | `.gitattributes` gains `events-*.jsonl` and `pending-*.jsonl`, each `-text merge=union`; `.gitignore` gains the snapshot, checkpoint and vendored-cache paths; an optional read-only `post-merge` reminder reports pending shards |
 | `tier` | 7 | `.claude/skills/tier`, `.agents/skills/tier` | a `PreToolUse`/`Agent` hook in `.claude/settings.json`, pointing at the vendored hook |
 
 [measured 2026-09-16 by installing each kit from its own built wheel into a fresh `git init`
@@ -125,13 +126,12 @@ the fields for older open records. A placeholder counts as absent, and a ledger
 `template.json` can extend or replace the rule. The engine's own readiness check calls the
 same rule and adds only its per-type sections.
 
-**A `post-merge` hook can keep the shard count bounded, and is off by default.** A fold
-edits the trunk log, so where the default branch takes pull requests two folds conflict;
-`init --fold-on-merge` wires it for a repository with one writer. It folds only on the
-default branch, and **only when the ledger is the sole uncommitted change**. A developer with work in progress is left entirely
-alone, because a hook that rewrites your tree on every pull is worse than the shards it
-removes. It honours `core.hooksPath`, merges into a hook somebody else wrote rather than
-replacing it, and `uninstall` removes exactly its own marked block.
+**The optional post-merge reminder is read-only and off by default.**
+`init --fold-on-merge` reports pending shards on the default branch when there is local
+work to push and no unrelated working-tree changes. It never folds, stages or commits,
+so it does not launch commit hooks. Run the reported compaction command outside hooks;
+every ledger read includes pending shards until then. The reminder honours
+`core.hooksPath`, preserves foreign hook content, and `uninstall` removes its own marked block.
 
 **`board` is a file, not a server.** It writes one HTML page with its style and its
 dependency drawing inline — no script, no linked stylesheet, no network — so it opens

@@ -50,13 +50,16 @@ def test_an_absent_kit_leaves_the_hook_unwired(tmp_path: Path, rooted, capsys) -
     assert "no merge folds the pending shards" in capsys.readouterr().out
 
 
-def test_the_hook_resolves_the_engine_at_run_time_not_install_time(tmp_path: Path, rooted) -> None:
+def test_the_hook_reports_the_pinned_engine_command_without_resolving_an_interpreter(
+    tmp_path: Path, rooted
+) -> None:
     rooted(_repo(tmp_path, vendored=True))
 
     assert cli.cmd_tracker_hook(argparse.Namespace()) == 0
 
     written = (tmp_path / ".git" / "hooks" / "post-merge").read_text(encoding="utf-8")
-    assert "command -v basicly" in written
+    assert "printf" in written
+    assert "outside Git hooks" in written
     assert "basicly tracker fold" in written
     assert UVX_COMMAND in written
     assert str(Path(sys.executable).parent) not in written
@@ -70,7 +73,9 @@ def test_the_hook_advises_the_pinned_command_a_consumer_can_always_run(
     cli.cmd_tracker_hook(argparse.Namespace())
 
     written = (tmp_path / ".git" / "hooks" / "post-merge").read_text(encoding="utf-8")
-    advice = written.split("are not folded; run ", 1)[1].split("'", 1)[0]
+    advice = written.split("pending shards are unchanged; run ", 1)[1].split(
+        " outside Git hooks", 1
+    )[0]
     assert advice == f"{UVX_COMMAND} {cli.FOLD_COMMAND}"
 
 
@@ -140,7 +145,7 @@ def test_a_repository_that_does_not_opt_in_gets_no_fold(tmp_path: Path, rooted, 
     assert cli.cmd_tracker_hook(argparse.Namespace()) == 0
 
     assert not (tmp_path / ".git" / "hooks" / "post-merge").exists()
-    assert "no post-merge fold is wired" in capsys.readouterr().out
+    assert "no post-merge reminder is wired" in capsys.readouterr().out
 
 
 def test_opting_out_removes_a_fold_already_wired(tmp_path: Path, rooted) -> None:

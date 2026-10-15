@@ -99,7 +99,7 @@ def _commits(root: Path) -> int:
 
 
 @pytest.mark.parametrize("ahead", [False, True], ids=["pull-only", "local-work-control"])
-def test_a_pull_with_nothing_to_push_creates_no_commit(
+def test_a_post_merge_hook_never_compacts_or_commits_even_with_local_work(
     repo: Path, tmp_path: Path, ahead: bool
 ) -> None:
     _write(repo, "demo-shard", writer=WRITER)
@@ -117,7 +117,9 @@ def test_a_pull_with_nothing_to_push_creates_no_commit(
         _git(clone, "commit", "-qm", "local work to push")
     before = _commits(clone)
 
+    ledger_before = {p.name: p.read_bytes() for p in (clone / LEDGER).glob("*.jsonl")}
     subprocess.run(["sh", "-c", _hook_body()], cwd=clone, check=True)
 
-    assert _commits(clone) == before + (1 if ahead else 0)
+    assert _commits(clone) == before
+    assert {p.name: p.read_bytes() for p in (clone / LEDGER).glob("*.jsonl")} == ledger_before
     assert _git(clone, "status", "--porcelain").stdout.strip() == ""

@@ -37,7 +37,7 @@ module docstring, and gated by `.scripts/docs_claims.py`.
 
 | Hook | Stage | Manager | Script | Purpose |
 | --- | --- | --- | --- | --- |
-| `tracker-fold` | `post-merge` | `git` | [`tracker-fold.py`](tracker-fold.py) | Fold tracker shards after a merge when the repository opted in. |
+| `tracker-fold` | `post-merge` | `git` | [`tracker-fold.py`](tracker-fold.py) | Report pending tracker shards after a merge without changing the repository. |
 | `tier-injection` | `pretooluse` | `claude` | [`../kit/tier/claude_tier_hook.py`](../kit/tier/claude_tier_hook.py) | Resolve a Claude spawn's declared model tier. |
 | `protect-generated-codex` | `pretooluse` | `codex` | [`protect-generated.py`](protect-generated.py) | Block every generated-file path affected by a Codex patch. |
 | `session-start-codex` | `sessionstart` | `codex` | [`session-start.py`](session-start.py) | Put the ledger's orientation in Codex's context at session open. |

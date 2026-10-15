@@ -69,10 +69,9 @@ mode = "owned"
 # The id prefix is not set here. Its one home is `.basicly/ledger/template.json`, which
 # the engine and the tracker kit both read (basicly-9pyaygb.7).
 
-# Fold writer shards after a merge. Safe only where one writer lands on the default
-# branch, as the engine does here; a repository that takes pull requests leaves it off and
-# runs `basicly tracker fold` as its own pull request (basicly-k1pxru4.3, measured on
-# the testbed: every automatic fold outside one writer made a pull request conflict).
+# Report pending writer shards after a merge without changing the ledger or creating
+# a commit. The loop folds at its explicit tracker commit boundaries; consumers can
+# run `basicly tracker fold` outside Git hooks when needed.
 fold_on_merge = true
 
 # Sibling git-worktree isolation for harness tracks.
