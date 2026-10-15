@@ -82,6 +82,7 @@ def write_run_artifact(repo_root: Path, report: RunVerdict) -> Path | None:
         "mode": report.mode,
         "recorded_at": datetime.now(UTC).isoformat(),
         "passed": report.passed,
+        "selection": getattr(report, "selection", None),
         "run_id": report.run_id,
         "duration_s": report.duration_s,
         "receipts": [

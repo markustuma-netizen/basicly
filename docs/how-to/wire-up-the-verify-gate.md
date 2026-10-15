@@ -40,12 +40,14 @@ modes = ["full"]
 
 | Mode | Runs | Put here |
 | --- | --- | --- |
-| `staged` | the pre-commit hook, against staged files of `staged_suffix` | lint and format — fast, file-local |
-| `fast` | `basicly verify`, and any phase re-running the checks | lint, type check, a quick unit subset |
-| `full` | the build→verify landing (`--mode full` is the loop's default) | the whole suite |
+| `staged` | `basicly verify --mode staged`, with suffix-matching staged paths appended | file-local lint and format |
+| `fast` | pre-commit, or `basicly verify --mode fast` | lint, type check, a quick unit subset |
+| `full` | ordinary `basicly verify`, pre-push and loop landings | the whole suite |
 
-A `staged` check with no `staged_suffix` runs against everything staged. A
-configured command that is missing from `PATH` fails the run with a one-line
+A `staged` check without `staged_suffix` receives no filenames and uses its
+configured command's scope. Add `--affected` to validate index contents from the
+CLI; ordinary verification reads the working tree. A configured command that is
+missing from `PATH` fails the run with a one-line
 message rather than being skipped — a check you cannot run is not a check that
 passed.
 
@@ -78,6 +80,93 @@ skipped fails on the rebased tree instead. A glob that matches nothing is worse,
 because it skips the check on every commit there is; this repo pins its own lists
 against `git ls-files` in
 `tests/test_git_hooks/test_check_runner.py::test_every_declared_input_set_matches_something_in_this_repo`.
+
+## Select checks with a consumer-owned dependency graph
+
+An optional provider can select existing checks from a graph your repository
+already owns. basicly does not infer language dependencies from this declaration:
+
+```toml
+[verify.affected]
+command = ["python3", ".scripts/affected-checks.py"]
+checks = ["ruff", "ruff-format"]
+timeout_seconds = 30
+```
+
+The named checks must already exist. Checks outside this list always run when
+the provider is configured. Git pre-commit uses the provider inside its staged
+snapshot. To request the same behavior explicitly:
+
+```sh
+basicly verify --affected
+```
+
+This command reads configuration and executes checks in a temporary copy of the
+index. An unstaged repair cannot hide a staged failure. It preserves the original
+index and working tree. `--affected` cannot combine with `--fix` or `--issue`;
+use ordinary verification to repair files or record a required gate.
+Ordinary verification, pre-push and loop landings retain broad checks.
+Existing installations need no configuration changes when upgrading.
+
+The provider receives one JSON document on stdin:
+
+```json
+{
+  "schema": "basicly-affected/v1",
+  "snapshot_tree": "<Git index tree id>",
+  "base_tree": "<HEAD tree id>",
+  "changes": [
+    {"status": "R100", "old_path": "old.py", "path": "new.py"}
+  ],
+  "checks": ["ruff", "ruff-format"]
+}
+```
+
+It returns that request unchanged, with four additional fields:
+
+```json
+{
+  "complete": true,
+  "selected": ["ruff", "ruff-format"],
+  "reasons": {"ruff": "changed Python owner", "ruff-format": "changed Python owner"},
+  "unverified": []
+}
+```
+
+The response must echo the complete request, including the change list.
+Explain every requested check, including checks left unselected. Additions carry
+`path`; deletions carry `old_path`; modifications carry both; renames and copies
+retain both names. The provider must account for shared configuration, lockfiles,
+dependents and unknown ownership using its actual graph. Return `complete: false`
+or nonempty `unverified` when it cannot answer. basicly validates the protocol and
+snapshot binding; graph completeness remains a claim of the consumer's provider.
+
+Missing, invalid, stale, failed or timed-out responses run all checks in the
+requested mode and report the fallback. Responses over one MiB also fall back.
+Provider execution is bounded by the configured timeout, at most 300 seconds.
+Other untracked inputs prevent selective execution. The prepared `.venv`,
+`node_modules`, `build/lefthook` and `.basicly/usage` links are runtime metadata.
+A provider that changes snapshot inputs fails verification before checks run.
+
+Git writes selection and command outcomes to
+`.basicly/usage/affected-run.json`. The CLI records selection, fallback reasons,
+executed checks and skipped checks in `.basicly/usage/verify-run.json`.
+The selection records the provider request and bounded stdout/stderr diagnostic
+paths under `.basicly/usage/affected-provider.*`.
+Unselected checks did not execute; they are not cached passes. This integration
+adds no build-system dependency or persistent result cache.
+
+Maintainers can validate a built wheel outside this checkout:
+
+```sh
+BASICLY_BASELINE_WHEEL=/path/to/released.whl BASICLY_VALIDATION_WHEEL=/path/to/candidate.whl uv run python .scripts/validate_affected_consumer.py
+```
+
+Provide prepared wheels and offline Python dependencies. The script downloads
+nothing. It exercises native commits, partial staging, graph dependents,
+unrelated checks, foreign hooks, fresh installation and upgrade. It reports
+command counts and three warm hook samples separately from repository setup.
+Its small Python fixture does not establish mixed-stack scaling performance.
 
 ## Reuse a proven compiler result during landing
 

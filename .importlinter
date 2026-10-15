@@ -88,6 +88,7 @@ layers =
     automode_trust | base_lock | catalog_routing | catalog_source | checkout | copilot_tools | dropin | integrity | needs_input | plan_record | legacy_hooks | projection | read_cost | redact | review | roles | scaffolds | schema | session | tracker_usage | tree_schema | ui | usage | verify_artifact
     tracker_paths
     verify_receipt
+    affected
     catalog | stemmer
 # One cycle survives as a function-level import carrying `# noqa: PLC0415`; the
 # top-level direction is the one the tiers encode. Listing it here is not a

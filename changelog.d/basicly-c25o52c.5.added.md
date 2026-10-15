@@ -1,0 +1,1 @@
+- Add optional consumer-owned affected-check providers for Git pre-commit and `basicly verify --affected`, with shared index-snapshot execution, rename-aware inputs, broad fallback and recorded selection evidence. Existing verification and upgrades retain their defaults.
