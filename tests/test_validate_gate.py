@@ -10,7 +10,7 @@ from basicly import integrity, loop, loop_state, policy, validate_gate, wip
 from basicly.config import ENGINE_GATE_PROVIDERS, LOOP_PHASES, VERIFY_GATE_PROVIDER, PolicyConfig
 from basicly.loop_state import WorktreeBinding
 from basicly.policy import GateStatus
-from tests import fake_tracker
+from tests import fake_tracker, flipped_tracker
 
 CONFIG = PolicyConfig(required_gates=("verify",), max_rework=2)
 GATE = validate_gate.VALIDATE_GATE
@@ -286,6 +286,31 @@ def test_the_engine_records_the_verdict_under_its_own_provider(
     provider = calls[0][calls[0].index("--provider") + 1]
     assert provider in ENGINE_GATE_PROVIDERS
     assert calls[0][calls[0].index("--status") + 1] == "pass"
+
+
+@pytest.mark.parametrize(
+    "verdicts",
+    [(False, True, False), (True, False, True), (True, True), (False, False)],
+    ids=["fail-pass-fail", "pass-fail-pass", "repeated-pass", "repeated-fail"],
+)
+def test_validation_retries_keep_each_attempt_and_latest_result(
+    tmp_path: Path, verdicts: tuple[bool, ...]
+) -> None:
+    repo = flipped_tracker.flipped_repo(tmp_path)
+    issue = "fx-1"
+    flipped_tracker.seed(repo, issue, title="Consumer validation retry")
+    config = PolicyConfig(required_gates=(GATE,), max_rework=2)
+
+    for attempt, passed in enumerate(verdicts, start=1):
+        validate_gate.record_verdict(repo, issue, passed=passed)
+
+        status = policy.gate_status(repo, issue, config)
+        assert status.required_missing == ()
+        assert status.can_advance is passed
+        events = flipped_tracker.ledger_events(repo)
+        assert [event.payload["passed"] for event in events if event.kind == "gate"] == list(
+            verdicts[:attempt]
+        )
 
 
 def _modules_spelling_the_gate() -> dict[str, int]:
