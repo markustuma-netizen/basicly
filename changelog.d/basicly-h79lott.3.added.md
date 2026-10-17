@@ -1,0 +1,1 @@
+- Add a repeatable source-checkout measurement of four native consumer workflows, preserving actual commands, timings, blocked outcomes and explicit measurement limits.
