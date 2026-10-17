@@ -77,6 +77,7 @@ def at(monkeypatch: pytest.MonkeyPatch):
         monkeypatch.setattr(loop.validate_gate, "_read_record", lambda *_a, **_k: shaped)
         monkeypatch.setattr(loop, "_hold_for_this_session", lambda _ctx: None)
         monkeypatch.setattr(loop.process_confirmation, "confirm", lambda *_a: None)
+        monkeypatch.setattr(loop.tracker, "check_close", lambda *_a: None)
 
     return _pin
 
@@ -3410,7 +3411,7 @@ def test_ship_authoritative_close_refusal_preserves_worktree(
     def refused(*_a, **_k) -> None:
         raise RuntimeError("confirmation was invalidated during completion")
 
-    monkeypatch.setattr(loop, "_write", refused)
+    monkeypatch.setattr(loop.tracker, "check_close", refused)
     torn: list[str] = []
     monkeypatch.setattr(worktree, "cleanup", lambda name, **_k: torn.append(name))
     result = _advance(tmp_path)

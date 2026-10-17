@@ -337,6 +337,11 @@ def write(repo_root: Path, args: list[str]) -> WriteReceipt:
     return _appended(repo_root, args)
 
 
+def check_close(repo_root: Path, record: str, reason: str) -> None:
+    _refuse_write_in_read_only(["close", record, "--reason", reason])
+    owned_write.check_close(repo_root, record, reason)
+
+
 def create_record(repo_root: Path, args: list[str]) -> str:
 
     _refuse_write_in_read_only(args)

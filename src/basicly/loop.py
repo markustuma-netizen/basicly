@@ -416,13 +416,15 @@ def _on_ship(ctx: _Ctx) -> AdvanceResult:
     refused = process_confirmation.confirm(ctx.repo_root, ctx.issue_id)
     if refused is not None:
         return _blocked(ctx, refused, needs_input="confirmation")
+    try:
+        tracker.check_close(ctx.repo_root, ctx.issue_id, "shipped by the harness loop")
+    except RuntimeError as exc:
+        return _blocked(ctx, f"completion refused before worktree cleanup: {exc}")
     curated = _dispatch_curation(ctx)
     rolled = cost_rollup.record(ctx.repo_root, ctx.issue_id)
-    refused = _close_record(ctx, ctx.issue_id, "shipped by the harness loop")
+    refused = _cleanup_then_close(ctx, binding)
     if refused is not None:
-        return _blocked(ctx, f"completion refused before worktree cleanup: {refused}")
-    if binding is not None:
-        worktree.cleanup(binding.name, force=False, repo_root=ctx.repo_root, missing_ok=True)
+        return _blocked(ctx, refused)
     committed = merge.commit_tracker_state(
         ctx.repo_root, ctx.issue_id, action="close the shipped track"
     )
@@ -435,6 +437,16 @@ def _on_ship(ctx: _Ctx) -> AdvanceResult:
     else:
         detail += _skipped_tracker_suffix(ctx)
     return _moved(ctx, "done", "tore-down", detail)
+
+
+def _cleanup_then_close(ctx: _Ctx, binding: loop_state.WorktreeBinding | None) -> str | None:
+    if binding is not None:
+        try:
+            worktree.cleanup(binding.name, force=False, repo_root=ctx.repo_root, missing_ok=True)
+        except (SystemExit, OSError, RuntimeError) as exc:
+            return f"worktree cleanup incomplete; retry ship after resolving: {exc}"
+    refused = _close_record(ctx, ctx.issue_id, "shipped by the harness loop")
+    return f"cleanup completed but closing refused; retry ship: {refused}" if refused else None
 
 
 def _dispatch_curation(ctx: _Ctx) -> str:

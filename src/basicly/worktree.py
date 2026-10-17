@@ -8,7 +8,7 @@ from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from . import checkout, tracker_paths, worktree_contents
+from . import checkout, tracker_paths, verify_log, worktree_contents, worktree_preservation
 from .checkout import (
     current_branch,
     git,
@@ -18,7 +18,7 @@ from .checkout import (
     run,
     worktrees_root,
 )
-from .config import load_project_paths
+from .config import load_project_paths, load_verify_config
 from .hooks import hook_stages, install_hooks, load_hook_specs
 
 BRANCH_PREFIX = "harness/"
@@ -342,15 +342,31 @@ def _worktree_removal_verdict(worktree: Path) -> RemovalVerdict:
             indeterminate=True,
         )
     try:
-        retained = "\n".join(
-            line
-            for line in proc.stdout.splitlines()
-            if not worktree_contents.owned_bytecode_cache(worktree, line)
-            and not worktree_contents.owned_lefthook_assets(worktree, line)
+        retained = []
+        preserve: set[Path] = set()
+        failure_logs = tuple(
+            verify_log.log_path(worktree, check.name).name
+            for check in load_verify_config(worktree).checks
         )
-    except OSError as exc:
+        for line in proc.stdout.splitlines():
+            generated = worktree_contents.generated_files(worktree, line, failure_logs=failure_logs)
+            if generated is not None:
+                preserve.update(generated)
+            elif not worktree_contents.owned_lefthook_assets(worktree, line):
+                retained.append(line)
+        verdict = classify_worktree_tree(proc.returncode, "\n".join(retained))
+        if preserve and verdict.may_remove:
+            tracked = set(git(["ls-files", "-z"], cwd=worktree).stdout.split("\0"))
+            held = [path for path in preserve if path.relative_to(worktree).as_posix() in tracked]
+            if held:
+                return RemovalVerdict(False, f"generated artifact is tracked: {held[0]}")
+        return RemovalVerdict(
+            verdict.may_remove, verdict.holds, verdict.indeterminate, tuple(sorted(preserve))
+        )
+    except ValueError as exc:
+        return RemovalVerdict(False, str(exc))
+    except (OSError, RuntimeError) as exc:
         return RemovalVerdict(False, f"managed worktree artifacts could not be read: {exc}", True)
-    return classify_worktree_tree(proc.returncode, retained)
 
 
 def _assert_removable_checkout(main: Path, worktree: Path, branch: str | None) -> None:
@@ -403,6 +419,11 @@ def cleanup(
             )
         if verdict.indeterminate:
             print(f"  warning: forcing removal of {name!r} despite {verdict.holds}")
+        if not force:
+            manifest = worktree_preservation.preserve(main, worktree, verdict.preserve)
+            final = _worktree_removal_verdict(worktree)
+            if not final.may_remove or not worktree_preservation.matches(worktree, final, manifest):
+                raise SystemExit(f"worktree changed during artifact preservation: {final.holds}")
         git(["worktree", "remove", "--force", str(worktree)], cwd=main)
     git(["worktree", "prune"], cwd=main, check=False)
 

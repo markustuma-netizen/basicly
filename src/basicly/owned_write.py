@@ -120,6 +120,42 @@ def _refuse_a_retraction_of_an_absent_edge(
         edges.refuse_retraction(views, draft.record, target, edge_type)
 
 
+def _admitted(repo_root: Path, args: Sequence[str], kit_module: Any, repeat: bool) -> list[Any]:
+    events = kit_module.events
+    ledger = owned_store.ledger_dir(repo_root)
+    drafts = mirror.drafts(kit_module, _resolve_labels(kit_module, ledger, args), "")
+    _refuse_a_write_that_records_nothing(args, drafts)
+    refuse_a_write_to_an_absent_record(kit_module, ledger, " ".join(args), drafts)
+    _refuse_a_retraction_of_an_absent_edge(kit_module, repo_root, ledger, drafts)
+    held = events.fold(events.read_events(ledger)[0]).records if ledger.is_dir() else {}
+    holders = owned_store.kit(repo_root, "holders")
+    drafts = holders.claimed_by(held, drafts, holders.default_holder(repo_root))
+    holders.refuse(held, drafts)
+    owned_store.kit(repo_root, "review").refuse(
+        held,
+        drafts,
+        resolved_actor(repo_root),
+        _template(repo_root),
+        found=kit_module.read_ledger(ledger),
+    )
+    stamped = _stamped(kit_module, drafts)
+    owned_store.kit(repo_root, "values").refuse(events, stamped, _template(repo_root))
+    return owned_store.kit(repo_root, "recurrence").at_the_generation_this_write_needs(
+        events, ledger, stamped, repeat=repeat, redact=redact.redact_committed
+    )
+
+
+def check_close(repo_root: Path, record: str, reason: str) -> None:
+    kit_module = owned_store.kit(repo_root)
+    events = kit_module.events
+    args = ["close", record, "--reason", reason]
+    try:
+        with events.LedgerLock(owned_store.ledger_dir(repo_root)):
+            _admitted(repo_root, args, kit_module, False)
+    except (events.LedgerError, OSError, ValueError) as exc:
+        raise TrackerDivergenceError(f"completion admission for {record} refused: {exc}") from exc
+
+
 def append(repo_root: Path, args: Sequence[str]) -> tuple[list[Any], list[Any]]:
 
     if args and args[0] in ("review", "confirm"):
@@ -143,27 +179,7 @@ def append(repo_root: Path, args: Sequence[str]) -> tuple[list[Any], list[Any]]:
     ledger = owned_store.ledger_dir(repo_root)
     try:
         with events.LedgerLock(ledger) as lock:
-            drafts = mirror.drafts(kit_module, _resolve_labels(kit_module, ledger, args), "")
-            _refuse_a_write_that_records_nothing(args, drafts)
-            refuse_a_write_to_an_absent_record(kit_module, ledger, " ".join(args), drafts)
-            _refuse_a_retraction_of_an_absent_edge(kit_module, repo_root, ledger, drafts)
-            held = events.fold(events.read_events(ledger)[0]).records if ledger.is_dir() else {}
-            holders = owned_store.kit(repo_root, "holders")
-            drafts = holders.claimed_by(held, drafts, holders.default_holder(repo_root))
-            holders.refuse(held, drafts)
-            review = owned_store.kit(repo_root, "review")
-            review.refuse(
-                held,
-                drafts,
-                resolved_actor(repo_root),
-                _template(repo_root),
-                found=kit_module.read_ledger(ledger),
-            )
-            stamped = _stamped(kit_module, drafts)
-            owned_store.kit(repo_root, "values").refuse(events, stamped, _template(repo_root))
-            stamped = owned_store.kit(repo_root, "recurrence").at_the_generation_this_write_needs(
-                events, ledger, stamped, repeat=repeat, redact=redact.redact_committed
-            )
+            stamped = _admitted(repo_root, args, kit_module, repeat)
             landed = events.append(
                 ledger,
                 stamped,
