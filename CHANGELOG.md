@@ -6,6 +6,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly 0.26.0 reduces compulsory context loading and tracker paperwork, preserves trusted Pyright evidence across cached verification and landing, and fixes consumer workflow interruptions. It keeps actual confirmation and safety checks in place. Broader reuse of full verification remains follow-up work.
+
+- Context and scope: use a short task contract and relevant design sections; keep repairs inside the approved outcome (basicly-h79lott.9, basicly-h79lott.1).
+- Tracker evidence: tasks, bugs and chores can use compact check plans without compulsory INVEST writeups or discussion comments; meaningful redacted results remain usable (basicly-h79lott.2).
+- Verification: reuse proven Pyright results with strict input invalidation, transfer their receipts into landing, stream progress and support fail-fast checks (basicly-c25o52c.6, basicly-h79lott.5, basicly-8vy4, basicly-nnimv3r).
+- Landing and cleanup: require confirmation before merge, preserve valid approval codes across retries, and preserve recognized generated artifacts automatically during teardown (basicly-swycwsh, basicly-9d8i3b9.2, basicly-ewepxov).
+- Consumer compatibility: use available command capabilities, ship portable role instructions, and exclude runtime telemetry from distributions (basicly-h79lott.4, basicly-h79lott.10, basicly-c25o52c.8).
+- Measurement: provide reproducible install/upgrade, small-fix, documentation and two-lane workflow measurements, with unavailable model-token and CPU metrics stated explicitly (basicly-h79lott.3).
+
 ## v0.25.1 - 2026-10-15
 
 Delta: v0.25.0..v0.25.1
