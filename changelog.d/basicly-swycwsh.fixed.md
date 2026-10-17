@@ -1,0 +1,1 @@
+- Refuse missing completion confirmation before landing changes the tracker or worktree, and name the command needed to record actual evidence.

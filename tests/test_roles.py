@@ -199,3 +199,32 @@ def test_the_reviewer_fanned_out_beside_validate_stays_cold_too() -> None:
 def test_a_dispatch_with_no_role_at_all_starts_cold() -> None:
     assert not roles.inherits_context(roles.role_for_phase("verify"))
     assert not roles.inherits_context(None)
+
+
+def test_portable_role_contains_the_delivered_body_without_native_metadata(tmp_path: Path) -> None:
+    root, suffix = roles.AGENT_ROOTS["claude"]
+    path = tmp_path / root / f"validator{suffix}"
+    path.parent.mkdir(parents=True)
+    path.write_text("---\nname: validator\ntools: Read\n---\n\nRun the real consumer.\n")
+    brief = roles.portable_role_brief(tmp_path, "validator")
+    assert "Run the real consumer." in brief
+    assert "tools:" not in brief
+    assert "name='validator'" in brief
+    assert roles.portable_role_brief(tmp_path, "missing") == ""
+
+
+@pytest.mark.parametrize(
+    ("scope", "lenses"),
+    [
+        (("docs/usage.md", "changelog.d/demo.changed.md"), ("correctness",)),
+        (("docs/**",), roles.REVIEW_LENSES),
+        (("docs/*.md",), roles.REVIEW_LENSES),
+        (("docs/agents.md",), roles.REVIEW_LENSES),
+        (("docs/AGENTS.md",), roles.REVIEW_LENSES),
+        (("docs/example.py",), roles.REVIEW_LENSES),
+        (("docs/usage.md", "src/app.py"), roles.REVIEW_LENSES),
+        ((), roles.REVIEW_LENSES),
+    ],
+)
+def test_review_selection_keeps_security_for_code_instructions_and_unknown_scope(scope, lenses):
+    assert tuple(item.lens for item in roles.lens_dispatches("validate", scope)) == lenses

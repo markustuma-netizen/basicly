@@ -11,6 +11,7 @@ INVEST = {
     "small": "The card has one bounded ledger behavior to confirm.",
     "testable": "Each criterion has an explicit command and observable expected result.",
 }
+COMPACT_DEBTS = ("## Confirmation Plan",)
 DEBTS = (
     *(f"## INVEST Review: {quality}" for quality in INVEST),
     "## Conversation",

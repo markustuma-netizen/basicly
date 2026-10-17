@@ -81,7 +81,7 @@ def test_completed_choice_posts_explicit_resolution_and_explains_gate() -> None:
     _run(r"""
 const bar = actionsBar({record:'ready',holder:{name:'operator'}}, '');
 find(bar, x => x.tag === 'button' && x.text === 'Close…').onclick();
-assert.match(bar.text, /current INVEST review and recorded results/);
+assert.match(bar.text, /current review and recorded results/);
 const reason = find(bar, x => x['aria-label'] === 'Closure reason');
 reason.value = 'Delivered and verified'; reason.listeners.input();
 find(bar, x => x.tag === 'button' && x.textContent === 'Close as completed').onclick();
@@ -97,7 +97,7 @@ const shown = {fields:{},process:{revision:'current',owed:[],
   confirmation:{revision:'current',checks:[{criterion:'The idea is saved',
     result:'one record observed',exit_code:0}]}}};
 const text = doneBlock(shown).text;
-assert.match(text, /INVEST review: recorded for this card/);
+assert.match(text, /Review: recorded for this card/);
 assert.match(text, /Confirmation: recorded for this card/);
 assert.match(text, /People can capture an idea/);
 assert.match(text, /Conversation references: 7/);
@@ -112,7 +112,7 @@ def test_stale_evidence_and_filled_fields_cannot_display_current_confirmation() 
 const shown = {fields:{acceptance_criteria:'a filled criterion'},process:{revision:'new',
   owed:['## INVEST Review'],review:{revision:'old'},confirmation:{revision:'old'}}};
 const text = doneBlock(shown).text;
-assert.match(text, /INVEST review: required/);
+assert.match(text, /Review: required/);
 assert.match(text, /Confirmation: required/);
 assert.match(text, /saved review does not cover the current card/);
 assert.ok(!text.includes('recorded for this card'));

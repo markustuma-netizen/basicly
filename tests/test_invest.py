@@ -8,7 +8,7 @@ import pytest
 
 from basicly import invest, owned_store, owned_write, tracker, tracker_query
 from tests.plan_fixtures import install_kit
-from tests.tracker_process_fixture import DEBTS, recorded_review
+from tests.tracker_process_fixture import COMPACT_DEBTS, DEBTS, recorded_review
 
 KIT_DIR = Path(__file__).resolve().parent.parent / ".basicly" / "core" / "kit" / "tracker"
 
@@ -141,8 +141,8 @@ def test_only_the_typed_field_satisfies_testable_on_an_open_record(tmp_path: Pat
         "acceptance_criteria": "given x then y",
         "requirements": "- a requirement",
     }
-    assert _missing(tmp_path, in_body) == (invest.ACCEPTANCE_HEADING, *DEBTS)
-    assert _missing(tmp_path, in_field) == DEBTS
+    assert _missing(tmp_path, in_body) == (invest.ACCEPTANCE_HEADING, *COMPACT_DEBTS)
+    assert _missing(tmp_path, in_field) == COMPACT_DEBTS
 
 
 def test_a_trigger_is_missing_by_its_own_name(tmp_path: Path) -> None:
@@ -151,7 +151,7 @@ def test_a_trigger_is_missing_by_its_own_name(tmp_path: Path) -> None:
         "acceptance_criteria": "given x then y",
         "requirements": "- a requirement",
     }
-    assert _missing(tmp_path, record) == (invest.TRIGGER_HEADING, *DEBTS)
+    assert _missing(tmp_path, record) == (invest.TRIGGER_HEADING, *COMPACT_DEBTS)
 
 
 @pytest.mark.parametrize("body", [_PATCHING, _USER_VOICE])
@@ -184,7 +184,7 @@ def test_integrated_readiness_refuses_incomplete_story_intent(
         "requirements": "standard library only",
     }
     assert invest.trigger_sentence(description) == ""
-    assert _missing(tmp_path, record) == (invest.TRIGGER_HEADING, *DEBTS)
+    assert _missing(tmp_path, record) == (invest.TRIGGER_HEADING, *COMPACT_DEBTS)
 
 
 @pytest.mark.parametrize(
@@ -242,4 +242,4 @@ def test_integrated_readiness_accepts_ordinary_todo_words(tmp_path: Path, descri
         "requirements": "standard library only",
     }
     assert invest.trigger_sentence(description) == description
-    assert _missing(tmp_path, record) == DEBTS
+    assert _missing(tmp_path, record) == COMPACT_DEBTS

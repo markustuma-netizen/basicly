@@ -86,7 +86,7 @@ def test_a_shaped_capture_reports_process_evidence_it_still_owes(
 
     assert cli.main(argv) == 0
 
-    assert "INVEST Review" in capsys.readouterr().err
+    assert "Confirmation Plan" in capsys.readouterr().err
 
 
 def test_a_close_prints_what_the_record_asked_for_before_claiming_it(

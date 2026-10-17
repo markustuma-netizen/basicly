@@ -58,14 +58,22 @@ def receipt_result(
     if receipt != CheckReceipt(name, command, mode, inputs, source.run_id):
         return None
     original = next((r for r in source.results if r.name == name), None)
-    if original is None or original.status != "pass" or original.reused_from:
+    if (
+        original is None
+        or original.status != "pass"
+        or original.returncode != 0
+        or original.command != command
+        or original.input_fingerprint != inputs
+    ):
         return None
     return replace(
         original,
         duration_s=0.0,
-        reused_from=source.run_id,
+        reused_from=original.reused_from or source.run_id,
         reuse_reason="matching same-landing inputs",
-        source_duration_s=original.duration_s,
+        source_duration_s=original.source_duration_s
+        if original.reused_from
+        else original.duration_s,
         input_fingerprint=inputs,
     )
 

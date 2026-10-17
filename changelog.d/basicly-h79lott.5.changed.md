@@ -1,0 +1,1 @@
+- Preserve trusted verification receipts across cached runs and landing, run cheap gates before pytest, and avoid repeating checks or approval requests solely for process transitions.

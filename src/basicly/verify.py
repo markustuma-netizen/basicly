@@ -351,7 +351,7 @@ def run_verify(
         tuple(
             CheckReceipt(check.name, check.command, mode, before, run_id)
             for check, result in zip(checks, results, strict=True)
-            if check.name in eligible and not result.reused_from
+            if check.name in eligible
         )
         if capture_receipts and stable and passed
         else ()

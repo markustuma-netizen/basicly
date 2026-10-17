@@ -14,6 +14,7 @@ from . import (
     decompose,
     owned_store,
     policy,
+    process_confirmation,
     rebase,
     run_record,
     tracker,
@@ -21,7 +22,7 @@ from . import (
     verify,
     write_preflight,
 )
-from .config import PolicyConfig, load_policy_config, load_worktree_config
+from .config import PolicyConfig, load_policy_config, load_verify_config, load_worktree_config
 from .worktree import Session, current_branch, git, load_session
 
 MERGE_GATE = "merge"
@@ -608,6 +609,23 @@ def merge_worktree(  # noqa: PLR0913 — one keyword per independent landing inp
     if session is None:
         raise SystemExit(f"no worktree session named {name!r}")
 
+    if known is not None:
+        commands = (
+            ()
+            if override_gate
+            else tuple(
+                check.command for check in load_verify_config(session.path).for_mode(verify_mode)
+            )
+        )
+        refused = process_confirmation.preflight(repo_root, bead, commands)
+        if refused is not None:
+            return MergeResult(
+                name,
+                "not-ready",
+                f"{refused}; run `basicly tracker write -- confirm {bead} --evidence "
+                "'<actual successful check evidence JSON>'` before landing",
+            )
+
     blocked = _pre_merge_state(repo_root, session, expected_head)
     clock.mark("preflight")
     if blocked is not None:
@@ -670,6 +688,17 @@ def _replay_verify_merge(
         clock.mark("verify")
         if gate is not None:
             return gate
+
+    if known_bead_ids(repo_root) is not None:
+        results = clock.report.results if clock.report is not None else ()
+        refused = process_confirmation.confirm(repo_root, bead, results)
+        if refused is not None:
+            return MergeResult(
+                name,
+                "not-ready",
+                f"{refused}; run `basicly tracker write -- confirm {bead} --evidence "
+                "'<actual successful check evidence JSON>'` before landing",
+            )
 
     probe = probe_merge(repo_root, base, branch)
     clock.mark("probe")

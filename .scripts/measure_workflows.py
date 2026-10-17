@@ -7,7 +7,7 @@ import json
 import os
 import platform
 import re
-import subprocess  # nosec B404 -- Execute explicit native consumer commands without a shell.
+import subprocess  # nosec B404 # Execute explicit native consumer commands without a shell.
 import sys
 import tempfile
 import threading
@@ -29,7 +29,7 @@ class Measurement(Proof):
 
     def run(self, argv: list[str | Path], cwd: Path) -> tuple[str, float, int]:
         started = time.perf_counter()
-        result = subprocess.run(  # nosec B603 -- Arguments are fixture-owned argv, never shell syntax.
+        result = subprocess.run(  # nosec B603 # Arguments are fixture-owned argv, never shell syntax.
             [str(arg) for arg in argv],
             cwd=cwd,
             env=self.env,

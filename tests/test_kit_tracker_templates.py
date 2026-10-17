@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 
-from tests.tracker_process_fixture import DEBTS, recorded_review
+from tests.tracker_process_fixture import COMPACT_DEBTS, DEBTS, recorded_review
 
 KIT_DIR = Path(__file__).parent.parent / ".basicly" / "core" / "kit" / "tracker"
 
@@ -101,9 +101,9 @@ def test_a_type_section_binds_only_records_of_that_type(
     _template(ledger, {"types": {"bug": ["## Steps to Reproduce"]}})
 
     bug = _create(ledger, capsys, *_shaped_args("--field", "issue_type=bug"))
-    assert bug["owed"] == ["## Steps to Reproduce", *DEBTS]
+    assert bug["owed"] == ["## Steps to Reproduce", *COMPACT_DEBTS]
     task = _create(ledger, capsys, *_shaped_args("--field", "issue_type=task"))
-    assert task["owed"] == list(DEBTS)
+    assert task["owed"] == list(COMPACT_DEBTS)
 
 
 def test_an_overriding_template_replaces_the_default_rule(
@@ -224,7 +224,7 @@ def test_a_template_pasted_unfilled_is_still_refused(
     argv = ["create", str(ledger), "--prefix", "acme", "--field", "issue_type=bug"]
     cli.main([*argv, "--description", shape["description"], *flags])
 
-    assert _report(capsys)["owed"] == [*shape["required"], *DEBTS]
+    assert _report(capsys)["owed"] == [*shape["required"], *COMPACT_DEBTS]
 
 
 def test_a_filled_template_passes_the_gate(

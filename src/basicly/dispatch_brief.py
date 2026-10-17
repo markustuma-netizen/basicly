@@ -15,8 +15,6 @@ VERDICT_PREFIX = "VALIDATION:"
 
 LANE_SCRATCH_DIR = Path(".basicly/usage/scratch")
 
-RELEASE_NOTES_GATE = Path(".scripts/check_release_notes.py")
-
 
 def validate_prompt(issue_id: str) -> str:
 
@@ -40,7 +38,8 @@ def curate_prompt(issue_id: str) -> str:
     return (
         f"{issue_id} has merged with verify and validate green, and it is about to ship. "
         "Your job is the one nothing mechanical can make: decide which of the claims this "
-        "release will put in front of a consumer are actually evidenced. Run "
+        "change will put in front of a consumer are actually evidenced. Issue ship closes "
+        "the record and removes its worktree; it does not tag, publish or push a release. Run "
         f"`basicly tracker show {issue_id}` for the requirement, its acceptance criteria and its "
         "demonstration command, and read the diff that closed it. For each claim, quote "
         "it in the words a consumer will read, and bind it to a test id, a command or a "
@@ -55,10 +54,12 @@ def curate_prompt(issue_id: str) -> str:
     )
 
 
-def review_prompt(issue_id: str, lens: str) -> str:
+def review_prompt(issue_id: str, lens: str, *, validation_status: str = "not recorded") -> str:
 
     prompt = (
-        f"The change for {issue_id} has merged and its gates are green. Review it along "
+        f"The change for {issue_id} has merged and verification passed. Consumer validation "
+        f"status: {validation_status}. Use that result as evidence when it helps explain a defect. "
+        "Review the change along "
         f"one axis and one only: {lens}. Run `basicly tracker show {issue_id}` for the "
         "requirement and "
         "the acceptance criteria it was built against, read the diff that closed it, and "
@@ -101,14 +102,14 @@ def dispatch_prompt(issue_id: str) -> str:
         f"write {needs_input.SENTINEL_FILE.as_posix()} as "
         '{"fact": "<the missing fact>", "detail": "<what you tried>"} and stop '
         "without committing a guess — the loop will block and surface it. "
-        "Whether this record owes a release note is not yours to judge: run "
-        f"`uv run python {RELEASE_NOTES_GATE.as_posix()} --landing {issue_id}` and do what "
-        "it says. The landing runs that same command before it merges and refuses on a "
-        "failure, and the two ways past it are "
-        f"changelog.d/{issue_id}.<added|changed|fixed|removed|deprecated|security>.md — "
-        "one `- ` bullet, under 400 characters — or an entry declaring the change "
-        "invisible to a consumer. Write it here: the release reads CHANGELOG.md from the "
-        "tagged commit and ship tears this worktree down before the refusal lands."
+        "If this repository declares a `release-notes` verification check, run its "
+        f"configured command with `--landing {issue_id}` and follow its result. "
+        "The landing enforces that configured check before merging. For a consumer "
+        f"change, write changelog.d/{issue_id}."
+        "<added|changed|fixed|removed|deprecated|security>.md "
+        "as one `- ` bullet under 400 characters, or use the repository's declaration "
+        "that the change is invisible to a consumer. Repositories without that check "
+        "follow their own release-note policy."
     )
 
 

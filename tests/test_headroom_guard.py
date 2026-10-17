@@ -87,3 +87,13 @@ def test_the_decision_omits_the_context_key_when_there_is_none() -> None:
     decision = json.loads(buffer.getvalue())["hookSpecificOutput"]
     assert decision["permissionDecision"] == "allow"
     assert "additionalContext" not in decision
+
+
+def test_a_consumer_without_the_authoring_tool_does_not_import_it(
+    tmp_path: Path, monkeypatch
+) -> None:
+    def unexpected_import(_root: Path):
+        raise AssertionError("consumer attempted to load authoring tooling")
+
+    monkeypatch.setattr(hook, "_load_headroom", unexpected_import)
+    assert hook.room_for(tmp_path, "src/app.py") is None
