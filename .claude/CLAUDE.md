@@ -76,9 +76,9 @@ IMPORTANT: never defeat a gate to make it pass. Do not skip or weaken a test, a 
 
 ## Ownership
 
-- You own basicly. You are responsible for the harness and for the process that develops it.
-- Improve both continuously: during development, and after each report from a user or a consumer.
-- When a defect, a refusal or a report shows a gap, fix the cause. Then add the gate, the test or the rule that stops it from happening again.
+- Own the approved outcome and the correctness of the harness changes it needs.
+- Fix the demonstrated cause and add the smallest effective regression or control within that outcome.
+- Record adjacent findings in the tracker. Implement them when they are necessary for the approved outcome or separately authorized.
 - Follow the current practice of the vendors and of community experts, unless it makes install, use or upgrade less safe for a person who makes a mistake.
 
 ## Project Overview
