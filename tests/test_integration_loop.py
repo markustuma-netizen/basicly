@@ -258,6 +258,32 @@ def test_a_leaf_lands_records_its_gate_and_closes(harness_repo: Path) -> None:
     assert _git(repo, "status", "--porcelain").strip() == ""
 
 
+def test_the_printed_ship_code_survives_the_native_ceremony_retry(harness_repo: Path) -> None:
+    repo = harness_repo
+    issue = _create_bead(repo, "answer the ship challenge")
+    _to_build(repo, issue)
+    state = loop_state.read_node_state(repo, issue)
+    assert state.worktree is not None
+    session = worktree.load_session(state.worktree.name, repo)
+    assert session is not None
+    tree = Path(session.worktree_path)
+    _commit(tree, "app.txt", "confirmed\n", f"feat: answer the challenge ({issue})")
+
+    first = loop.run_ceremony(repo, issue)
+    assert first.challenge is not None
+    checkpoint, code = first.challenge
+    assert checkpoint == "ship"
+    assert _status(repo, issue) != "closed"
+
+    retry = loop.run_ceremony(repo, issue, confirms={"ship": code})
+
+    assert retry.refused is None
+    assert not retry.blocked
+    assert _status(repo, issue) == "closed"
+    assert (repo / "app.txt").read_text() == "confirmed\n"
+    assert not tree.exists()
+
+
 def test_ship_refuses_a_leaf_whose_branch_never_merged(harness_repo: Path) -> None:
     repo = harness_repo
     issue = _create_bead(repo, "strand the work")

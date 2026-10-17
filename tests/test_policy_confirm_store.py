@@ -76,3 +76,43 @@ def test_a_reader_racing_a_write_never_sees_a_torn_confirm_store(
 
     assert mid_write == [before], "the store was not swapped in whole by one replace"
     assert policy._read_confirms(path) == after
+
+
+def test_repeated_challenges_preserve_the_code_and_its_original_expiry(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    issued_at = 1000.0
+    now = [issued_at]
+    codes = iter(["first-code", "second-code"])
+    monkeypatch.setattr(policy, "_now", lambda: now[0])
+    monkeypatch.setattr(policy, "_new_code", lambda: next(codes))
+
+    first = policy._issue_confirm_code(tmp_path, "i", "ship")
+    now[0] += 100
+    repeated = policy._issue_confirm_code(tmp_path, "i", "ship")
+    entry = policy._read_confirms(tmp_path / policy._CONFIRM_FILE)["i:ship"]
+
+    assert repeated == first
+    assert entry["expires"] == issued_at + policy.CONFIRM_TTL_SECONDS
+    assert not policy._consume_confirm_code(tmp_path, "i", "ship", "wrong-code")
+    assert not policy._consume_confirm_code(tmp_path, "other", "ship", first)
+    assert not policy._consume_confirm_code(tmp_path, "i", "classify", first)
+    assert policy._consume_confirm_code(tmp_path, "i", "ship", first)
+    assert not policy._consume_confirm_code(tmp_path, "i", "ship", first)
+
+
+def test_expired_challenges_are_replaced_without_reviving_the_old_code(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    now = [1000.0]
+    codes = iter(["expired-code", "fresh-code"])
+    monkeypatch.setattr(policy, "_now", lambda: now[0])
+    monkeypatch.setattr(policy, "_new_code", lambda: next(codes))
+
+    expired = policy._issue_confirm_code(tmp_path, "i", "ship")
+    now[0] += policy.CONFIRM_TTL_SECONDS + 1
+    fresh = policy._issue_confirm_code(tmp_path, "i", "ship")
+
+    assert fresh != expired
+    assert not policy._consume_confirm_code(tmp_path, "i", "ship", expired)
+    assert policy._consume_confirm_code(tmp_path, "i", "ship", fresh)
