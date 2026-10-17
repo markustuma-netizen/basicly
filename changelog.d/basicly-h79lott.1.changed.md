@@ -1,1 +1,0 @@
-- Keep repairs within the approved outcome, allow a reproducible first defect to proceed, and track adjacent improvements separately instead of requiring extra catalog work.

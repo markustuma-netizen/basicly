@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.26.0 - 2026-10-17
+
+Delta: v0.25.1..v0.26.0
+
 basicly 0.26.0 reduces compulsory context loading and tracker paperwork, preserves trusted Pyright evidence across cached verification and landing, and fixes consumer workflow interruptions. It keeps actual confirmation and safety checks in place. Broader reuse of full verification remains follow-up work.
 
 - Context and scope: use a short task contract and relevant design sections; keep repairs inside the approved outcome (basicly-h79lott.9, basicly-h79lott.1).
@@ -14,6 +18,40 @@ basicly 0.26.0 reduces compulsory context loading and tracker paperwork, preserv
 - Landing and cleanup: require confirmation before merge, preserve valid approval codes across retries, and preserve recognized generated artifacts automatically during teardown (basicly-swycwsh, basicly-9d8i3b9.2, basicly-ewepxov).
 - Consumer compatibility: use available command capabilities, ship portable role instructions, and exclude runtime telemetry from distributions (basicly-h79lott.4, basicly-h79lott.10, basicly-c25o52c.8).
 - Measurement: provide reproducible install/upgrade, small-fix, documentation and two-lane workflow measurements, with unavailable model-token and CPU metrics stated explicitly (basicly-h79lott.3).
+
+### Added
+
+- Opt into repository-local reuse of unchanged, proven Pyright results across CLI and loop verification, with original-run evidence, full input invalidation and a `--no-cache` fresh-run control. (basicly-c25o52c.6)
+
+- Add a repeatable source-checkout measurement of four native consumer workflows, preserving actual commands, timings, blocked outcomes and explicit measurement limits. (basicly-h79lott.3)
+
+### Changed
+
+- Keep repairs within the approved outcome, allow a reproducible first defect to proceed, and track adjacent improvements separately instead of requiring extra catalog work. (basicly-h79lott.1)
+
+- Select review lenses conservatively by scope, report actual validation status, supply delivered role instructions to Codex, and distinguish issue closure from release publication. (basicly-h79lott.10)
+
+- Small tasks, bugs and chores can record a check plan and actual results without compulsory INVEST writeups or discussion comments; meaningful redacted results remain valid. (basicly-h79lott.2)
+
+- Transfer trusted Pyright receipts from cached runs to landing, run base checks before pytest, and guide agents to reuse valid evidence and existing approvals. (basicly-h79lott.5)
+
+- Prime small tasks from a short architecture contract and task-relevant sections, with relevant source as the fallback when no guide exists, instead of requiring the whole architecture. (basicly-h79lott.9)
+
+- Add opt-in `verify.fail_fast` to stop verification after a failed check, report remaining checks as not run and preserve retry coverage; enable it for basicly itself. (basicly-nnimv3r)
+
+### Fixed
+
+- Stream named verification progress through the CLI and managed Lefthook Git hooks while checks run, preserving existing failures, foreign hooks and agent protocol output. (basicly-8vy4)
+
+- Keep an outstanding checkpoint confirmation code valid across ordinary loop retries without extending its expiry; approved ship retries now preserve single-use consent. (basicly-9d8i3b9.2)
+
+- Exclude runtime telemetry and local tool artifacts from built distributions; retain the complete harness catalog, verified offline Lefthook assets and consumer-owned runtime files. (basicly-c25o52c.8)
+
+- Preserve recognized verification and build artifacts with a recovery inventory, keep failed cleanup open and retryable, and record task closure only after teardown succeeds. (basicly-ewepxov)
+
+- Consumer dispatches follow the configured release-note capability and avoid loading an absent authoring-only headroom tool. (basicly-h79lott.4)
+
+- Require actual confirmation before merge; configured checks can supply it, and checks outside the gate get an early refusal with the command needed to record evidence. (basicly-swycwsh)
 
 ## v0.25.1 - 2026-10-15
 

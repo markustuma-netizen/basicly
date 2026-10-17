@@ -1,1 +1,0 @@
-- Require actual confirmation before merge; configured checks can supply it, and checks outside the gate get an early refusal with the command needed to record evidence.

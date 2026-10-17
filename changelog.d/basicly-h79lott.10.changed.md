@@ -1,1 +1,0 @@
-- Select review lenses conservatively by scope, report actual validation status, supply delivered role instructions to Codex, and distinguish issue closure from release publication.

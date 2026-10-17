@@ -1,1 +1,0 @@
-- Prime small tasks from a short architecture contract and task-relevant sections, with relevant source as the fallback when no guide exists, instead of requiring the whole architecture.

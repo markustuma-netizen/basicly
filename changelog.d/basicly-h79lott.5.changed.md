@@ -1,1 +1,0 @@
-- Transfer trusted Pyright receipts from cached runs to landing, run base checks before pytest, and guide agents to reuse valid evidence and existing approvals.

@@ -4,7 +4,7 @@ This is a walkthrough, not a reference. Follow it top to bottom on a **scratch
 git repo** and you will end with one unit of work filed, built in its own
 worktree, merged, and closed by the harness — one sitting, no agent spend.
 Every command and every quoted output below was executed against a fresh repo on
-basicly 0.25.1 in a real terminal, with that repo's generated bead-id prefix swapped for
+basicly 0.26.0 in a real terminal, with that repo's generated bead-id prefix swapped for
 `myrepo`, absolute paths written as `/path/to/...`, and `...` marking an elided line.
 
 When you want to look something up rather than learn the shape, stop here and
@@ -33,7 +33,7 @@ Every command below is written as bare `basicly`. Run it as the pinned form so
 you always get the version you chose:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly-0.25.1-py3-none-any.whl basicly <args>
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.0/basicly-0.26.0-py3-none-any.whl basicly <args>
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -47,7 +47,7 @@ uvx --from https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly
 From the repo root:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.25.1/basicly-0.25.1-py3-none-any.whl basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.0/basicly-0.26.0-py3-none-any.whl basicly install
 ```
 
 It ends with:
@@ -186,13 +186,14 @@ When a reader opens the repo, I want a one line getting started note, so I can r
 
 ```text
 created: myrepo-rq9r
-myrepo-rq9r is not ready: it owes ## INVEST Review: independent, ## INVEST Review: negotiable, ## INVEST Review: valuable, ## INVEST Review: estimable, ## INVEST Review: small, ## INVEST Review: testable, ## Conversation, ## Confirmation Plan; claim refuses it
+myrepo-rq9r is not ready: it owes ## Confirmation Plan; claim refuses it
 ...
 ```
 
-The record is filed, but the claim refuses it until someone has reviewed it. A review
-records three things: a rationale for each INVEST quality, the comments in which the work
-was agreed, and a check for each acceptance criterion. Write the agreement on the card
+The record is filed, but the claim refuses it until someone has reviewed it. Tasks, bugs
+and chores can submit a compact review containing only `checks`. This walkthrough uses
+the supported full review to show how to retain a real discussion: six INVEST rationales,
+conversation references and a check for each criterion. Write the agreement on the card
 first:
 
 ```sh
@@ -308,7 +309,7 @@ answers it:
 override: runner.default=manual
 Created worktree 'myrepo-rq9r'
   path:   /path/to/myrepo.worktrees/myrepo-rq9r
-  branch: harness/myrepo-rq9r  (base main @ 107c62e)
+  branch: harness/myrepo-rq9r  (base main @ 0f5fd05)
   .basicly/ledger/redirect: tracker shared with the base checkout
   hooks: post-merge, pre-commit, commit-msg, pre-push — repository-local Lefthook hooks installed
   ...
@@ -363,15 +364,15 @@ python3 .basicly/core/kit/tracker/cli.py confirm .basicly/ledger myrepo-rq9r --e
 basicly loop run myrepo-rq9r --runner manual
 ```
 
-`confirm` records the result of each planned check; the loop will not close the bead
-without it. Record it from the base checkout, because the tracker that `cli.py` writes in
+`confirm` records the result of each planned check; the loop requires actual confirmation
+before merge and will not close the bead without it. Record it from the base checkout, because the tracker that `cli.py` writes in
 the worktree is not the shared one.
 
 ```text
 override: runner.default=manual
   ...
 Cleaned up worktree 'myrepo-rq9r' (worktree + branch + metadata).
-[merged] build -> verify: merged harness/myrepo-rq9r @ 83cb2b573d35 (1 commit(s)) into main @ dc62084; landing 1.0s (tracker-commit 0.7s, merge 0.3s)
+[merged] build -> verify: merged harness/myrepo-rq9r @ 3cf2d510b7b0 (1 commit(s)) into main @ e3cb80d; landing 1.3s (tracker-commit 0.9s, merge 0.3s)
 [blocked] verify -> verify: ship checkpoint awaiting human approval
 checkpoint ship: APPROVED (myrepo-rq9r)
 [tore-down] ship -> done: worktree torn down and issue closed; cost rollup recorded; the curator bound no claims; tracker state committed
@@ -401,12 +402,12 @@ git log --oneline -6
 ```
 
 ```text
-d61b7f7 chore(tracker): close the shipped track (myrepo-rq9r)
-2b41b2f chore(worktree): merge a harness worktree back to its base
-e999d10 docs: add a getting started note (myrepo-rq9r)
-d6a3e55 chore(tracker): sync tracker state for the harness loop (myrepo-rq9r)
-d4966ee chore(tracker): record the claim before provisioning (myrepo-rq9r)
-289f98a chore: install basicly (myrepo-rq9r)
+51cae41 chore(tracker): close the shipped track (myrepo-rq9r)
+e3cb80d chore(worktree): merge a harness worktree back to its base
+3cf2d51 docs: add a getting started note (myrepo-rq9r)
+04bc139 chore(tracker): sync tracker state for the harness loop (myrepo-rq9r)
+0f5fd05 chore(tracker): record the claim before provisioning (myrepo-rq9r)
+277cbe4 chore: install basicly (myrepo-rq9r)
 ```
 
 You wrote two of those six — the install commit and the change itself. The

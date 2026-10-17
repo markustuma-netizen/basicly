@@ -1,1 +1,0 @@
-- Exclude runtime telemetry and local tool artifacts from built distributions; retain the complete harness catalog, verified offline Lefthook assets and consumer-owned runtime files.

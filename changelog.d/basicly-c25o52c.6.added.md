@@ -1,1 +1,0 @@
-- Opt into repository-local reuse of unchanged, proven Pyright results across CLI and loop verification, with original-run evidence, full input invalidation and a `--no-cache` fresh-run control.

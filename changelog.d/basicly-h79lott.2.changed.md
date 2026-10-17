@@ -1,1 +1,0 @@
-- Small tasks, bugs and chores can record a check plan and actual results without compulsory INVEST writeups or discussion comments; meaningful redacted results remain valid.

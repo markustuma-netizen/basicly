@@ -1,1 +1,0 @@
-- Consumer dispatches follow the configured release-note capability and avoid loading an absent authoring-only headroom tool.
