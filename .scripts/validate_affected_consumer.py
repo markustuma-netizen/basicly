@@ -51,6 +51,14 @@ class Proof:
     env: dict[str, str]
     engine: Path
     python: Path
+    calls_root: Path | None = None
+
+    def calls_file(self, repo: Path) -> Path:
+        return (
+            self.calls_root / (repo.name + ".log")
+            if self.calls_root is not None
+            else repo / ".basicly/usage/calls"
+        )
 
     def call(self, argv: list[str | Path], cwd: Path, expected: int = 0) -> tuple[str, float]:
         started = time.perf_counter()
@@ -115,8 +123,13 @@ class Proof:
         (repo / "provider.py").write_text(PROVIDER, encoding="utf-8")
         config = ""
         for check in ["library", "application", "unrelated", "guard"]:
+            destination = (
+                f"Path(os.environ['BASICLY_MEASUREMENT_LOG']) / {repo.name + '.log'!r}"
+                if self.calls_root is not None
+                else "Path('.basicly/usage/calls')"
+            )
             program = (
-                "from pathlib import Path; p=Path('.basicly/usage/calls'); "
+                f"from pathlib import Path; import os; p={destination}; "
                 "p.parent.mkdir(parents=True,exist_ok=True); "
                 + f"p.open('a').write('{check}\\n'); "
             )
@@ -234,7 +247,7 @@ class Proof:
         self.call(["git", "add", "--", "library.py"], repo)
         source.write_text("value = 1\n", encoding="utf-8")
         index, _ = self.call(["git", "diff", "--cached", "--binary"], repo)
-        calls = repo / ".basicly/usage/calls"
+        calls = self.calls_file(repo)
         before = calls.read_text().splitlines()
         foreign, _ = self.call(["git", "rev-parse", "--git-path", "foreign-count"], repo)
         foreign_path = repo / foreign.strip()
