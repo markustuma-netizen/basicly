@@ -9,7 +9,7 @@ from basicly import classify, policy, tracker
 from basicly.config import WORK_TYPES
 from tests import fake_tracker, flipped_tracker
 from tests.plan_fixtures import install_kit
-from tests.tracker_process_fixture import DEBTS, recorded_review
+from tests.tracker_process_fixture import COMPACT_DEBTS, DEBTS, recorded_review
 
 
 class _Proc:
@@ -208,7 +208,7 @@ def test_the_dor_verdict_comes_out_of_the_owned_record_with_br_absent(
     assert classify.classify(repo, "ready-1", "task").dor.ready is True
     verdict = classify.classify(repo, "bug-1", "bug").dor
     assert verdict.ready is False
-    assert verdict.missing == ("## Steps to Reproduce", *DEBTS)
+    assert verdict.missing == ("## Steps to Reproduce", *COMPACT_DEBTS)
 
 
 def test_a_classify_that_keeps_the_type_keeps_a_current_review(

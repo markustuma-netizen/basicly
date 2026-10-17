@@ -23,7 +23,7 @@ from basicly.config import (
 )
 from tests import fake_tracker, flipped_tracker
 from tests.plan_fixtures import install_kit
-from tests.tracker_process_fixture import DEBTS, recorded_review
+from tests.tracker_process_fixture import COMPACT_DEBTS, DEBTS, recorded_review
 
 
 class _Proc:
@@ -171,7 +171,7 @@ def test_dor_requires_acceptance_criteria_whatever_the_work_type(
         "## Trigger",
         "## Acceptance Criteria",
         "## Requirements",
-        *DEBTS,
+        *COMPACT_DEBTS,
     ))
 
 
@@ -202,7 +202,7 @@ def test_dor_keeps_other_missing_sections_when_adding_the_requirement(
         "## Steps to Reproduce",
         "## Acceptance Criteria",
         "## Requirements",
-        *DEBTS,
+        *COMPACT_DEBTS,
     ))
 
 
@@ -219,7 +219,7 @@ def test_dor_reads_the_required_sections_from_configuration(
         "## Repro",
         "## Acceptance Criteria",
         "## Requirements",
-        *DEBTS,
+        *COMPACT_DEBTS,
     ))
 
 
@@ -245,7 +245,7 @@ def test_dor_reads_an_extending_ledger_template(
         "## Requirements",
         "## Risks",
         "## Impact",
-        *DEBTS,
+        *COMPACT_DEBTS,
     ))
 
 
@@ -256,11 +256,11 @@ def test_dor_reads_an_overriding_ledger_template(
     _install(monkeypatch, _FakeBr(issue_type="bug", acceptance_criteria=None))
     assert policy.definition_of_ready(tmp_path, "i").missing == ((
         "## Goal",
-        *DEBTS,
+        *COMPACT_DEBTS,
     ))
 
     _install(monkeypatch, _FakeBr(issue_type="bug", description="## Goal\n\nship it\n"))
-    assert policy.definition_of_ready(tmp_path, "i").missing == DEBTS
+    assert policy.definition_of_ready(tmp_path, "i").missing == COMPACT_DEBTS
 
 
 def test_the_scaffold_emits_what_the_ledger_template_requires(tmp_path: Path) -> None:
@@ -288,8 +288,8 @@ def test_the_engine_and_the_kit_agree_on_a_template_section(
 
     engine = invest.missing_for(fields, "task", tmp_path, template=template)
 
-    assert engine == (*kit.owed(fields, template=template), *DEBTS)
-    assert engine == ((*(() if met else ("## Risks",)), *DEBTS))
+    assert engine == (*kit.owed(fields, template=template), *COMPACT_DEBTS)
+    assert engine == ((*(() if met else ("## Risks",)), *COMPACT_DEBTS))
 
 
 def test_dor_refuses_a_malformed_ledger_template(
@@ -328,7 +328,7 @@ def test_dor_structured_field_does_not_mask_other_missing_sections(
         "## Trigger",
         "## Steps to Reproduce",
         "## Requirements",
-        *DEBTS,
+        *COMPACT_DEBTS,
     ))
 
 

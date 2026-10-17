@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -47,12 +48,21 @@ def role_for_phase(phase: str) -> str | None:
     return ROLE_BY_PHASE.get(phase.strip().lower())
 
 
-def lens_dispatches(phase: str) -> tuple[RoleDispatch, ...]:
+def lens_dispatches(phase: str, scope: Sequence[str] = ()) -> tuple[RoleDispatch, ...]:
 
     role = LENS_ROLE_BY_PHASE.get(phase.strip().lower())
     if role is None:
         return ()
-    return tuple(RoleDispatch(role, lens) for lens in REVIEW_LENSES)
+    docs_only = bool(scope) and all(
+        (path in {"README.md", "CHANGELOG.md"} or path.startswith(("docs/", "changelog.d/")))
+        and path.endswith(".md")
+        and not any(marker in path for marker in "*?[]{}")
+        and Path(path).name.lower() not in {"agents.md", "claude.md", "skill.md"}
+        and not path.lower().endswith("instructions.md")
+        for path in scope
+    )
+    lenses = ("correctness",) if docs_only else REVIEW_LENSES
+    return tuple(RoleDispatch(role, lens) for lens in lenses)
 
 
 def role_is_available(repo_root: Path, family: str, role: str) -> bool:
@@ -89,3 +99,17 @@ def inherits_context(role: str | None) -> bool:
 def phase_inherits_context(phase: str) -> bool:
 
     return inherits_context(role_for_phase(phase))
+
+
+def portable_role_brief(repo_root: Path, role: str) -> str:
+    role = SUPERSEDED_ROLES.get(role.strip().lower(), role)
+    for root, suffix in AGENT_ROOTS.values():
+        path = repo_root / root / f"{role}{suffix}"
+        if not path.is_file():
+            continue
+        text = path.read_text(encoding="utf-8")
+        parts = text.split("---\n", 2)
+        if len(parts) != 3 or parts[0]:
+            raise ValueError(f"role {role!r} has invalid frontmatter at {path}")
+        return f"<role name={role!r}>\n{parts[2].strip()}\n</role>"
+    return ""

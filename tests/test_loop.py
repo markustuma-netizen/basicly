@@ -3434,3 +3434,31 @@ def test_subtask_authoritative_close_refusal_returns_blocked(
     ctx = loop._Ctx(tmp_path, "i", _state("build"), CONFIG, loop.Inputs())
     result = loop._run_subtask(ctx, "i.1", _session("i"), position=1, total=1)
     assert result.blocked and "subtask confirmation invalidated" in result.detail
+
+
+@pytest.mark.usefixtures("queued")
+def test_codex_receives_each_delivered_role_body_without_a_native_agent_flag(
+    at, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    at(_state("validate", gates=_validate_gates()))
+    _pin_runner(monkeypatch, "codex")
+    destination = tmp_path / ".claude/agents"
+    destination.mkdir(parents=True)
+    for role in ("validator", "reviewer"):
+        source = Path(__file__).resolve().parents[1] / ".claude/agents" / f"{role}.md"
+        (destination / f"{role}.md").write_bytes(source.read_bytes())
+    seen = []
+
+    def run(spec, prompt, _cwd, **kwargs):
+        seen.append((prompt, kwargs.get("role")))
+        return runner.RunResult(spec.name, tuple(spec.command), executed=True, returncode=0)
+
+    monkeypatch.setattr(runner, "run", run)
+    monkeypatch.setattr(loop, "record_run", lambda *_a, **_k: None)
+    monkeypatch.setattr(policy, "gate_status", lambda *_a: _validate_gates())
+    loop.advance(tmp_path, "i", config=CONFIG, inputs=loop.Inputs())
+    assert "<role name='validator'>" in seen[0][0]
+    assert "disposable consumer directory" in seen[0][0]
+    assert all("<role name='reviewer'>" in prompt for prompt, _ in seen[1:])
+    assert len(seen) == 3
+    assert all(role is None for _, role in seen)

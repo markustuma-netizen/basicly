@@ -365,12 +365,22 @@ def _dispatch_validation(ctx: _Ctx, gate: str) -> AdvanceResult | None:
 
 def _dispatch_reviews(ctx: _Ctx) -> None:
 
-    for dispatch in roles.lens_dispatches("validate"):
+    gates = policy.gate_status(ctx.repo_root, ctx.issue_id, ctx.config)
+    validation_status = (
+        "passed"
+        if validate_gate.VALIDATE_GATE in gates.required_passed
+        else "failed"
+        if validate_gate.VALIDATE_GATE in gates.required_failed
+        else "not recorded"
+    )
+    for dispatch in roles.lens_dispatches("validate", _declared_scope(ctx)):
         run = _run_agent(
             ctx,
             ctx.issue_id,
             ctx.repo_root,
-            prompt=dispatch_brief.review_prompt(ctx.issue_id, dispatch.lens),
+            prompt=dispatch_brief.review_prompt(
+                ctx.issue_id, dispatch.lens, validation_status=validation_status
+            ),
             phase="validate",
             role=dispatch.role,
         )
@@ -603,12 +613,13 @@ def _run_agent(  # noqa: PLR0913 — one keyword per independent fact about the 
     spec = runner.select_runner(config.specs, config.default, capable=runner.is_capable)
     prompt = prompt if prompt is not None else dispatch_prompt(issue_id)
     sizing = sizing_at_dispatch(ctx.repo_root, issue_id)
+    intended_role = role or roles.role_for_phase(phase)
     role = (
         roles.resolve_role(ctx.repo_root, spec, phase)
         if role is None
         else roles.resolve_named_role(ctx.repo_root, spec, role)
     )
-    prompt = _with_role_skills(ctx, spec, role, prompt, phase)
+    prompt = _with_role_skills(ctx, spec, intended_role, prompt, phase)
     with runner.process_budget().slot(runner.LANE):
         result = runner.run(
             spec,
@@ -634,7 +645,14 @@ def _with_role_skills(
     ctx: _Ctx, spec: runner.RunnerSpec, role: str | None, prompt: str, phase: str
 ) -> str:
 
-    names = dispatch_brief.brief_skills(ctx.repo_root, spec.name, role, ctx.state.issue_type, phase)
+    family = spec.name
+    if family == "codex":
+        intended_role = role or roles.role_for_phase(phase)
+        portable = roles.portable_role_brief(ctx.repo_root, intended_role) if intended_role else ""
+        if portable:
+            prompt = f"{portable}\n\n{prompt}"
+            family, role = "claude", intended_role
+    names = dispatch_brief.brief_skills(ctx.repo_root, family, role, ctx.state.issue_type, phase)
     if not names:
         return prompt
     brief, missing = dispatch_brief.skill_brief(ctx.repo_root, names)

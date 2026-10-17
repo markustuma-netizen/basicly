@@ -44,8 +44,10 @@ def test_the_dispatch_prompt_names_the_release_fragment_obligation() -> None:
 def test_the_dispatch_prompt_hands_the_release_note_judgement_to_the_gate() -> None:
 
     prompt = dispatch_brief.dispatch_prompt("i")
-    assert f"{dispatch_brief.RELEASE_NOTES_GATE.as_posix()} --landing i" in prompt
-    assert "not yours to judge" in prompt
+    assert "configured command with `--landing i`" in prompt
+    assert "If this repository declares" in prompt
+    assert ".scripts/" not in prompt
+    assert "without that check" in prompt
     assert "invisible to a consumer" in prompt
 
 
@@ -205,3 +207,14 @@ def test_a_unit_matching_nothing_leaves_the_prompt_unchanged(tmp_path: Path) -> 
 
     assert names == ()
     assert dispatch_brief.with_skills("do the work", brief, missing) == "do the work"
+
+
+def test_reviews_do_not_claim_that_failed_validation_is_green() -> None:
+    prompt = dispatch_brief.review_prompt("i", "correctness", validation_status="failed")
+    assert "validation status: failed" in prompt
+    assert "gates are green" not in prompt
+
+
+def test_issue_curation_does_not_authorize_release_publication() -> None:
+    prompt = dispatch_brief.curate_prompt("i")
+    assert "does not tag, publish or push a release" in prompt

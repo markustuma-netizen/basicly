@@ -54,6 +54,32 @@ def test_enabled_cache_reuses_only_proven_results_with_original_evidence(
     assert evidence["checks"][0]["disposition"] == "reused"
 
 
+def test_revalidated_cache_exports_a_transferable_receipt_with_original_execution_provenance(
+    tmp_path: Path, checks: list[str]
+) -> None:
+    cold = verify.run_verify(tmp_path, "full", _config())
+    warm = verify.run_verify(tmp_path, "full", _config(), capture_receipts=True)
+    landed = verify.run_verify(tmp_path, "full", replace(_config(), cache=False), reuse=warm)
+
+    assert checks == ["pyright", "pytest", "pytest", "pytest"]
+    assert warm.receipts
+    assert landed.results[0].reused_from == cold.run_id
+    assert landed.results[0].source_duration_s == cold.results[0].duration_s
+
+
+def test_a_transferable_receipt_with_a_mismatched_source_fingerprint_executes_again(
+    tmp_path: Path, checks: list[str]
+) -> None:
+    cold = verify.run_verify(tmp_path, "full", _config(), capture_receipts=True)
+    invalid = replace(
+        cold, results=(replace(cold.results[0], input_fingerprint="other"), *cold.results[1:])
+    )
+    landed = verify.run_verify(tmp_path, "full", replace(_config(), cache=False), reuse=invalid)
+
+    assert checks == ["pyright", "pytest", "pyright", "pytest"]
+    assert not landed.results[0].reused_from
+
+
 def test_fresh_control_does_not_read_or_replace_a_valid_cache(
     tmp_path: Path, checks: list[str]
 ) -> None:

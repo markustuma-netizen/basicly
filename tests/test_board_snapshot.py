@@ -17,7 +17,7 @@ from basicly import (
     owned_store,
     run_record,
 )
-from tests.tracker_process_fixture import DEBTS
+from tests.tracker_process_fixture import COMPACT_DEBTS
 
 REPO_ROOT = Path(__file__).parent.parent
 FIXTURE_LEDGER = REPO_ROOT / "tests" / "fixtures" / "board" / "ledger" / "events-0001.jsonl"
@@ -195,7 +195,7 @@ def test_the_units_and_graph_sections_pin_the_frozen_corpus(board_repo: Path) ->
         "status": "in_progress",
         "priority": "P1",
         "type": "task",
-        "owes": ["## Trigger", "## Acceptance Criteria", "## Requirements", *DEBTS],
+        "owes": ["## Trigger", "## Acceptance Criteria", "## Requirements", *COMPACT_DEBTS],
     }
     drawn = {row["id"] for row in document["units"]}
     edges = document["graph"]["edges"]
