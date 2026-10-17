@@ -1317,6 +1317,7 @@ _TRACKER_WIDE = (
 @pytest.fixture
 def confirmed_process_evidence(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(merge.process_confirmation, "confirm", lambda *_a, **_k: None)
+    monkeypatch.setattr(merge.process_confirmation, "preflight", lambda *_a, **_k: None)
 
 
 def _tracker(tmp_path: Path, *bead_ids: str) -> None:
