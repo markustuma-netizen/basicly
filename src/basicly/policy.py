@@ -708,10 +708,19 @@ def _confirm_store_lock(path: Path) -> AbstractContextManager[None]:
 
 def _issue_confirm_code(repo_root: Path, issue_id: str, name: str) -> str:
     path = repo_root / _CONFIRM_FILE
-    code = _new_code()
     with _confirm_store_lock(path):
         data = _read_confirms(path)
-        data[_confirm_key(issue_id, name)] = {
+        key = _confirm_key(issue_id, name)
+        entry = data.get(key)
+        if (
+            isinstance(entry, dict)
+            and isinstance(code := entry.get("code"), str)
+            and code
+            and _now() <= float(entry.get("expires", 0))
+        ):
+            return code
+        code = _new_code()
+        data[key] = {
             "code": code,
             "expires": _now() + CONFIRM_TTL_SECONDS,
         }

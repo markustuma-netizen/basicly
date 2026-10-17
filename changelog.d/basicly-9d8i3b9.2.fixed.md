@@ -1,0 +1,1 @@
+- Keep an outstanding checkpoint confirmation code valid across ordinary loop retries without extending its expiry; approved ship retries now preserve single-use consent.
