@@ -22,7 +22,7 @@ from . import (
     verify,
     write_preflight,
 )
-from .config import PolicyConfig, load_policy_config, load_worktree_config
+from .config import PolicyConfig, load_policy_config, load_verify_config, load_worktree_config
 from .worktree import Session, current_branch, git, load_session
 
 MERGE_GATE = "merge"
@@ -610,7 +610,14 @@ def merge_worktree(  # noqa: PLR0913 — one keyword per independent landing inp
         raise SystemExit(f"no worktree session named {name!r}")
 
     if known is not None:
-        refused = process_confirmation.confirm(repo_root, bead)
+        commands = (
+            ()
+            if override_gate
+            else tuple(
+                check.command for check in load_verify_config(session.path).for_mode(verify_mode)
+            )
+        )
+        refused = process_confirmation.preflight(repo_root, bead, commands)
         if refused is not None:
             return MergeResult(
                 name,
