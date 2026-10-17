@@ -13,6 +13,30 @@ across those boundaries, the invariants a change may not break, and the decision
 shaped it. [`conventions.md`](conventions.md) covers how the document itself is written
 and kept true.
 
+## Task contract
+
+For a small fix or documentation edit, this contract is the architecture priming.
+Read the README and applicable instructions, then follow the relevant route below.
+Read source before treating a design claim as current behavior. A repository-wide
+audit uses the full document and its source inventory.
+
+| Component | Current boundary |
+| --- | --- |
+| Catalog | YAML in `.basicly/core/` is projected into instructions, skills and hooks. This repository authors core; installed consumers keep their own overrides in `.basicly-local/`. |
+| Engine | `src/basicly/cli.py` exposes the commands. `loop.py` drives work whose phase derives from tracker facts in `loop_state.py`. |
+| Tracker | `.basicly/ledger/` is the shared append-only work ledger. The engine and standalone tracker kit use its common admission rules. |
+| Consumer kit | `.basicly/core/kit/` is vendored. Its consumer capabilities must be available without this repository's private scripts or an engine dependency. |
+
+| Task | Design route |
+| --- | --- |
+| Small fix or documentation | Start with this contract, the changed source and its relevant tests. Follow a numbered section when the change crosses its boundary. |
+| Catalog, instructions or skills | [Catalog ownership](#10-the-catalog-and-its-write-ownership), [projection](#11-the-projection-pipeline), then the relevant [fragment](#13-the-fragment-model), [skill](#14-skills) or [hook](#16-hooks) contract. |
+| Loop, tracker or parallel lanes | [Derived phase](#24-phase-is-derived-not-stored), [isolation and landing](#27-work-isolation-and-one-landing), [lane coordination](#28-parallel-lanes-admission-and-the-supervisor), or [tracker](#32-the-work-tracker), as applicable. |
+| Install, packaging or checks | [Installation and upgrade](#21-installation-and-upgrade), [runtime topology](#35-runtime-topology), or [gates](#36-gates-and-enforcement), as applicable. |
+
+The remaining Contents is a lookup index. Task-specific design evidence and skills
+are loaded when needed; they are separate from compulsory orientation.
+
 ---
 
 ## Contents
@@ -672,9 +696,9 @@ Measured from the projected files, and regenerated and gated on every commit:
 
 | Surface | size | cap | headroom | lines | line cap |
 | --- | --- | --- | --- | --- | --- |
-| `.claude/CLAUDE.md` (claude) | 10818 characters | 12000 | 1182 | 173 | 200 |
-| `AGENTS.md` (codex) | 13697 bytes | 24576 | 10879 | 221 | 320 |
-| `.github/copilot-instructions.md` (copilot) | 10910 characters | 12000 | 1090 | 174 | 200 |
+| `.claude/CLAUDE.md` (claude) | 10966 characters | 12000 | 1034 | 173 | 200 |
+| `AGENTS.md` (codex) | 13845 bytes | 24576 | 10731 | 221 | 320 |
+| `.github/copilot-instructions.md` (copilot) | 11058 characters | 12000 | 942 | 174 | 200 |
 
 <!-- docs-claims:end always-on-sizes -->
 
