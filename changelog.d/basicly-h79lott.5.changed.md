@@ -1,1 +1,1 @@
-- Preserve trusted verification receipts across cached runs and landing, run cheap gates before pytest, and avoid repeating checks or approval requests solely for process transitions.
+- Transfer trusted Pyright receipts from cached runs to landing, run base checks before pytest, and guide agents to reuse valid evidence and existing approvals.
