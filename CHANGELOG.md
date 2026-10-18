@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly 0.26.1 keeps the original failed verification result for landing and repair briefs, avoiding automatic repeat executions just to collect diagnostics. Ordinary failures still block merges, while streamed progress and failure logs remain available. Broader reuse of passing verification remains follow-up work.
+
+- Failure evidence: use the first executed command, status and output for landing and repair, including when configuration later changes (basicly-h79lott.21).
+- Tutorial: refresh the recorded first-loop walkthrough and its confirmation guidance (basicly-9d8i3b9.3).
+
 ## v0.26.0 - 2026-10-17
 
 Delta: v0.25.1..v0.26.0
