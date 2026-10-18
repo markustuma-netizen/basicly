@@ -267,6 +267,20 @@ def _refresh_unstable_results(
             blocked_by = check.name
 
 
+def _finish_input_proof(
+    repo_root: Path, mode: str, config: VerifyConfig, results: list[CheckResult], before: str
+) -> bool:
+    if not before or (
+        not all(r.status == "pass" for r in results) and not any(r.reused_from for r in results)
+    ):
+        return False
+    after, reason = _inputs(repo_root)
+    if before == after:
+        return True
+    _refresh_unstable_results(repo_root, mode, config, results, reason)
+    return False
+
+
 def run_verify(
     repo_root: Path,
     mode: str,
@@ -299,8 +313,8 @@ def run_verify(
     }
     caching = config.cache and selection is None
     proving = bool(eligible) and (capture_receipts or reuse is not None or caching)
-    before, reason = _inputs(repo_root) if proving else ("", "")
-    cached, cache_reason = verify_cache.read(repo_root) if caching and before else ((), "")
+    before, reason, cache_reason = "", "", ""
+    cached: tuple[verify_cache.CachedCheck, ...] = ()
     results: list[CheckResult] = []
     blocked_by = ""
     for check in checks:
@@ -312,6 +326,9 @@ def run_verify(
             print(f"==> {check.name} NOT RUN: {result.detail}", flush=True)
             results.append(result)
             continue
+        if proving and check.name in eligible and not (before or reason):
+            before, reason = _inputs(repo_root)
+            cached, cache_reason = verify_cache.read(repo_root) if caching and before else ((), "")
         borrowed = (
             receipt_result(check.name, check.command, mode, before, reuse)
             if check.name in eligible
@@ -341,10 +358,7 @@ def run_verify(
         results.append(result)
         if config.fail_fast and result.status == "fail":
             blocked_by = check.name
-    after, after_reason = _inputs(repo_root) if proving else ("", "")
-    stable = bool(before) and before == after
-    if not stable:
-        _refresh_unstable_results(repo_root, mode, config, results, after_reason)
+    stable = _finish_input_proof(repo_root, mode, config, results, before)
     run_id = uuid.uuid4().hex
     passed = all(r.status == "pass" for r in results)
     receipts = (

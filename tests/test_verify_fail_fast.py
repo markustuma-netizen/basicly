@@ -156,3 +156,71 @@ def test_incomplete_failure_does_not_issue_receipts_or_refresh_cache(
     assert (tmp_path / verify_cache.CACHE_PATH).read_bytes() == before
     result = next(r for r in report.results if r.name == "compiler")
     assert result.status == "blocked" and not result.reused_from
+
+
+@pytest.mark.parametrize(
+    "compiler_first, code, expected_hashes", [(False, 7, 0), (True, 7, 1), (False, 0, 2)]
+)
+def test_fingerprinting_only_proves_results_that_can_be_used(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    compiler_first: bool,
+    code: int,
+    expected_hashes: int,
+) -> None:
+    fingerprints: list[Path] = []
+
+    def fingerprint(root: Path) -> str:
+        fingerprints.append(root)
+        return "a" * 64
+
+    def spawn(command, _root, **_kw):
+        return subprocess.CompletedProcess(command, code if command[0] == "early" else 0, "", "")
+
+    monkeypatch.setattr(verify.pyright_inputs, "fingerprint", fingerprint)
+    monkeypatch.setattr(verify, "_spawn", spawn)
+    early = VerifyCheck("early", ("early",), frozenset({"full"}))
+    compiler = VerifyCheck(
+        "compiler", ("pyright", "--pythonplatform", "Linux"), frozenset({"full"}), reuse="pyright"
+    )
+    config = VerifyConfig(
+        (compiler, early) if compiler_first else (early, compiler), cache=True, fail_fast=True
+    )
+    report = verify.run_verify(tmp_path, "full", config, capture_receipts=True)
+    assert report.passed is (code == 0)
+    assert len(fingerprints) == expected_hashes
+    assert bool(report.receipts) is (code == 0)
+    assert (tmp_path / verify_cache.CACHE_PATH).exists() is (code == 0)
+
+
+def test_fingerprinting_starts_after_earlier_checks_change_inputs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    inputs = "before"
+    observed: list[str] = []
+
+    def spawn(command, _root, **_kw):
+        nonlocal inputs
+        if command[0] == "prepare":
+            inputs = "after"
+        return subprocess.CompletedProcess(command, 0, "", "")
+
+    def fingerprint(_root: Path) -> str:
+        observed.append(inputs)
+        return inputs
+
+    monkeypatch.setattr(verify, "_spawn", spawn)
+    monkeypatch.setattr(verify.pyright_inputs, "fingerprint", fingerprint)
+    config = VerifyConfig((
+        VerifyCheck("prepare", ("prepare",), frozenset({"full"})),
+        VerifyCheck(
+            "compiler",
+            ("pyright", "--pythonplatform", "Linux"),
+            frozenset({"full"}),
+            reuse="pyright",
+        ),
+    ))
+    report = verify.run_verify(tmp_path, "full", config, capture_receipts=True)
+    assert report.passed and report.receipts
+    assert observed == ["after", "after"]
+    assert report.receipts[0].inputs == "after"
