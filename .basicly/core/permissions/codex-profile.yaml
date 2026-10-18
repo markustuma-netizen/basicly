@@ -12,3 +12,14 @@ permissions:
         ".env.*": deny
         "**/.env": deny
         "**/.env.*": deny
+  basicly-read-only:
+    extends: ":read-only"
+    filesystem:
+      glob_scan_max_depth: 16
+      ":workspace_roots":
+        ".env": deny
+        ".env.*": deny
+        "**/.env": deny
+        "**/.env.*": deny
+    network:
+      enabled: false

@@ -18,6 +18,7 @@ from .projection import atomic_write_text
 
 CONFIG_PATH = Path(".codex/config.toml")
 PROFILE_NAME = "basicly-workspace"
+RULES_PATH = Path(".codex/rules/consent-floor.rules")
 PROJECT_PROFILE_PREFIX = PROFILE_NAME + "-"
 
 
@@ -279,6 +280,30 @@ def _write_user_config(path: Path, before: str, after: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def _project_rules(repo_root: Path) -> tuple[Path, str, str]:
+    source = bundled_catalog_root() / "permissions" / "codex-rules.yaml"
+    data = yaml.safe_load(source.read_text(encoding="utf-8"))
+    if (
+        not isinstance(data, dict)
+        or not isinstance(data.get("rules"), str)
+        or not data["rules"].strip()
+    ):
+        raise ValueError(f"{source}: Codex rules must be a non-empty string")
+    path = repo_root / RULES_PATH
+    before = _read(path)
+    missing = [
+        line
+        for line in data["rules"].splitlines()
+        if line.strip() and line not in before.splitlines()
+    ]
+    after = (
+        before.rstrip() + ("\n" if before else "") + "\n".join(missing) + "\n"
+        if missing
+        else before
+    )
+    return path, before, after
+
+
 def sync_permissions(repo_root: Path, *, user_config: Path | None = None) -> list[Path]:
     project = repo_root / CONFIG_PATH
     text = _read(project)
@@ -292,12 +317,13 @@ def sync_permissions(repo_root: Path, *, user_config: Path | None = None) -> lis
         migrated_user = _migrate_profiles(user_text, worktrees_root(repo_root))
         desired = user_settings(migrated_user)
         planned.append((user_config, user_text, merge_settings(migrated_user, desired)))
+    planned.append(_project_rules(repo_root))
     if user_config is not None:
         worktrees_root(repo_root).mkdir(parents=True, exist_ok=True)
     changed: list[Path] = []
     for path, before, after in planned:
         if before != after:
-            if path == user_config or before != _migrate_profiles(before):
+            if path == user_config or (path == project and before != migrated):
                 _write_user_config(path, before, after)
             else:
                 atomic_write_text(path, after)
@@ -327,4 +353,7 @@ def mismatches(repo_root: Path, *, user_config: Path | None = None) -> list[tupl
                 found.append((path, "managed Codex permissions missing"))
         except ValueError as exc:
             found.append((path, str(exc)))
+    rules, before, after = _project_rules(repo_root)
+    if before != after:
+        found.append((rules, "managed Codex command rules missing"))
     return found

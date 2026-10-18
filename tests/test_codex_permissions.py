@@ -29,7 +29,7 @@ def test_shared_policy_has_one_stable_name_and_is_idempotent(tmp_path: Path) -> 
     settings = _config(repo)
     profile = settings["default_permissions"]
     assert profile == "basicly-workspace"
-    assert set(settings["permissions"]) == {profile}
+    assert set(settings["permissions"]) == {profile, "basicly-read-only"}
     base = settings["permissions"]["basicly-workspace"]
     assert base["extends"] == ":workspace"
     assert "workspace_roots" not in base
@@ -362,3 +362,49 @@ def test_registration_preserves_existing_roots_for_the_same_repository(tmp_path:
     }
     assert _config(repo)["permissions"][profile]["workspace_roots"] == {"../app.worktrees": True}
     assert (tmp_path / "app.worktrees").is_dir()
+
+
+def test_read_only_judgment_profile_keeps_dotenv_denials_and_disables_network(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path / "app")
+    codex_permissions.sync_permissions(repo)
+    profile = _config(repo)["permissions"]["basicly-read-only"]
+    assert profile["extends"] == ":read-only"
+    assert profile["filesystem"][":workspace_roots"] == {
+        ".env": "deny",
+        ".env.*": "deny",
+        "**/.env": "deny",
+        "**/.env.*": "deny",
+    }
+    assert profile["network"] == {"enabled": False}
+
+
+def test_consumer_command_rules_preserve_custom_entries_and_repair_managed_rules(
+    tmp_path: Path,
+) -> None:
+    repo = _repo(tmp_path / "app")
+    path = repo / codex_permissions.RULES_PATH
+    path.parent.mkdir(parents=True)
+    custom = 'prefix_rule(pattern = ["consumer-tool"], decision = "prompt")\n'
+    path.write_text(custom)
+    changed = codex_permissions.sync_permissions(repo)
+    assert path in changed
+    first = path.read_text()
+    assert first.startswith(custom)
+    assert '"--no-verify"' in first and '"--hard"' in first
+    assert codex_permissions.sync_permissions(repo) == []
+    path.write_text(custom)
+    assert (path, "managed Codex command rules missing") in codex_permissions.mismatches(repo)
+    codex_permissions.sync_permissions(repo)
+    assert path.read_text() == first
+
+
+def test_invalid_consumer_config_does_not_create_command_rules(tmp_path: Path) -> None:
+    repo = _repo(tmp_path / "app")
+    path = repo / codex_permissions.CONFIG_PATH
+    path.parent.mkdir()
+    path.write_text("broken = [")
+    with pytest.raises(tomllib.TOMLDecodeError):
+        codex_permissions.sync_permissions(repo)
+    assert not (repo / codex_permissions.RULES_PATH).exists()
