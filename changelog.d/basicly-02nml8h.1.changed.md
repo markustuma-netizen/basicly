@@ -1,0 +1,1 @@
+- Supersede the deferred Codex consent prototype with the current permission projector, retaining read-only dotenv protections and consumer command rules.
