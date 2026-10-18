@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 import pytest
@@ -45,7 +46,7 @@ def test_verify_evidence_pairs_the_gate_findings_with_the_command_and_output(
 ) -> None:
     checks = f'[[verify.checks]]\nname = "pytest"\ncommand = {FAILING_CHECK}\nmodes = ["fast"]\n'
     cwd = _worktree(tmp_path, checks=checks)
-    report = verify.VerifyReport("fast", (verify.CheckResult("pytest", "fail", 1),))
+    report = verify.run_verify(cwd, "fast")
 
     evidence = repair_brief.verify_evidence(report, cwd, "fast")
 
@@ -281,3 +282,45 @@ def test_a_review_entry_with_no_lens_name_is_dropped_rather_than_merged(
 
     assert brief is not None
     assert brief.reviews == (lens_review.LensFindings("security", ""),)
+
+
+def test_repair_evidence_uses_the_first_execution_without_running_it_again(
+    tmp_path: Path,
+) -> None:
+    command = [
+        sys.executable,
+        "-c",
+        "from pathlib import Path; import sys; "
+        "p=Path('executions'); p.write_text(p.read_text()+'x' if p.exists() else 'x'); "
+        "print('first failure'); sys.exit(1)",
+    ]
+    checks = f'[[verify.checks]]\nname="pytest"\ncommand={json.dumps(command)}\nmodes=["fast"]\n'
+    cwd = _worktree(tmp_path, checks=checks)
+    report = verify.run_verify(cwd, "fast")
+
+    evidence = repair_brief.verify_evidence(report, cwd, "fast")
+
+    assert (cwd / "executions").read_text() == "x"
+    assert report.passed is False
+    assert evidence[0].output == "first failure"
+    assert evidence[0].command == " ".join(command)
+
+
+def test_repair_evidence_keeps_the_executed_command_when_config_changes(tmp_path: Path) -> None:
+    cwd = _worktree(tmp_path)
+    report = verify.VerifyReport(
+        "fast",
+        (
+            verify.CheckResult(
+                "pytest", "fail", 2, output="original failure", command=("old-command", "--old")
+            ),
+        ),
+    )
+    (cwd / "basicly.toml").write_text(
+        '[[verify.checks]]\nname="pytest"\ncommand=["new-command"]\nmodes=["fast"]\n'
+    )
+
+    evidence = repair_brief.verify_evidence(report, cwd, "fast")
+
+    assert evidence[0].command == "old-command --old"
+    assert evidence[0].output == "original failure"

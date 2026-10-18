@@ -138,20 +138,13 @@ def _verify_for_landing(
         detail = f"{verify.RELEASE_NOTES_CHECK} refuses this landing: {owed}"
         return MergeResult(name, "verify-failed", detail) if owed else None
     failures = ", ".join(report.failures)
-    rerun = verify.rerun_failures(report, worktree_path, verify_mode, capture=True)
-    if rerun.passed:
-        return MergeResult(
-            name,
-            VERIFY_UNRELIABLE,
-            f"verify {verify_mode} failed on {failures} but passed unchanged on re-run",
-        )
-    if (defect := verify.dependency_defect(rerun)) is not None:
+    if (defect := verify.dependency_defect(report)) is not None:
         return MergeResult(
             name,
             VERIFY_UNRELIABLE,
             f"verify {verify_mode} failed on {failures} — known dependency defect, {defect}",
         )
-    if (shared := _shared_tracker_failure(clock.repo_root, rerun, clock.bead)) is not None:
+    if (shared := _shared_tracker_failure(clock.repo_root, report, clock.bead)) is not None:
         return MergeResult(
             name,
             VERIFY_FOREIGN,
@@ -160,19 +153,19 @@ def _verify_for_landing(
             f"{shared.reason}",
             culprits=shared.culprits,
         )
-    if unrebuilt := _unrebuilt_generated(clock.repo_root, rerun):
+    if unrebuilt := _unrebuilt_generated(clock.repo_root, report):
         return MergeResult(
             name,
             "verify-failed",
             f"verify {verify_mode} failed on {failures}: the rebuild this landing ran before "
             f"the gate did not make a declared generated path current — {'; '.join(unrebuilt)}",
-            checks=_failed_checks(rerun),
+            checks=_failed_checks(report),
         )
     return MergeResult(
         name,
         "verify-failed",
-        f"verify {verify_mode} failed: {_verify_reasons(rerun) or failures}",
-        checks=_failed_checks(rerun),
+        f"verify {verify_mode} failed: {_verify_reasons(report) or failures}",
+        checks=_failed_checks(report),
     )
 
 

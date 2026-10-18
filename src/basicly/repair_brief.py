@@ -175,10 +175,8 @@ def verify_evidence(report: verify.VerifyReport, cwd: Path, mode: str) -> tuple[
             check.name: " ".join(check.command)
             for check in verify.load_verify_config(cwd).for_mode(mode)
         }
-    outputs: dict[str, str] = {}
-    with contextlib.suppress(OSError, ValueError):
-        rerun = verify.rerun_failures(report, cwd, mode, capture=True)
-        outputs = {r.name: (r.output or r.detail) for r in rerun.results}
+    commands.update({r.name: " ".join(r.command) for r in report.results if r.command})
+    outputs = {r.name: (r.output or r.detail) for r in report.results}
     return tuple(
         GateEvidence(name, commands.get(name, ""), clip_output(outputs.get(name, "")))
         for name in failures
