@@ -4,7 +4,7 @@ This is a walkthrough, not a reference. Follow it top to bottom on a **scratch
 git repo** and you will end with one unit of work filed, built in its own
 worktree, merged, and closed by the harness — one sitting, no agent spend.
 Every command and every quoted output below was executed against a fresh repo on
-basicly 0.26.0 in a real terminal, with that repo's generated bead-id prefix swapped for
+basicly 0.26.1 in a real terminal, with that repo's generated bead-id prefix swapped for
 `myrepo`, absolute paths written as `/path/to/...`, and `...` marking an elided line.
 
 When you want to look something up rather than learn the shape, stop here and
@@ -33,7 +33,7 @@ Every command below is written as bare `basicly`. Run it as the pinned form so
 you always get the version you chose:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.0/basicly-0.26.0-py3-none-any.whl basicly <args>
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.1/basicly-0.26.1-py3-none-any.whl basicly <args>
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -47,7 +47,7 @@ uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.0/basicly
 From the repo root:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.0/basicly-0.26.0-py3-none-any.whl basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.1/basicly-0.26.1-py3-none-any.whl basicly install
 ```
 
 It ends with:
@@ -185,8 +185,8 @@ When a reader opens the repo, I want a one line getting started note, so I can r
 ```
 
 ```text
-created: myrepo-rq9r
-myrepo-rq9r is not ready: it owes ## Confirmation Plan; claim refuses it
+created: myrepo-fpxq
+myrepo-fpxq is not ready: it owes ## Confirmation Plan; claim refuses it
 ...
 ```
 
@@ -197,8 +197,8 @@ conversation references and a check for each criterion. Write the agreement on t
 first:
 
 ```sh
-python3 .basicly/core/kit/tracker/cli.py comment .basicly/ledger myrepo-rq9r 'Agreed: one line in NOTES.md that points a reader at basicly status.'
-python3 .basicly/core/kit/tracker/cli.py show .basicly/ledger myrepo-rq9r
+python3 .basicly/core/kit/tracker/cli.py comment .basicly/ledger myrepo-fpxq 'Agreed: one line in NOTES.md that points a reader at basicly status.'
+python3 .basicly/core/kit/tracker/cli.py show .basicly/ledger myrepo-fpxq
 ```
 
 `show` lists the comment with its sequence number in `comment_log`:
@@ -221,7 +221,7 @@ an acceptance criterion word for word, with the command that proves it and the r
 expect:
 
 ```sh
-python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-rq9r --evidence '{"invest": {"independent": "No other record touches NOTES.md.", "negotiable": "The wording of the note is open.", "valuable": "A reader finds the first command without reading the tree.", "estimable": "One line in one file.", "small": "One commit.", "testable": "grep counts the line."}, "conversation": [3], "checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "expected": "1"}]}'
+python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-fpxq --evidence '{"invest": {"independent": "No other record touches NOTES.md.", "negotiable": "The wording of the note is open.", "valuable": "A reader finds the first command without reading the tree.", "estimable": "One line in one file.", "small": "One commit.", "testable": "grep counts the line."}, "conversation": [3], "checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "expected": "1"}]}'
 ```
 
 ```text
@@ -230,7 +230,7 @@ python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-rq9r --ev
   "blocking": [],
   ...
   "owed": [],
-  "record": "myrepo-rq9r",
+  "record": "myrepo-fpxq",
   "remedy": "",
   "schema": "basicly.tracker.review.v1"
 }
@@ -239,15 +239,15 @@ python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-rq9r --ev
 Check the gate agrees:
 
 ```sh
-basicly policy dor myrepo-rq9r
+basicly policy dor myrepo-fpxq
 ```
 
 ```text
-DoR: READY (myrepo-rq9r)
+DoR: READY (myrepo-fpxq)
 ```
 
 If it says `NOT READY` it names what is missing.
-Add a missing section with `basicly tracker write -- update myrepo-rq9r -d '...'`, and a
+Add a missing section with `basicly tracker write -- update myrepo-fpxq -d '...'`, and a
 missing field with `--acceptance '...'` or `--requirements '...'`. A change to either one
 makes the review stale, so record the review again after it.
 
@@ -256,9 +256,9 @@ commit that changes files outside the ledger unless you hold the record it names
 claim the record, then commit:
 
 ```sh
-basicly tracker write -- update myrepo-rq9r --status in_progress
+basicly tracker write -- update myrepo-fpxq --status in_progress
 git add -A
-git commit -m "chore: install basicly (myrepo-rq9r)"
+git commit -m "chore: install basicly (myrepo-fpxq)"
 ```
 
 Lefthook should report each managed dispatcher as successful.
@@ -266,18 +266,18 @@ Lefthook should report each managed dispatcher as successful.
 ## Step 4 — ask the loop where the bead stands
 
 ```sh
-basicly loop status myrepo-rq9r
+basicly loop status myrepo-fpxq
 ```
 
 ```text
-issue:       myrepo-rq9r (task, in_progress)
+issue:       myrepo-fpxq (task, in_progress)
 phase:       intake
 worktree:    (none)
 gates:       advance BLOCKED
   missing:   verify
 checkpoints: (none)
 rework:      verify=0
-ready set:   myrepo-rq9r
+ready set:   myrepo-fpxq
 blocked:     (none)
 ```
 
@@ -290,7 +290,7 @@ including one that starts after a crash or on a different machine.
 One command drives a whole phase *boundary*, resolving what it may on the way:
 
 ```sh
-basicly loop run myrepo-rq9r --work-type task --runner manual
+basicly loop run myrepo-fpxq --work-type task --runner manual
 ```
 
 `--work-type task` is your call, and it decides the shape of everything after:
@@ -307,15 +307,15 @@ answers it:
 
 ```text
 override: runner.default=manual
-Created worktree 'myrepo-rq9r'
-  path:   /path/to/myrepo.worktrees/myrepo-rq9r
-  branch: harness/myrepo-rq9r  (base main @ 0f5fd05)
+Created worktree 'myrepo-fpxq'
+  path:   /path/to/myrepo.worktrees/myrepo-fpxq
+  branch: harness/myrepo-fpxq  (base main @ 0f5cb11)
   .basicly/ledger/redirect: tracker shared with the base checkout
   hooks: post-merge, pre-commit, commit-msg, pre-push — repository-local Lefthook hooks installed
   ...
 [blocked] intake -> intake: recorded work type 'task'; classify checkpoint awaiting approval
-checkpoint classify: APPROVED (myrepo-rq9r)
-[blocked] classify -> classify: worktree 'myrepo-rq9r' provisioned; awaiting the agent's work
+checkpoint classify: APPROVED (myrepo-fpxq)
+[blocked] classify -> classify: worktree 'myrepo-fpxq' provisioned; awaiting the agent's work
 ```
 
 A checkpoint is a *human* decision, and running the command yourself at a terminal **is**
@@ -340,10 +340,10 @@ Three things just happened that are worth understanding:
 ## Step 6 — do the work, and commit it on the branch
 
 ```sh
-cd ../myrepo.worktrees/myrepo-rq9r
+cd ../myrepo.worktrees/myrepo-fpxq
 printf '# Notes\n\nRun `basicly status` to see what the harness installed.\n' > NOTES.md
 git add NOTES.md
-git commit -m "docs: add a getting started note (myrepo-rq9r)"
+git commit -m "docs: add a getting started note (myrepo-fpxq)"
 grep -c "basicly status" NOTES.md
 ```
 
@@ -360,8 +360,8 @@ worktree strands the merge:
 
 ```sh
 cd ../../myrepo
-python3 .basicly/core/kit/tracker/cli.py confirm .basicly/ledger myrepo-rq9r --evidence '{"checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "result": "1", "exit_code": 0}]}'
-basicly loop run myrepo-rq9r --runner manual
+python3 .basicly/core/kit/tracker/cli.py confirm .basicly/ledger myrepo-fpxq --evidence '{"checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "result": "1", "exit_code": 0}]}'
+basicly loop run myrepo-fpxq --runner manual
 ```
 
 `confirm` records the result of each planned check; the loop requires actual confirmation
@@ -371,10 +371,10 @@ the worktree is not the shared one.
 ```text
 override: runner.default=manual
   ...
-Cleaned up worktree 'myrepo-rq9r' (worktree + branch + metadata).
-[merged] build -> verify: merged harness/myrepo-rq9r @ 3cf2d510b7b0 (1 commit(s)) into main @ e3cb80d; landing 1.3s (tracker-commit 0.9s, merge 0.3s)
+Cleaned up worktree 'myrepo-fpxq' (worktree + branch + metadata).
+[merged] build -> verify: merged harness/myrepo-fpxq @ 3bfe76f8f97c (1 commit(s)) into main @ 30d92f4; landing 0.9s (tracker-commit 0.7s, merge 0.2s)
 [blocked] verify -> verify: ship checkpoint awaiting human approval
-checkpoint ship: APPROVED (myrepo-rq9r)
+checkpoint ship: APPROVED (myrepo-fpxq)
 [tore-down] ship -> done: worktree torn down and issue closed; cost rollup recorded; the curator bound no claims; tracker state committed
 ```
 
@@ -402,12 +402,12 @@ git log --oneline -6
 ```
 
 ```text
-51cae41 chore(tracker): close the shipped track (myrepo-rq9r)
-e3cb80d chore(worktree): merge a harness worktree back to its base
-3cf2d51 docs: add a getting started note (myrepo-rq9r)
-04bc139 chore(tracker): sync tracker state for the harness loop (myrepo-rq9r)
-0f5fd05 chore(tracker): record the claim before provisioning (myrepo-rq9r)
-277cbe4 chore: install basicly (myrepo-rq9r)
+a9e6a43 chore(tracker): close the shipped track (myrepo-fpxq)
+30d92f4 chore(worktree): merge a harness worktree back to its base
+2656a9a chore(tracker): sync tracker state for the harness loop (myrepo-fpxq)
+3bfe76f docs: add a getting started note (myrepo-fpxq)
+0f5cb11 chore(tracker): record the claim before provisioning (myrepo-fpxq)
+bead412 chore: install basicly (myrepo-fpxq)
 ```
 
 You wrote two of those six — the install commit and the change itself. The
@@ -416,15 +416,15 @@ landing, and the close, which is why you never `git add .basicly/ledger` yoursel
 loop-tracked work.
 
 ```sh
-basicly loop status myrepo-rq9r
+basicly loop status myrepo-fpxq
 ```
 
 The fields that moved since Step 4:
 
 ```text
-issue:       myrepo-rq9r (task, closed)
+issue:       myrepo-fpxq (task, closed)
 phase:       done
-worktree:    myrepo-rq9r on harness/myrepo-rq9r
+worktree:    myrepo-fpxq on harness/myrepo-fpxq
 gates:       advance ALLOWED
   passed:    verify
 checkpoints: classify, ship

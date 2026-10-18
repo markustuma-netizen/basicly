@@ -1,1 +1,0 @@
-- Keep the first failed check output and executed command for landing and repair briefs instead of rerunning the check automatically; ordinary failures still block merging.

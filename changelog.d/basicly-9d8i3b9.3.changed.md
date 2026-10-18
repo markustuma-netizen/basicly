@@ -1,1 +1,0 @@
-- Re-record the first-loop tutorial against basicly 0.26.0, showing compact reviews and confirmation before merge.
