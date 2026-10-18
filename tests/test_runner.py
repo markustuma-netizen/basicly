@@ -319,7 +319,7 @@ def test_confine_for_decider_puts_codex_in_a_read_only_sandbox() -> None:
         "exec",
         "judge",
         "-c",
-        'default_permissions=":read-only"',
+        'default_permissions="basicly-read-only"',
     ]
 
 

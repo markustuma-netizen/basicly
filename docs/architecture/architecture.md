@@ -1223,7 +1223,12 @@ interpreter, a package manager, a command wrapper, an `Agent` rule or a `Monitor
 | codex | trusted project permission profiles and approval settings, plus explicitly requested runner overrides | automatic reload of a thread already running with earlier permission settings |
 
 Codex projects the catalog's `codex-profile.yaml` into `.codex/config.toml`.
-The single `basicly-workspace` profile extends `:workspace`, preserving agent and credential protections and adding dotenv denials. Shared configuration contains no machine paths.
+The `basicly-workspace` profile extends `:workspace`, preserving agent and credential protections and adding dotenv denials. The `basicly-read-only` judgment profile extends `:read-only`, retains the same dotenv denials, and disables network access. Shared configuration contains no machine paths.
+
+The catalog's `codex-rules.yaml` projects managed command-prefix rules into
+`.codex/rules/consent-floor.rules`. Projection preserves consumer rules, repairs
+missing managed rules, and checks for drift. These rules forbid known destructive
+Git forms and hook bypasses; they do not cover every possible shell spelling.
 Old generated GUID profiles migrate into the named policy without removing
 consumer-owned settings.
 

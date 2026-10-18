@@ -430,7 +430,7 @@ def confine_for_decider(spec: RunnerSpec) -> RunnerSpec | None:
     if model_family(spec) == "codex":
         return replace(
             spec,
-            command=(*spec.command, "-c", 'default_permissions=":read-only"'),
+            command=(*spec.command, "-c", 'default_permissions="basicly-read-only"'),
             sandbox=None,
             approval="never",
         )

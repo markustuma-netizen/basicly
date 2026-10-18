@@ -8,6 +8,12 @@
 ["permissions"."basicly-workspace"."filesystem"]
 "glob_scan_max_depth" = 16
 
+
+"~/.cache" = "write"
+"~/.npm" = "write"
+"~/.cargo/registry" = "write"
+"~/.cargo/git" = "write"
+"~/.local/share/uv" = "write"
 ["permissions"."basicly-workspace"."filesystem".":workspace_roots"]
 ".env" = "deny"
 ".env.*" = "deny"
@@ -30,8 +36,24 @@
 "github.com" = "allow"
 
 "api.github.com" = "allow"
+
 ["permissions"."basicly-workspace"."workspace_roots"]
 "../basicly.worktrees" = true
 
 ["features"]
 "network_proxy" = true
+
+["permissions"."basicly-read-only"]
+"extends" = ":read-only"
+
+["permissions"."basicly-read-only"."filesystem"]
+"glob_scan_max_depth" = 16
+
+["permissions"."basicly-read-only"."filesystem".":workspace_roots"]
+".env" = "deny"
+".env.*" = "deny"
+"**/.env" = "deny"
+"**/.env.*" = "deny"
+
+["permissions"."basicly-read-only"."network"]
+"enabled" = false

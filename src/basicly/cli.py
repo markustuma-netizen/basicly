@@ -2244,7 +2244,7 @@ def cmd_permissions_build(_args: argparse.Namespace) -> int:
         if changed == user_config:
             print("Registered this repository's sibling worktrees in local Codex permissions.")
         else:
-            print("Wrote .codex/config.toml (basicly-workspace policy and sibling roots).")
+            print(f"Wrote {changed.relative_to(repo_root).as_posix()} (managed Codex permissions).")
     managed = permissions.load_claude_permissions()
     if claude_settings.sync_permissions(repo_root, managed):
         print(f"Wrote {claude_settings.CLAUDE_SETTINGS_PATH} (managed permissions allow and deny)")
