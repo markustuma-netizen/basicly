@@ -1165,18 +1165,17 @@ _GREEN = verify.VerifyReport("full", (verify.CheckResult("pytest", "pass", 0),))
 
 
 @pytest.mark.usefixtures("base_ready")
-def test_merge_worktree_reports_unreliable_when_verify_does_not_reproduce(
+def test_merge_worktree_keeps_the_first_failure_even_if_a_retry_would_pass(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
     monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: _GREEN)
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
 
-    assert result.status == merge.VERIFY_UNRELIABLE
-    assert result.unreliable is True
-    assert "pytest" in result.detail and "passed unchanged on re-run" in result.detail
+    assert result.status == "verify-failed"
+    assert result.unreliable is False
+    assert "pytest" in result.detail
 
 
 @pytest.mark.usefixtures("base_ready")
@@ -1185,7 +1184,6 @@ def test_merge_worktree_still_reports_verify_failed_when_it_reproduces(
 ) -> None:
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
     monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: _FAILED)
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
 
@@ -1209,7 +1207,6 @@ def test_a_reproduced_failure_carries_the_remedy_the_gate_already_printed(
     )
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
     monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: report)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: report)
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
 
@@ -1237,8 +1234,7 @@ def test_merge_worktree_forgives_a_reproduced_failure_that_is_a_dependency_defec
         ),
     )
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: reproduced)
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: reproduced)
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
 
@@ -1258,8 +1254,7 @@ def test_merge_worktree_does_not_forgive_reproduced_output_it_does_not_recognise
         (verify.CheckResult("pytest", "fail", 1, output="E   AssertionError: assert 3 == 4\n"),),
     )
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: reproduced)
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: reproduced)
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
 
@@ -1268,21 +1263,21 @@ def test_merge_worktree_does_not_forgive_reproduced_output_it_does_not_recognise
 
 
 @pytest.mark.usefixtures("base_ready")
-def test_merge_worktree_reruns_only_after_a_failure(
+def test_merge_worktree_runs_a_passing_gate_once(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
     _patch_git(monkeypatch, _landing_git())
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: verify.VerifyReport("full", ()))
-    reruns: list = []
-    monkeypatch.setattr(
-        verify,
-        "rerun_failures",
-        lambda *a, **_k: reruns.append(a) or verify.VerifyReport("full", ()),
-    )
+    calls: list[str] = []
 
-    merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
+    def passing(*_args, **_kwargs):
+        calls.append("verify")
+        return verify.VerifyReport("full", ())
 
-    assert reruns == []
+    monkeypatch.setattr(verify, "run_verify", passing)
+    result = merge.merge_worktree(tmp_path, "feat", bead="basicly-onb.5")
+
+    assert result.merged
+    assert calls == ["verify"]
 
 
 def test_merge_queue_spends_no_rework_on_an_unreliable_gate(
@@ -1339,8 +1334,7 @@ def test_merge_worktree_faults_the_lane_whose_record_failed_a_tracker_wide_gate(
 
     _tracker(tmp_path, "basicly-tcmy.5", "basicly-tcmy.6")
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: _reproduced(_TRACKER_WIDE))
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _reproduced(_TRACKER_WIDE))
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-tcmy.6")
 
@@ -1357,8 +1351,7 @@ def test_merge_worktree_still_faults_the_lane_the_gate_names_itself(
 
     _tracker(tmp_path, "basicly-tcmy.5")
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: _reproduced(_TRACKER_WIDE))
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _reproduced(_TRACKER_WIDE))
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-tcmy.5")
 
@@ -1377,8 +1370,7 @@ def test_merge_worktree_will_not_forgive_a_lane_a_truncated_id_names(
         "128,000, above working_set_max 72,000'] == []\n"
     )
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: _reproduced(elided))
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _reproduced(elided))
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-tcmy.6")
 
@@ -1399,8 +1391,7 @@ def test_merge_worktree_will_not_forgive_a_run_that_also_failed_on_its_own_work(
         ),
     )
     _patch_git(monkeypatch, _FakeGit({**_HAS_WORK, "status": _Proc(0, ""), "rebase": _Proc(0)}))
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: _FAILED)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: mixed)
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: mixed)
 
     result = merge.merge_worktree(tmp_path, "feat", bead="basicly-tcmy.6")
 
@@ -1636,12 +1627,10 @@ def test_landing_leaves_newer_base_only_protected_configuration_untouched(
 
 def _fail_verify(monkeypatch: pytest.MonkeyPatch, output: str) -> None:
 
-    failed = verify.VerifyReport("full", (verify.CheckResult("docs-claims", "fail", 1),))
-    reran = verify.VerifyReport(
+    failed = verify.VerifyReport(
         "full", (verify.CheckResult("docs-claims", "fail", 1, output=output),)
     )
     monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: failed)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: reran)
 
 
 @pytest.fixture

@@ -3912,8 +3912,10 @@ continuous integration, and a non-mechanical failure still blocks.
 
 The capability gate refuses to ship a declared capability that nothing has exercised.
 
-**A narrow forgiveness path exists, and it is deliberately narrow.** A re-run may forgive a
-failure only when *every* failing check matches a known dependency-defect signature.
+**Landing preserves the first failure instead of rerunning a failed suite for diagnostics.**
+Streamed checks retain their original output for landing and repair briefs. A known dependency
+defect is classified from that evidence only when *every* failing check matches its signature.
+Ordinary failures still block the merge; a flaky second execution cannot replace the first result.
 
 ### 36.3 Gate results and who may write them
 

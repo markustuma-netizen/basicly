@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from basicly import policy, verify, verify_artifact
+from basicly import policy, repair_brief, verify, verify_artifact
 from basicly.config import PolicyConfig, VerifyCheck, VerifyConfig
 
 
@@ -205,7 +205,7 @@ def test_an_unwritable_artifact_path_never_costs_the_verdict(
     assert verify_artifact.RUN_ARTIFACT.as_posix() in refused.reason
 
 
-def test_rerun_failures_leaves_the_runs_own_artifact_standing(
+def test_reading_repair_evidence_leaves_the_failed_run_artifact_standing(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
 
@@ -214,7 +214,7 @@ def test_rerun_failures_leaves_the_runs_own_artifact_standing(
     report = verify.run_verify(tmp_path, "full", config)
     assert report.passed is False
 
-    verify.rerun_failures(report, tmp_path, "full", config, capture=True)
+    repair_brief.verify_evidence(report, tmp_path, "full")
 
     recorded = json.loads((tmp_path / verify_artifact.RUN_ARTIFACT).read_text(encoding="utf-8"))
     assert [c["name"] for c in recorded["checks"]] == ["pytest", "ruff"]

@@ -234,12 +234,10 @@ def test_r8_a_contended_write_lock_does_not_spend_the_lanes_rework_budget(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
 
-    failed = verify.VerifyReport("full", (verify.CheckResult("pytest", "fail", 1),))
     contended = verify.VerifyReport(
         "full", (verify.CheckResult("pytest", "fail", 1, output=_R8_LOCK_TIMEOUT),)
     )
-    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: failed)
-    monkeypatch.setattr(verify, "rerun_failures", lambda *_a, **_k: contended)
+    monkeypatch.setattr(verify, "run_verify", lambda *_a, **_k: contended)
 
     clock = merge._Landing(tmp_path, "basicly-x")
     result = merge._verify_for_landing("lane", tmp_path, "full", clock)

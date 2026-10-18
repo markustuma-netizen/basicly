@@ -549,80 +549,7 @@ def test_cli_verify_fix_reports_a_broken_fixer_without_hiding_the_verdict(
     assert "[verify] FAIL: fmt" in captured.err
 
 
-def _flaky_run(fail_first: set[str]) -> object:
-
-    def fake_run(command, **_kw):
-        name = command[0]
-        if name in fail_first:
-            fail_first.discard(name)
-            return _Proc(1)
-        return _Proc(0)
-
-    return fake_run
-
-
-def test_rerun_failures_reruns_only_the_checks_that_failed(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    seen: list[list[str]] = []
-
-    def fake_run(command, **_kw):
-        seen.append(command)
-        return _Proc(1 if command == ["bad"] else 0)
-
-    monkeypatch.setattr(verify, "_spawn", _as_spawn(fake_run))
-    config = VerifyConfig((_check("ok", ("full",)), _check("bad", ("full",))))
-    report = verify.run_verify(tmp_path, "full", config)
-    seen.clear()
-
-    rerun = verify.rerun_failures(report, tmp_path, "full", config)
-    assert seen == [["bad"]]
-    assert rerun.passed is False
-
-
-def test_rerun_failures_passes_when_the_failure_does_not_reproduce(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    monkeypatch.setattr(verify, "_spawn", _as_spawn(_flaky_run({"pytest"})))
-    config = VerifyConfig((_check("pytest", ("full",)),))
-    report = verify.run_verify(tmp_path, "full", config)
-    assert report.passed is False
-
-    assert verify.rerun_failures(report, tmp_path, "full", config).passed is True
-
-
-def test_rerun_failures_returns_a_green_report_untouched(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    seen: list[list[str]] = []
-
-    def fake_run(command, **_kw):
-        seen.append(command)
-        return _Proc(0)
-
-    monkeypatch.setattr(verify, "_spawn", _as_spawn(fake_run))
-    config = VerifyConfig((_check("ok", ("full",)),))
-    report = verify.run_verify(tmp_path, "full", config)
-    seen.clear()
-
-    assert verify.rerun_failures(report, tmp_path, "full", config) is report
-    assert seen == []
-
-
-def test_rerun_failures_keeps_the_verdict_when_no_check_matches(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-
-    monkeypatch.setattr(verify, "_spawn", _as_spawn(lambda *_a, **_kw: _Proc(1)))
-    config = VerifyConfig((_check("gone", ("full",)),))
-    report = verify.run_verify(tmp_path, "full", config)
-
-    rerun = verify.rerun_failures(report, tmp_path, "full", VerifyConfig(()))
-    assert rerun is report
-    assert rerun.passed is False
-
-
-def test_a_streamed_run_captures_no_output_so_nothing_is_forgiven(
+def test_a_streamed_failure_retains_its_original_dependency_evidence(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
 
@@ -631,8 +558,8 @@ def test_a_streamed_run_captures_no_output_so_nothing_is_forgiven(
 
     report = verify.run_verify(tmp_path, "full", config)
 
-    assert report.results[0].output == ""
-    assert verify.dependency_defect(report) is None
+    assert report.results[0].output == _LOCK_TIMEOUT
+    assert verify.dependency_defect(report) is not None
 
 
 def test_capture_collects_output_for_the_signature_test(
@@ -651,9 +578,8 @@ def test_dependency_defect_names_the_check_and_why_forgiving_is_safe(
     monkeypatch.setattr(verify, "_spawn", _as_spawn(lambda *_a, **_kw: _Proc(1, _LOCK_TIMEOUT)))
     config = VerifyConfig((_check("pytest", ("full",)),))
     report = verify.run_verify(tmp_path, "full", config)
-    captured = verify.rerun_failures(report, tmp_path, "full", config, capture=True)
 
-    reason = verify.dependency_defect(captured)
+    reason = verify.dependency_defect(report)
 
     assert reason is not None
     assert reason.startswith("pytest: ")

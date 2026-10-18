@@ -27,7 +27,7 @@ def test_a_failing_check_streams_and_still_leaves_its_words_in_a_file(
     assert "the marker" in capfd.readouterr().out, "the check no longer streams"
     assert result.detail == "what it said: .basicly/usage/verify-fail-demo.log"
     assert "the marker" in (tmp_path / verify_log.LOG_DIR / "verify-fail-demo.log").read_text()
-    assert result.output == ""
+    assert result.output == "the marker\n"
 
 
 def test_a_passing_check_leaves_no_log_and_no_detail(tmp_path: Path) -> None:

@@ -77,7 +77,7 @@ def test_fail_fast_refuses_malformed_values(tmp_path: Path, kind: str, value: st
 
 
 @pytest.mark.parametrize("recovered", [False, True])
-def test_retry_runs_blocked_checks_only_after_failure_recovers(
+def test_an_explicit_new_run_reaches_blocked_checks_only_after_failure_recovers(
     tmp_path: Path, recovered: bool
 ) -> None:
     _config(tmp_path, "[verify]\nfail_fast=true\n", 7)
@@ -85,7 +85,7 @@ def test_retry_runs_blocked_checks_only_after_failure_recovers(
     assert not report.passed
     assert not (tmp_path / "later").exists()
     _config(tmp_path, "[verify]\nfail_fast=true\n", 0 if recovered else 7)
-    retry = verify.rerun_failures(report, tmp_path, "full", capture=True)
+    retry = verify.run_verify(tmp_path, "full")
     assert retry.passed is recovered
     assert (tmp_path / "later").exists() is recovered
     assert [r.status for r in retry.results] == (
@@ -93,17 +93,19 @@ def test_retry_runs_blocked_checks_only_after_failure_recovers(
     )
 
 
-def test_retry_refuses_to_drop_a_blocked_check_removed_from_configuration(tmp_path: Path) -> None:
+def test_configuration_changes_do_not_rewrite_the_original_blocked_evidence(tmp_path: Path) -> None:
     _config(tmp_path, "[verify]\nfail_fast=true\n", 7)
     report = verify.run_verify(tmp_path, "full")
     _config(tmp_path, "[verify]\nfail_fast=true\n", 0)
     path = tmp_path / "basicly.toml"
     text = path.read_text(encoding="utf-8")
     path.write_text(text[: text.rindex("[[verify.checks]]")], encoding="utf-8")
-    retry = verify.rerun_failures(report, tmp_path, "full", capture=True)
-    assert not retry.passed
-    assert "later" in retry.results[0].detail
-    assert "removed from configuration" in retry.results[0].detail
+    assert not report.passed
+    assert [(r.name, r.status) for r in report.results] == [("first", "fail"), ("later", "blocked")]
+    recorded = json.loads((tmp_path / RUN_ARTIFACT).read_text())
+    assert not recorded["passed"]
+    assert recorded["checks"][1]["name"] == "later"
+    assert recorded["checks"][1]["status"] == "blocked"
 
 
 @pytest.mark.parametrize("kind", ["engine", "portable"])

@@ -184,7 +184,7 @@ def _run(
         "fail" if failed else "pass",
         proc.returncode,
         detail=detail,
-        output=output if capture or not failed else "",
+        output=output,
         command=tuple(command),
         duration_s=round(time.perf_counter() - started, 3),
     )
@@ -377,50 +377,6 @@ def run_verify(
             ),
         )
     return report
-
-
-def rerun_failures(
-    report: VerifyReport,
-    repo_root: Path,
-    mode: str,
-    config: VerifyConfig | None = None,
-    *,
-    capture: bool = False,
-) -> VerifyReport:
-
-    failed = {r.name for r in report.results if r.status in {"fail", "blocked"}}
-    if not failed:
-        return report
-    config = config or load_verify_config(repo_root)
-    checks = [check for check in config.for_mode(mode) if check.name in failed]
-    if not checks:
-        return report
-    missing = failed - {check.name for check in checks}
-    if missing:
-        return VerifyReport(
-            mode,
-            (
-                CheckResult(
-                    "retry-config",
-                    "fail",
-                    1,
-                    f"cannot retry checks removed from configuration: {', '.join(sorted(missing))}",
-                ),
-                *report.results,
-            ),
-        )
-    results: list[CheckResult] = []
-    blocked_by = ""
-    for check in checks:
-        result = (
-            blocked_result(check.name, check.command, blocked_by)
-            if blocked_by
-            else run_check(check, repo_root, mode, capture=capture)
-        )
-        results.append(result)
-        if config.fail_fast and result.status == "fail":
-            blocked_by = check.name
-    return VerifyReport(mode=mode, results=tuple(results))
 
 
 DEPENDENCY_DEFECT_SIGNATURES: tuple[tuple[tuple[str, ...], str], ...] = (
