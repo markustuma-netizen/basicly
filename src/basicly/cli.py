@@ -2240,11 +2240,12 @@ def _codex_user_config(args: argparse.Namespace) -> Path | None:
 def cmd_permissions_build(_args: argparse.Namespace) -> int:
     repo_root = _repo_root()
     user_config = _codex_user_config(_args)
-    for changed in codex_permissions.sync_permissions(repo_root, user_config=user_config):
+    for changed in codex_permissions.remove_permissions(repo_root, user_config=user_config):
         if changed == user_config:
-            print("Registered this repository's sibling worktrees in local Codex permissions.")
+            print("Removed the generated basicly policy from local Codex configuration.")
         else:
-            print(f"Wrote {changed.relative_to(repo_root).as_posix()} (managed Codex permissions).")
+            relative = changed.relative_to(repo_root).as_posix()
+            print(f"Removed the generated basicly policy from {relative}; Codex defaults apply.")
     managed = permissions.load_claude_permissions()
     if claude_settings.sync_permissions(repo_root, managed):
         print(f"Wrote {claude_settings.CLAUDE_SETTINGS_PATH} (managed permissions allow and deny)")
@@ -2274,8 +2275,8 @@ def cmd_permissions_check(_args: argparse.Namespace) -> int:
         mismatches,
         repo_root,
         stale_message=(
-            "Stale permissions projection detected. "
-            "Run `basicly permissions-build` to sync the allow and deny lists."
+            "Stale permissions projection detected. Run `basicly permissions-build` to sync "
+            "the allow and deny lists and to remove the generated Codex policy."
         ),
     ):
         return 1
@@ -4720,7 +4721,7 @@ def _add_lifecycle_parsers(subparsers: argparse._SubParsersAction) -> None:
     install_parser.add_argument(
         "--codex-user",
         action="store_true",
-        help="Also register this repository's sibling worktrees in local Codex configuration",
+        help="Also clean the generated basicly policy out of local Codex configuration",
     )
     install_parser.add_argument(
         "--technologies",
@@ -5595,14 +5596,14 @@ def _build_parser() -> argparse.ArgumentParser:
     subparsers.add_parser("hooks-check", help="Check projected hooks are up to date")
 
     for command, help_text in (
-        ("permissions-build", "Project agent permissions and the Codex workspace policy"),
-        ("permissions-check", "Check projected agent permissions and the Codex workspace policy"),
+        ("permissions-build", "Project agent permissions and remove the generated Codex policy"),
+        ("permissions-check", "Check projected agent permissions and the removed Codex policy"),
     ):
         permissions_parser = subparsers.add_parser(command, help=help_text)
         permissions_parser.add_argument(
             "--codex-user",
             action="store_true",
-            help="Register or check this repository's local Codex sibling-worktree grant",
+            help="Also clean the generated basicly policy out of local Codex configuration",
         )
 
     _add_catalog_parser(subparsers)

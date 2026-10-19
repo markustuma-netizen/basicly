@@ -1220,34 +1220,39 @@ interpreter, a package manager, a command wrapper, an `Agent` rule or a `Monitor
 | --- | --- | --- |
 | claude | the file-edit rule form | the two write-tool variants a reader would expect. The permission check ignores both |
 | copilot | invocation flags injected at dispatch, because there is no config-file deny | an infix wildcard. That pattern language matches by token prefix, so it cannot express Claude's globs |
-| codex | trusted project permission profiles and approval settings, plus explicitly requested runner overrides | automatic reload of a thread already running with earlier permission settings |
+| codex | the consumer's own permission settings, plus explicitly requested runner overrides | a basicly profile. basicly projects none |
 
-Codex projects the catalog's `codex-profile.yaml` into `.codex/config.toml`.
-The `basicly-workspace` profile extends `:workspace`, preserving agent and credential protections and adding dotenv denials. The `basicly-read-only` judgment profile extends `:read-only`, retains the same dotenv denials, and disables network access. Shared configuration contains no machine paths.
+**basicly writes no Codex permission policy.** Earlier versions projected a
+`basicly-workspace` profile, a `basicly-read-only` judgment profile and managed
+command-prefix rules. `basicly install` and `basicly permissions-build` now remove
+them, and Codex runs on its own defaults.
 
-The catalog's `codex-rules.yaml` projects managed command-prefix rules into
-`.codex/rules/consent-floor.rules`. Projection preserves consumer rules, repairs
-missing managed rules, and checks for drift. These rules forbid known destructive
-Git forms and hook bypasses; they do not cover every possible shell spelling.
-Old generated GUID profiles migrate into the named policy without removing
-consumer-owned settings.
+`src/basicly/codex_permissions.py` removes the generated policy: a
+`basicly-workspace` or `basicly-read-only` table under `[permissions]`, an old
+generated GUID profile `basicly-workspace-<32 hex digits>`, the
+`default_permissions` key when it names one of those profiles, and the generated
+rule lines of `.codex/rules/consent-floor.rules`. The generated rule text is
+`src/basicly/codex_generated_rules.rules`, the one text any released version wrote.
+A file is deleted when nothing is left in it. When a generated profile or
+selection exists, removal also clears the generated `on-request` approval policy
+and `auto_review` reviewer. Different approval settings remain.
 
-`basicly install --codex-user` registers the main checkout's sibling worktree
-root as a relative project-scoped `workspace_roots` entry and makes the named
-policy discoverable in user configuration. The user profile contains no sibling
-path union. Registration does not change an existing user default or add global
-review instructions or command rules. Explicit consumer selections remain
-unchanged. Default Codex dispatch inherits the project settings; decision-only
-dispatch selects the read-only profile. See
+Every other setting stays: a consumer profile, a `default_permissions` that names
+a Codex preset, consumer approval settings, `[features]` and a
+consumer rule line. Removal reparses the result and refuses a file whose layout
+would change anything else, for example a dotted top-level key that holds a
+generated profile. `basicly permissions-check` reports a leftover policy and a
+refused file. Removal repeats without a further change.
+
+`--codex-user` extends the removal to `$CODEX_HOME/config.toml`. basicly copies
+that file into a private `permission-backups` directory beside it first. Without
+the flag the user configuration is neither read nor changed. See
 [the consumer setup](../how-to/configure-codex-permissions.md).
 
-Ordinary Git add, commit and push can write repository metadata. Linked-checkout
-registration includes explicit relative roots for its shared and private Git
-metadata; this prevents Codex from remasking the linked Git directory read-only.
-Existing explicit consumer Git read protections are preserved. Destructive commands
-still require explicit confirmation under the repository instructions and approval
-policy. Nested `.git/hooks` read masks are not emitted because `.git` is a file in
-a linked checkout and the sandbox cannot create children below that file.
+Decision-only dispatch is the one place that still names a profile. It passes
+`-c default_permissions=":read-only"` on the argv, which is a Codex preset rather
+than a basicly profile, and writes it to no file. Destructive commands still
+require explicit confirmation under the repository instructions.
 
 **The list is a partial backstop. It is never the source of a prohibition.** Several
 destructive git commands are denied on no target, and still need a human confirmation.

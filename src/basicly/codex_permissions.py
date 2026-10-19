@@ -1,85 +1,43 @@
 from __future__ import annotations
 
-import copy
-import json
 import os
 import re
 import tempfile
 import tomllib
 import uuid
-from pathlib import Path, PurePath
+from pathlib import Path
 from typing import Any
 
-import yaml
-
-from .catalog import bundled_catalog_root
-from .checkout import git, git_common_dir, worktrees_root
 from .projection import atomic_write_text
 
 CONFIG_PATH = Path(".codex/config.toml")
-PROFILE_NAME = "basicly-workspace"
 RULES_PATH = Path(".codex/rules/consent-floor.rules")
-PROJECT_PROFILE_PREFIX = PROFILE_NAME + "-"
+GENERATED_RULES_FILE = Path(__file__).with_name("codex_generated_rules.rules")
+PROFILE_NAME = "basicly-workspace"
+READ_ONLY_PROFILE_NAME = "basicly-read-only"
+GENERATED_PROFILE = re.compile(
+    re.escape(PROFILE_NAME) + r"(?:-[0-9a-f]{32})?|" + re.escape(READ_ONLY_PROFILE_NAME)
+)
+SELECTION_KEY = "default_permissions"
+SETTINGS_PRESENT = "generated Codex permission policy still present"
+RULES_PRESENT = "generated Codex command rules still present"
+UNSAFE_LAYOUT = (
+    "Removing the generated Codex policy would change unrelated settings; "
+    "reconcile this file by hand"
+)
 
 
-def managed_settings() -> dict[str, Any]:
-    source = bundled_catalog_root() / "permissions" / "codex-profile.yaml"
-    settings = yaml.safe_load(source.read_text(encoding="utf-8"))
-    if not isinstance(settings, dict):
-        raise ValueError(f"{source}: Codex settings must be a mapping")
-    return settings
+def generated_rules() -> tuple[str, ...]:
+    text = GENERATED_RULES_FILE.read_text(encoding="utf-8")
+    return tuple(line for line in text.splitlines() if line.strip())
 
 
-def sibling_settings(root: PurePath, profile: str) -> dict[str, Any]:
-    if not root.is_absolute() or not root.name.endswith(".worktrees"):
-        raise ValueError("Codex sibling root must be an absolute .worktrees directory")
-    return {
-        "permissions": {
-            profile: {"extends": ":workspace", "workspace_roots": {root.as_posix(): True}}
-        }
-    }
+def is_generated_profile(name: str) -> bool:
+    return GENERATED_PROFILE.fullmatch(name) is not None
 
 
-def user_settings(text: str) -> dict[str, Any]:
-    parsed = tomllib.loads(text)
-    if "sandbox_mode" in parsed or "sandbox_workspace_write" in parsed:
-        raise ValueError(
-            "Legacy Codex sandbox settings conflict with profile registration; reconcile them first"
-        )
-    settings = {"permissions": managed_settings()["permissions"]}
-    existing = (
-        parsed
-        .get("permissions", {})
-        .get(PROFILE_NAME, {})
-        .get("filesystem", {})
-        .get(":workspace_roots", {})
-    )
-    if ".git" in existing:
-        settings["permissions"][PROFILE_NAME]["filesystem"][":workspace_roots"].pop(".git", None)
-    if "default_permissions" not in parsed:
-        settings = {"default_permissions": ":workspace", **settings}
-    return settings
-
-
-def _tables(settings: dict[str, Any], path: tuple[str, ...] = ()) -> dict[tuple[str, ...], dict]:
-    tables: dict[tuple[str, ...], dict] = {}
-    for key, value in settings.items():
-        if isinstance(value, dict):
-            tables.update(_tables(value, (*path, key)))
-        else:
-            tables.setdefault(path, {})[key] = value
-    return tables
-
-
-def _table(settings: dict[str, Any], path: tuple[str, ...]) -> dict[str, Any]:
-    current = settings
-    for key in path:
-        if key not in current:
-            return {}
-        current = current[key]
-        if not isinstance(current, dict):
-            raise ValueError(f"Codex configuration: {'.'.join(path)} must be a table")
-    return current
+def _read(path: Path) -> str:
+    return path.read_text(encoding="utf-8") if path.exists() else ""
 
 
 def _header(line: str) -> tuple[str, ...] | None:
@@ -97,179 +55,125 @@ def _header(line: str) -> tuple[str, ...] | None:
     return tuple(path) if parsed in ({}, [{}]) else None
 
 
-def _literal(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if isinstance(value, str):
-        return json.dumps(value, ensure_ascii=False)
-    if isinstance(value, int):
-        return str(value)
-    raise ValueError(f"Unsupported managed Codex value: {type(value).__name__}")
-
-
-def merge_settings(text: str, additions: dict[str, Any]) -> str:
-    parsed = tomllib.loads(text)
-    expected = copy.deepcopy(parsed)
-    rendered = text
-    for path, values in _tables(additions).items():
-        existing = _table(parsed, path)
-        missing: dict[str, Any] = {}
-        for key, value in values.items():
-            if key in existing and existing[key] != value:
-                raise ValueError(
-                    f"Codex setting {'.'.join((*path, key))} conflicts with basicly; "
-                    "review the existing setting before running permissions-build"
-                )
-            if key not in existing:
-                missing[key] = value
-        if not missing:
-            continue
-        target = expected
-        for key in path:
-            target = target.setdefault(key, {})
-        target.update(missing)
-        entries = "".join(
-            f"{json.dumps(key)} = {_literal(value)}\n" for key, value in missing.items()
-        )
-        lines = rendered.splitlines(keepends=True)
-        headers = [(index, _header(line)) for index, line in enumerate(lines)]
-        position = next((index for index, header in headers if header == path), None)
-        if not path:
-            end = next((index for index, header in headers if header is not None), len(lines))
-            lines.insert(end, entries + "\n")
-            rendered = "".join(lines)
-        elif position is not None:
-            end = next(
-                (index for index, header in headers if index > position and header is not None),
-                len(lines),
-            )
-            lines.insert(end, "\n" + entries)
-            rendered = "".join(lines)
-        else:
-            heading = ".".join(json.dumps(key) for key in path)
-            rendered = rendered.rstrip() + f"\n\n[{heading}]\n" + entries
+def _string_key(line: str) -> str | None:
     try:
-        actual = tomllib.loads(rendered)
-    except tomllib.TOMLDecodeError as exc:
-        raise ValueError(
-            "Cannot extend this Codex TOML layout safely; use explicit tables"
-        ) from exc
-    if actual != expected:
-        raise ValueError("Codex settings merge would change unrelated settings; refusing")
-    return rendered
+        parsed = tomllib.loads(line)
+    except tomllib.TOMLDecodeError:
+        return None
+    if len(parsed) != 1:
+        return None
+    key, value = next(iter(parsed.items()))
+    return key if isinstance(value, str) else None
 
 
-def _read(path: Path) -> str:
-    return path.read_text(encoding="utf-8") if path.exists() else ""
+def _generated_table(header: tuple[str, ...]) -> bool:
+    return len(header) >= 2 and header[0] == "permissions" and is_generated_profile(header[1])
 
 
-def project_settings(text: str, profile: str) -> dict[str, Any]:
+def _generated_keys(parsed: dict[str, Any]) -> set[str]:
+    dropped: set[str] = set()
+    selected = parsed.get(SELECTION_KEY)
+    if isinstance(selected, str) and is_generated_profile(selected):
+        dropped.add(SELECTION_KEY)
+    if dropped or any(is_generated_profile(name) for name in parsed.get("permissions", {})):
+        for key, value in (
+            ("approval_policy", "on-request"),
+            ("approvals_reviewer", "auto_review"),
+        ):
+            if parsed.get(key) == value:
+                dropped.add(key)
+    return dropped
+
+
+def _without_generated(parsed: dict[str, Any], dropped: set[str]) -> dict[str, Any]:
+    kept = {key: value for key, value in parsed.items() if key not in dropped}
+    profiles = kept.get("permissions")
+    if isinstance(profiles, dict):
+        kept["permissions"] = {
+            name: profile for name, profile in profiles.items() if not is_generated_profile(name)
+        }
+    if kept.get("permissions") == {}:
+        kept.pop("permissions")
+    return kept
+
+
+def strip_settings(text: str) -> str:
     parsed = tomllib.loads(text)
-    if "sandbox_mode" in parsed or "sandbox_workspace_write" in parsed:
-        raise ValueError(
-            "Legacy Codex sandbox settings conflict with project profiles; reconcile them first"
-        )
-    settings = managed_settings()
-    existing = (
-        parsed
-        .get("permissions", {})
-        .get(PROFILE_NAME, {})
-        .get("filesystem", {})
-        .get(":workspace_roots", {})
-    )
-    if ".git" in existing:
-        settings["permissions"][PROFILE_NAME]["filesystem"][":workspace_roots"].pop(".git", None)
-    settings["default_permissions"] = profile
-    for key in ("default_permissions", "approval_policy", "approvals_reviewer"):
-        if key in parsed:
-            settings.pop(key, None)
-    return settings
-
-
-def _remove_table(text: str, path: tuple[str, ...]) -> str:
-    lines: list[str] = []
+    for name, profile in parsed.get("permissions", {}).items():
+        parent = profile.get("extends") if isinstance(profile, dict) else None
+        if (
+            not is_generated_profile(name)
+            and isinstance(parent, str)
+            and is_generated_profile(parent)
+        ):
+            raise ValueError(
+                f"Codex profile {name} extends retired profile {parent}; "
+                "select a built-in parent before running permissions-build"
+            )
+    dropped = _generated_keys(parsed)
+    kept_lines: list[str] = []
+    in_tables = False
     keep = True
     for line in text.splitlines(keepends=True):
         header = _header(line)
         if header is not None:
-            keep = header[: len(path)] != path
-        if keep:
-            lines.append(line)
-    return "".join(lines)
-
-
-def _migrate_profiles(text: str, root: PurePath | None = None) -> str:
-    parsed = tomllib.loads(text)
-    profiles = parsed.get("permissions", {})
-    for name, profile in profiles.items():
-        if re.fullmatch(re.escape(PROJECT_PROFILE_PREFIX) + r"[0-9a-f]{32}", name) is None:
+            in_tables = True
+            keep = not _generated_table(header)
+        elif not in_tables and _string_key(line) in dropped:
             continue
-        if root is not None:
-            if profile != sibling_settings(root, name)["permissions"][name]:
-                raise ValueError(
-                    f"Codex profile {name} has consumer settings or another sibling root"
-                )
-            additions: dict[str, Any] = {}
-        else:
-            if profile.get("extends") != PROFILE_NAME or set(profile) - {"extends", "network"}:
-                raise ValueError(
-                    f"Codex profile {name} has consumer settings; review before migration"
-                )
-            additions = {
-                "permissions": {PROFILE_NAME: {k: v for k, v in profile.items() if k != "extends"}}
-            }
-        text = _remove_table(text, ("permissions", name))
-        if parsed.get("default_permissions") == name:
-            text = re.sub(
-                r"(?m)^(\s*(?:[\"']?default_permissions[\"']?)\s*=\s*)([\"'])"
-                + re.escape(name)
-                + r"\2",
-                r'\1"' + PROFILE_NAME + '"',
-                text,
-            )
-        text = merge_settings(text, additions)
-    return text
+        if keep:
+            kept_lines.append(line)
+    rendered = "".join(kept_lines)
+    actual = tomllib.loads(rendered)
+    if actual.get("permissions") == {}:
+        actual.pop("permissions")
+    if actual != _without_generated(parsed, dropped):
+        raise ValueError(UNSAFE_LAYOUT)
+    return rendered if rendered.strip() else ""
 
 
-def _project_additions(repo_root: Path, text: str, register: bool) -> dict[str, Any]:
-    settings = project_settings(text, PROFILE_NAME)
-    if register:
-        relative = Path(os.path.relpath(worktrees_root(repo_root), repo_root)).as_posix()
-        roots = {relative: True}
-        git_access = (
-            tomllib
-            .loads(text)
-            .get("permissions", {})
-            .get(PROFILE_NAME, {})
-            .get("filesystem", {})
-            .get(":workspace_roots", {})
-            .get(".git", "write")
-        )
-        if git_access == "write" and (repo_root / ".git").is_file():
-            gitdir = Path(git(["rev-parse", "--git-dir"], cwd=repo_root).stdout.strip())
-            if not gitdir.is_absolute():
-                gitdir = repo_root / gitdir
-            for root in (git_common_dir(repo_root), gitdir.resolve()):
-                roots[Path(os.path.relpath(root, repo_root)).as_posix()] = True
-        settings["permissions"][PROFILE_NAME]["workspace_roots"] = roots
-    return settings
+def strip_rules(text: str) -> str:
+    managed = generated_rules()
+    kept = "".join(
+        line for line in text.splitlines(keepends=True) if line.rstrip("\r\n") not in managed
+    )
+    return kept if kept.strip() else ""
 
 
-def _write_user_config(path: Path, before: str, after: str) -> None:
+def removals(repo_root: Path, *, user_config: Path | None = None) -> list[tuple[Path, str, str]]:
+    planned: list[tuple[Path, str, str]] = []
+    project = repo_root / CONFIG_PATH
+    project_text = _read(project)
+    planned.append((project, project_text, strip_settings(project_text)))
+    if user_config is not None:
+        if user_config.is_symlink():
+            raise ValueError("Refusing to replace a symlinked Codex user config")
+        user_text = _read(user_config)
+        planned.append((user_config, user_text, strip_settings(user_text)))
+    rules = repo_root / RULES_PATH
+    rules_text = _read(rules)
+    planned.append((rules, rules_text, strip_rules(rules_text)))
+    return [step for step in planned if step[1] != step[2]]
+
+
+def _backup_user_config(path: Path, before: str) -> None:
+    backups = path.parent / "permission-backups"
+    backups.mkdir(mode=0o700, exist_ok=True)
+    backup = backups / ("basicly-workspace-" + uuid.uuid4().hex + ".toml")
+    descriptor = os.open(backup, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+        stream.write(before)
+
+
+def _rewrite_user_config(path: Path, before: str, after: str) -> None:
     if path.is_symlink():
         raise ValueError("Refusing to replace a symlinked Codex user config")
     if _read(path) != before:
-        raise ValueError(
-            "Codex user config changed during registration; run permissions-build again"
-        )
-    path.parent.mkdir(parents=True, exist_ok=True)
-    if path.exists():
-        backups = path.parent / "permission-backups"
-        backups.mkdir(mode=0o700, exist_ok=True)
-        backup = backups / ("basicly-workspace-" + uuid.uuid4().hex + ".toml")
-        descriptor = os.open(backup, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
-            stream.write(before)
+        raise ValueError("Codex user config changed during removal; run permissions-build again")
+    _backup_user_config(path, before)
+    if not after:
+        path.unlink()
+        return
     descriptor, name = tempfile.mkstemp(prefix=".basicly-workspace-", dir=path.parent)
     temporary = Path(name)
     try:
@@ -280,80 +184,40 @@ def _write_user_config(path: Path, before: str, after: str) -> None:
         temporary.unlink(missing_ok=True)
 
 
-def _project_rules(repo_root: Path) -> tuple[Path, str, str]:
-    source = bundled_catalog_root() / "permissions" / "codex-rules.yaml"
-    data = yaml.safe_load(source.read_text(encoding="utf-8"))
-    if (
-        not isinstance(data, dict)
-        or not isinstance(data.get("rules"), str)
-        or not data["rules"].strip()
-    ):
-        raise ValueError(f"{source}: Codex rules must be a non-empty string")
-    path = repo_root / RULES_PATH
-    before = _read(path)
-    missing = [
-        line
-        for line in data["rules"].splitlines()
-        if line.strip() and line not in before.splitlines()
-    ]
-    after = (
-        before.rstrip() + ("\n" if before else "") + "\n".join(missing) + "\n"
-        if missing
-        else before
-    )
-    return path, before, after
+def _discard(path: Path) -> None:
+    path.unlink(missing_ok=True)
+    parent = path.parent
+    if parent.is_dir() and not any(parent.iterdir()):
+        parent.rmdir()
 
 
-def sync_permissions(repo_root: Path, *, user_config: Path | None = None) -> list[Path]:
-    project = repo_root / CONFIG_PATH
-    text = _read(project)
-    migrated = _migrate_profiles(text)
-    settings = _project_additions(repo_root, migrated, user_config is not None)
-    planned = [(project, text, merge_settings(migrated, settings))]
-    if user_config is not None:
-        if user_config.is_symlink():
-            raise ValueError("Refusing to replace a symlinked Codex user config")
-        user_text = _read(user_config)
-        migrated_user = _migrate_profiles(user_text, worktrees_root(repo_root))
-        desired = user_settings(migrated_user)
-        planned.append((user_config, user_text, merge_settings(migrated_user, desired)))
-    planned.append(_project_rules(repo_root))
-    if user_config is not None:
-        worktrees_root(repo_root).mkdir(parents=True, exist_ok=True)
+def remove_permissions(repo_root: Path, *, user_config: Path | None = None) -> list[Path]:
     changed: list[Path] = []
-    for path, before, after in planned:
-        if before != after:
-            if path == user_config or (path == project and before != migrated):
-                _write_user_config(path, before, after)
-            else:
-                atomic_write_text(path, after)
-            changed.append(path)
+    for path, before, after in removals(repo_root, user_config=user_config):
+        if path == user_config:
+            _rewrite_user_config(path, before, after)
+        elif after:
+            atomic_write_text(path, after)
+        else:
+            _discard(path)
+        changed.append(path)
     return changed
 
 
 def mismatches(repo_root: Path, *, user_config: Path | None = None) -> list[tuple[Path, str]]:
-    project = repo_root / CONFIG_PATH
-    text = _read(project)
-    migrated = _migrate_profiles(text)
-    wanted = [(project, text, _project_additions(repo_root, migrated, user_config is not None))]
-    if user_config is not None:
-        user_text = _read(user_config)
-        wanted.append((
-            user_config,
-            user_text,
-            user_settings(user_text),
-        ))
     found: list[tuple[Path, str]] = []
-    for path, current, desired in wanted:
+    targets = [repo_root / CONFIG_PATH]
+    if user_config is not None:
+        targets.append(user_config)
+    for path in targets:
+        text = _read(path)
         try:
-            migrated = _migrate_profiles(
-                current, worktrees_root(repo_root) if path == user_config else None
-            )
-            if merge_settings(migrated, desired) != current:
-                found.append((path, "managed Codex permissions missing"))
+            if strip_settings(text) != text:
+                found.append((path, SETTINGS_PRESENT))
         except ValueError as exc:
             found.append((path, str(exc)))
-    rules, before, after = _project_rules(repo_root)
-    if before != after:
-        found.append((rules, "managed Codex command rules missing"))
+    rules = repo_root / RULES_PATH
+    rules_text = _read(rules)
+    if strip_rules(rules_text) != rules_text:
+        found.append((rules, RULES_PRESENT))
     return found
