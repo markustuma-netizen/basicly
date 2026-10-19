@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly 0.26.6 reuses passing code-suite results across tracker-only commits and pushes. Tests that read the live ledger still execute. Source, fixture, configuration and runtime changes require fresh evidence.
+
+- **Less repeated testing** — `basicly-bms86yx` adds a reviewed pytest input recipe to the existing local cache. The installed-wheel probe executes the code suite once across verification, a tracker-only commit and a native Git push.
+- **Preserved checks** — `basicly-bms86yx` keeps live-ledger tests mandatory, refuses unexpected ledger reads from independent tests, and preserves changed-source failures. The controlled test environment removes dispatch bookkeeping before hashing and execution.
+
 ## v0.26.5 - 2026-10-19
 
 Delta: v0.26.4..v0.26.5
