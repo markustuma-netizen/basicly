@@ -41,10 +41,12 @@ def test_engine_failure_is_final_and_only_unavailable_engine_falls_back(
     assert calls == (["native"] if result == 125 else [])
 
 
-def test_disabled_cache_does_not_start_engine(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+@pytest.mark.parametrize("enabled", [False, True])
+def test_no_profitable_cache_does_not_start_engine(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, enabled: bool
 ) -> None:
     hook = load("pre-push")
+    (tmp_path / "basicly.toml").write_text(f"[verify]\ncache={str(enabled).lower()}\n")
     monkeypatch.setattr(hook, "project_root", lambda: tmp_path)
     monkeypatch.setattr(hook, "ledger_write_in_flight", lambda _: False)
     monkeypatch.setattr(hook.subprocess, "run", lambda *_a, **_kw: pytest.fail("started engine"))

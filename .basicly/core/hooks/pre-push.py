@@ -46,7 +46,7 @@ def main() -> int:
         )
         return 1
     if load_cache(root) and cache_savings(root) > 0:
-        result = subprocess.run(  # nosec B603 B607 — fixed project interpreter command, no shell
+        result = subprocess.run(  # nosec B603, B607 # fixed project interpreter argv, no shell
             [
                 "uv",
                 "run",

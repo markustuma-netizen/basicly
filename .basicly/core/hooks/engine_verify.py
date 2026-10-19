@@ -12,12 +12,12 @@ from check_runner import load_checks, load_fail_fast, project_root
 
 def cache_savings(root: Path) -> float:
     path = root / ".basicly/usage/verify-cache.json"
-    resolved = path.resolve()
-    if not resolved.is_relative_to(root.resolve()) or any(
-        part.startswith(".env") for part in resolved.relative_to(root.resolve()).parts
-    ):
-        return 0
     try:
+        resolved = path.resolve()
+        if not resolved.is_relative_to(root.resolve()) or any(
+            part.startswith(".env") for part in resolved.relative_to(root.resolve()).parts
+        ):
+            return 0
         with path.open("rb") as stream:
             content = stream.read(2 * 1024 * 1024 + 1)
         if len(content) > 2 * 1024 * 1024:
