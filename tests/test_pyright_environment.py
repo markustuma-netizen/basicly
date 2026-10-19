@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -60,6 +61,14 @@ def test_other_checks_keep_their_original_environment(
     check = VerifyCheck("other", ("other",), frozenset({"full"}))
     assert verify.run_check(check, tmp_path, "full", capture=True).status == "pass"
     assert observed == [environment]
+
+
+def test_unsupported_platform_keeps_the_fresh_execution_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    environment = {"PATH": "original", "PATHEXT": ".EXE", "LOCALAPPDATA": "local"}
+    monkeypatch.setattr(pyright_inputs, "os", SimpleNamespace(name="nt"))
+    assert pyright_inputs.execution_environment(tmp_path, environment) == environment
 
 
 @pytest.mark.parametrize("name", ["PYTHONWARNINGS", "NODE_EXTRA_CA_CERTS", "LC_ALL", "HOME"])

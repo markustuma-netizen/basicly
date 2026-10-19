@@ -134,6 +134,8 @@ def _configuration(root: Path) -> None:
 
 def execution_environment(root: Path, environment: Mapping[str, str]) -> dict[str, str]:
     original = sanitised_project_env(environment, root)
+    if os.name != "posix":
+        return original
     kept = {
         "HOME",
         "USERPROFILE",
