@@ -365,3 +365,35 @@ def test_the_hook_and_the_engine_assemble_the_same_set_for_this_repo() -> None:
     engine = [check.name for check in load_verify_config(repo_root).for_mode("fast")]
 
     assert [name for name, _ in module.load_checks(repo_root, "fast")] == engine
+
+
+def test_a_clean_tracked_generated_file_is_restaged_after_a_mechanical_fix(
+    repo_with_formatter: Path,
+) -> None:
+    repo = repo_with_formatter
+    generated = repo / "generated.txt"
+    generated.write_text("stale")
+    _git(repo, "add", "generated.txt")
+    _git(
+        repo,
+        "-c",
+        "user.name=Fixture",
+        "-c",
+        "user.email=fixture@example.invalid",
+        "commit",
+        "-m",
+        "seed",
+    )
+    (repo / "mod.py").write_text("x  =  2\n")
+    _git(repo, "add", "mod.py")
+    script = repo / "generate.py"
+    script.write_text('from pathlib import Path\nPath("generated.txt").write_text("fresh")\n')
+    _write_config(
+        repo,
+        '[[verify.checks]]\nname="generate"\nmodes=["fast"]\n'
+        f'command=["{Path(sys.executable).as_posix()}","generate.py"]\n'
+        f'fix_command=["{Path(sys.executable).as_posix()}","generate.py"]\n',
+    )
+    _load_check_runner().apply_fixes(repo, "fast")
+    assert generated.read_text() == "fresh"
+    assert _staged_text(repo, "generated.txt") == "fresh"

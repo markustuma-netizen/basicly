@@ -244,7 +244,7 @@ def apply_fixes(repo_root: Path, mode: str) -> None:
 
     applied = _run_fixers(repo_root, fixes, staged)
     if applied:
-        _restage_fixed(repo_root, staged, dirty_before, applied)
+        _restage_fixed(repo_root, dirty_before, applied)
 
 
 def _run_fixers(
@@ -267,14 +267,12 @@ def _run_fixers(
     return applied
 
 
-def _restage_fixed(
-    repo_root: Path, staged: list[str], dirty_before: list[str], applied: list[str]
-) -> None:
+def _restage_fixed(repo_root: Path, dirty_before: list[str], applied: list[str]) -> None:
     dirty_after = _git_lines(repo_root, "diff", "--name-only")
     if dirty_after is None:
         print("skipping re-stage: cannot read the git working tree", file=sys.stderr)
         return
-    restage = sorted((set(dirty_after) - set(dirty_before)) & set(staged))
+    restage = sorted(set(dirty_after) - set(dirty_before))
     if not restage:
         return
     if _git_lines(repo_root, "add", "--", *restage) is None:

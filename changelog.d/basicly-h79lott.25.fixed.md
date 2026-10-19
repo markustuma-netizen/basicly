@@ -1,0 +1,1 @@
+- Include clean tracked generated files changed by mechanical pre-commit fixes in the validated commit, preserving unstaged user edits and refusing to publish auto-fixes after a failed check.
