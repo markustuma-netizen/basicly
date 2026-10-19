@@ -11,6 +11,13 @@ from basicly import pyright_inputs, verify
 from basicly.config import VerifyCheck
 
 
+@pytest.fixture(autouse=True)
+def posix_recipe(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        pyright_inputs, "os", SimpleNamespace(name="posix", pathsep=os.pathsep, defpath=os.defpath)
+    )
+
+
 def test_hook_metadata_and_duplicate_paths_do_not_change_the_executed_compiler_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

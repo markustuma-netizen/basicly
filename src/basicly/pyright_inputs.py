@@ -158,17 +158,19 @@ def execution_environment(root: Path, environment: Mapping[str, str]) -> dict[st
     }
     paths = list(
         dict.fromkeys(
-            str((root / entry).resolve())
+            str((root / entry).absolute())
             for entry in original.get("PATH", os.defpath).split(os.pathsep)
         )
     )
     lookup = os.pathsep.join(paths)
     directories = {
-        str(Path(tool).parent.resolve())
+        str(Path(tool).parent)
         for name in ("pyright", "node")
         if (tool := shutil.which(name, path=lookup)) is not None
     }
-    env["PATH"] = os.pathsep.join(path for path in paths if path in directories)
+    env["PATH"] = os.pathsep.join(
+        dict.fromkeys(str(Path(path).resolve()) for path in paths if path in directories)
+    )
     return env
 
 
