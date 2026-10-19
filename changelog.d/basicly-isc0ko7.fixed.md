@@ -1,1 +1,0 @@
-- Reuse passing pytest results across agent tool calls and tracker-only native pushes by controlling rotating proxy and call metadata in the opted-in offline suite. Ordinary checks retain their inherited environment; changed source and runtime inputs still execute fresh.
