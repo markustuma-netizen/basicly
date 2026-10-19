@@ -72,7 +72,11 @@ def test_only_the_reviewed_full_suite_command_is_eligible() -> None:
 
 def test_execution_and_proof_share_the_scrubbed_environment() -> None:
     environment = {"PATH": "tools", "GIT_DIR": "elsewhere", "SHLVL": "9", "CUSTOM": "kept"}
-    assert pytest_inputs.execution_environment(environment) == {"PATH": "tools", "CUSTOM": "kept"}
+    assert pytest_inputs.execution_environment(environment) == {
+        "PATH": "tools",
+        "CUSTOM": "kept",
+        "NO_COLOR": "1",
+    }
 
 
 def test_external_import_paths_refuse_runtime_reuse(tmp_path: Path) -> None:
@@ -114,3 +118,14 @@ def test_hook_dispatch_and_nested_uv_environment_do_not_change_execution_inputs(
         "PWD": "shell",
     }
     assert pytest_inputs.execution_environment(base) == pytest_inputs.execution_environment(nested)
+
+
+def test_native_git_and_lefthook_context_matches_direct_execution() -> None:
+    base = {"PATH": os.pathsep.join(["venv", "tools"]), "NO_COLOR": "1"}
+    hook = {
+        "PATH": os.pathsep.join(["venv", "git-core", "tools"]),
+        "GIT_EXEC_PATH": "git-core",
+        "NO_COLOR": "true",
+        "BASICLY_FOLD_COMMAND": "dispatcher",
+    }
+    assert pytest_inputs.execution_environment(base) == pytest_inputs.execution_environment(hook)
