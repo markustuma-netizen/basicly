@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.26.10 - 2026-10-19
+
+Delta: v0.26.9..v0.26.10
+
 basicly no longer installs custom Codex permission profiles or command rules. Upgrading a repository removes the policies from earlier versions and preserves consumer settings.
 
 - **Codex defaults:** remove the generated workspace, read-only and legacy GUID profiles during installation and upgrades (basicly-wojvoi0).
