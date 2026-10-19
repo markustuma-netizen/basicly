@@ -1,1 +1,0 @@
-- `basicly install` and `permissions-build` now remove the generated Codex policy instead of writing it: the `basicly-workspace` and `basicly-read-only` profiles, any old GUID profile, the `default_permissions` that named one, and the managed `consent-floor.rules` lines. Consumer settings and rules stay. Codex runs on its own defaults.
