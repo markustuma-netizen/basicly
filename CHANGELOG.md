@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly no longer installs custom Codex permission profiles or command rules. Upgrading a repository removes the policies from earlier versions and preserves consumer settings.
+
+- **Codex defaults:** remove the generated workspace, read-only and legacy GUID profiles during installation and upgrades (basicly-wojvoi0).
+- **Consumer cleanup:** preserve existing settings and custom rules. `--codex-user` also removes registered basicly profiles from user configuration (basicly-wojvoi0).
+
 ## v0.26.8 - 2026-10-19
 
 Delta: v0.26.6..v0.26.8
