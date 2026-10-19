@@ -72,6 +72,7 @@ def _dependency(root: Path, workspace: Path | None = None) -> str:
 
 def execution_environment(environment: dict[str, str]) -> dict[str, str]:
     excluded = {
+        "CODEX_TOOL_CALL_ID",
         "SHLVL",
         "_",
         "PWD",
@@ -92,7 +93,9 @@ def execution_environment(environment: dict[str, str]) -> dict[str, str]:
         for name, value in checkout.sanitised_colour_env(
             checkout.sanitised_git_env(environment)
         ).items()
-        if name not in excluded and not name.startswith(("BASICLY_HOOK_", "LEFTHOOK_"))
+        if name not in excluded
+        and not name.startswith(("BASICLY_HOOK_", "LEFTHOOK_"))
+        and (not name.upper().endswith("_PROXY") or name.upper() == "NO_PROXY")
     }
     if "PATH" in cleaned:
         cleaned["PATH"] = os.pathsep.join(
@@ -122,7 +125,7 @@ def fingerprint(repo_root: Path) -> str:
         ):
             raise pyright_inputs.UnsupportedInputsError("pytest launcher uses another interpreter")
         payload = {
-            "recipe": "pytest-ledger-independent-v1",
+            "recipe": "pytest-ledger-independent-v2",
             "workspace": _workspace(root),
             "environment": environment,
             "launcher": hashlib.sha256(path.read_bytes()).hexdigest(),

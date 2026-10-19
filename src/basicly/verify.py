@@ -156,7 +156,9 @@ def _run(
     started = time.perf_counter()
     try:
         if check.reuse == "pyright" and supported_command(tuple(command), mode):
-            proc = _spawn(command, repo_root, capture=capture, controlled=True)
+            proc = _spawn(command, repo_root, capture=capture, controlled="pyright")
+        elif check.reuse == "pytest" and pytest_inputs.supported_command(tuple(command), mode):
+            proc = _spawn(command, repo_root, capture=capture, controlled="pytest")
         else:
             proc = _spawn(command, repo_root, capture=capture)
     except FileNotFoundError:
@@ -196,13 +198,13 @@ def _run(
 
 
 def _spawn(
-    command: Sequence[str], repo_root: Path, *, capture: bool, controlled: bool = False
+    command: Sequence[str], repo_root: Path, *, capture: bool, controlled: str = ""
 ) -> subprocess.CompletedProcess[str]:
 
     env = sanitised_project_env(affected.environment(repo_root), repo_root)
-    if controlled:
+    if controlled == "pyright":
         env = pyright_inputs.execution_environment(repo_root, env)
-    if pytest_inputs.supported_command(tuple(command), "full"):
+    elif controlled == "pytest":
         env = pytest_inputs.execution_environment(env)
     if capture:
         return subprocess.run(  # noqa: S603 — repo-declared argv, list form, no shell

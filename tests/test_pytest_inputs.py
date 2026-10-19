@@ -132,3 +132,46 @@ def test_native_git_and_lefthook_context_matches_direct_execution() -> None:
         "BASICLY_FOLD_COMMAND": "dispatcher",
     }
     assert pytest_inputs.execution_environment(base) == pytest_inputs.execution_environment(hook)
+
+
+@pytest.mark.parametrize(
+    "name",
+    [
+        "ALL_PROXY",
+        "HTTP_PROXY",
+        "HTTPS_PROXY",
+        "FTP_PROXY",
+        "WS_PROXY",
+        "WSS_PROXY",
+        "NPM_CONFIG_PROXY",
+        "NPM_CONFIG_HTTP_PROXY",
+        "NPM_CONFIG_HTTPS_PROXY",
+        "PIP_PROXY",
+        "BUNDLE_HTTP_PROXY",
+        "BUNDLE_HTTPS_PROXY",
+        "DOCKER_HTTP_PROXY",
+        "DOCKER_HTTPS_PROXY",
+        "YARN_HTTP_PROXY",
+        "YARN_HTTPS_PROXY",
+        "http_proxy",
+        "https_proxy",
+        "npm_config_proxy",
+        "CODEX_TOOL_CALL_ID",
+    ],
+)
+def test_rotating_tool_transport_is_absent_from_the_actual_pytest_environment(name: str) -> None:
+    base = {"PATH": "tools", "NO_PROXY": "localhost", "CUSTOM": "kept"}
+    before = {**base, name: "transport-before"}
+    after = {**base, name: "transport-after"}
+    expected = {**base, "NO_COLOR": "1"}
+    assert pytest_inputs.execution_environment(before) == expected
+    assert pytest_inputs.execution_environment(after) == expected
+    assert before[name] == "transport-before"
+
+
+@pytest.mark.parametrize(
+    "name", ["NO_PROXY", "no_proxy", "SSL_CERT_FILE", "PYTHONWARNINGS", "CUSTOM"]
+)
+def test_material_pytest_environment_inputs_are_preserved(name: str) -> None:
+    assert pytest_inputs.execution_environment({name: "before"})[name] == "before"
+    assert pytest_inputs.execution_environment({name: "after"})[name] == "after"

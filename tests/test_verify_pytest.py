@@ -101,3 +101,46 @@ def test_pytest_and_compiler_proofs_are_independent(
     assert calls.count("pytest") == 2
     assert calls.count("pyright") == 1
     assert result.results[2].reused_from == origin.run_id
+
+
+@pytest.mark.parametrize(
+    ("case", "controlled"),
+    [
+        (("pytest", "full", COMMAND), True),
+        ((None, "full", COMMAND), False),
+        (("pytest", "fast", COMMAND), False),
+        (("pytest", "full", ("pytest", "-q")), False),
+    ],
+)
+def test_only_the_opted_in_supported_suite_controls_its_execution_environment(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    case: tuple[str | None, str, tuple[str, ...]],
+    controlled: bool,
+) -> None:
+    recipe, mode, command = case
+    environment = {
+        "PATH": "tools",
+        "HTTP_PROXY": "rotating-transport",
+        "CODEX_TOOL_CALL_ID": "call-1",
+        "NO_PROXY": "localhost",
+        "PYTHONWARNINGS": "default",
+    }
+    observed: list[dict[str, str]] = []
+
+    def execute(argv, **kwargs):
+        observed.append(kwargs["env"])
+        return subprocess.CompletedProcess(argv, 0, "", "")
+
+    monkeypatch.setattr(verify.affected, "environment", lambda _root: environment)
+    monkeypatch.setattr(verify.subprocess, "run", execute)
+    check = VerifyCheck("tests", command, frozenset({mode}), reuse=recipe)
+    result = verify.run_check(check, tmp_path, mode, capture=True)
+    assert result.status == "pass"
+    expected = (
+        verify.pytest_inputs.execution_environment(environment) if controlled else environment
+    )
+    assert observed == [expected]
+    assert observed[0]["PYTHONWARNINGS"] == "default"
+    assert observed[0]["NO_PROXY"] == "localhost"
+    assert "HTTP_PROXY" in environment
