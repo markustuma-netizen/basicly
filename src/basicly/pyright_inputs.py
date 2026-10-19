@@ -171,6 +171,12 @@ def execution_environment(root: Path, environment: Mapping[str, str]) -> dict[st
     env["PATH"] = os.pathsep.join(
         dict.fromkeys(str(Path(path).resolve()) for path in paths if path in directories)
     )
+    if "VIRTUAL_ENV" in env:
+        try:
+            _configuration(root)
+        except OSError, ValueError, TypeError, AttributeError:
+            return env
+        del env["VIRTUAL_ENV"]
     return env
 
 
@@ -268,7 +274,7 @@ def fingerprint(repo_root: Path) -> str:
         if len(sites) != 1 or not sites[0].is_dir():
             raise UnsupportedInputsError("unsupported analysis environment layout")
         payload = {
-            "recipe": "pyright-1.1.411-v3",
+            "recipe": "pyright-1.1.411-v4",
             "source": _digest_files(root, sources=True),
             "analysis": _digest_files(sites[0], sources=True, workspace=root),
             "analysis_layout": sites[0].relative_to(root).as_posix(),
