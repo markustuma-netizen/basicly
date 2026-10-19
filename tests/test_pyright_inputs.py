@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -148,22 +149,23 @@ def runtime(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     stdlib.mkdir()
     (stdlib / "typing.py").write_text("value = 1\n", encoding="utf-8")
     monkeypatch.setattr(
-        pyright_inputs, "os", SimpleNamespace(name="posix", environ={"PATH": str(binary)})
-    )
-    monkeypatch.setattr(pyright_inputs, "sys", SimpleNamespace(executable=str(interpreter)))
-    monkeypatch.setattr(
-        pyright_inputs.sysconfig,
-        "get_path",
-        lambda name: str(site if name == "purelib" else stdlib),
-    )
-    monkeypatch.setattr(pyright_inputs.shutil, "which", lambda name, **_kw: str(binary / name))
-    monkeypatch.setattr(
-        pyright_inputs.importlib.util,
-        "find_spec",
-        lambda name: (
-            SimpleNamespace(origin=str(site / "pyright/__init__.py")) if name == "pyright" else None
+        pyright_inputs,
+        "os",
+        SimpleNamespace(
+            name="posix", environ={"PATH": str(binary)}, pathsep=os.pathsep, defpath=os.defpath
         ),
     )
+    monkeypatch.setattr(
+        pyright_inputs,
+        "_interpreter_paths",
+        lambda *_args: {
+            "purelib": str(site),
+            "stdlib": str(stdlib),
+            "pyright": str(site / "pyright/__init__.py"),
+            "nodejs_wheel": "",
+        },
+    )
+    monkeypatch.setattr(pyright_inputs.shutil, "which", lambda name, **_kw: str(binary / name))
     return tmp_path
 
 
@@ -179,7 +181,7 @@ def test_runtime_changes_change_identity(runtime: Path, changed: str) -> None:
     elif changed == "tool":
         (runtime / "site/pyright/new.py").write_text("value = 3\n", encoding="utf-8")
     else:
-        pyright_inputs.os.environ["CHECK_CONTEXT"] = "changed"
+        pyright_inputs.os.environ["PYTHONWARNINGS"] = "changed"
     assert pyright_inputs._runtime(runtime) != before
 
 
@@ -205,11 +207,8 @@ def test_custom_launcher_cannot_claim_the_reviewed_compiler_recipe(runtime: Path
         pyright_inputs._runtime(runtime)
 
 
-def test_isolated_engine_probes_the_tools_actual_interpreter(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
+def test_metadata_comes_from_the_tools_actual_interpreter(tmp_path: Path) -> None:
     interpreter = Path(sys.executable)
-    monkeypatch.setattr(pyright_inputs, "sys", SimpleNamespace(executable="different-engine"))
     data = pyright_inputs._interpreter_paths(interpreter, tmp_path, dict(pyright_inputs.os.environ))
     assert Path(data["purelib"]).is_dir()
     assert Path(data["stdlib"]).is_dir()

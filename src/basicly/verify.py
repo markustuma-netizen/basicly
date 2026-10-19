@@ -153,7 +153,10 @@ def _run(
         command += [f"./{path}" if path.startswith("-") else path for path in files]
     started = time.perf_counter()
     try:
-        proc = _spawn(command, repo_root, capture=capture)
+        if check.reuse == "pyright" and supported_command(tuple(command), mode):
+            proc = _spawn(command, repo_root, capture=capture, controlled=True)
+        else:
+            proc = _spawn(command, repo_root, capture=capture)
     except FileNotFoundError:
         return CheckResult(
             name,
@@ -191,10 +194,12 @@ def _run(
 
 
 def _spawn(
-    command: Sequence[str], repo_root: Path, *, capture: bool
+    command: Sequence[str], repo_root: Path, *, capture: bool, controlled: bool = False
 ) -> subprocess.CompletedProcess[str]:
 
     env = sanitised_project_env(affected.environment(repo_root), repo_root)
+    if controlled:
+        env = pyright_inputs.execution_environment(repo_root, env)
     if capture:
         return subprocess.run(  # noqa: S603 — repo-declared argv, list form, no shell
             command, cwd=repo_root, env=env, check=False, capture_output=True, text=True
@@ -389,6 +394,7 @@ def run_verify(
                 for check, result in zip(checks, results, strict=True)
                 if check.name in eligible
             ),
+            overhead_s=max(0, report.duration_s - sum(result.duration_s for result in results)),
         )
     return report
 

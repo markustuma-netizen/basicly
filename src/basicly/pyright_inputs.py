@@ -1,15 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import importlib.util
 import json
 import os
 import platform
 import shutil
 import subprocess
-import sys
-import sysconfig
 import tomllib
+from collections.abc import Mapping
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from .runner import sanitised_project_env
@@ -134,8 +132,46 @@ def _configuration(root: Path) -> None:
                 raise UnsupportedInputsError("excluded analysis search path")
 
 
+def execution_environment(root: Path, environment: Mapping[str, str]) -> dict[str, str]:
+    original = sanitised_project_env(environment, root)
+    kept = {
+        "HOME",
+        "USERPROFILE",
+        "SYSTEMROOT",
+        "WINDIR",
+        "COMSPEC",
+        "TMP",
+        "TEMP",
+        "TMPDIR",
+        "LANG",
+        "LANGUAGE",
+        "TZ",
+        "VIRTUAL_ENV",
+        "__PYVENV_LAUNCHER__",
+    }
+    env = {
+        name: value
+        for name, value in original.items()
+        if name.upper() in kept or name.startswith(("PYTHON", "PYRIGHT_", "NODE_", "LC_"))
+    }
+    paths = list(
+        dict.fromkeys(
+            str((root / entry).resolve())
+            for entry in original.get("PATH", os.defpath).split(os.pathsep)
+        )
+    )
+    lookup = os.pathsep.join(paths)
+    directories = {
+        str(Path(tool).parent.resolve())
+        for name in ("pyright", "node")
+        if (tool := shutil.which(name, path=lookup)) is not None
+    }
+    env["PATH"] = os.pathsep.join(path for path in paths if path in directories)
+    return env
+
+
 def _runtime(root: Path) -> dict[str, str]:
-    env = sanitised_project_env(os.environ, root)
+    env = execution_environment(root, os.environ)
     unsupported = (
         "PYTHONPATH",
         "PYTHONHOME",
@@ -190,14 +226,6 @@ def _runtime(root: Path) -> dict[str, str]:
 
 
 def _interpreter_paths(interpreter: Path, directory: Path, env: dict[str, str]) -> dict[str, str]:
-    if str(interpreter) == sys.executable:
-        spec = importlib.util.find_spec("pyright")
-        return {
-            "purelib": sysconfig.get_path("purelib"),
-            "stdlib": sysconfig.get_path("stdlib"),
-            "pyright": spec.origin if spec and spec.origin else "",
-            "nodejs_wheel": "present" if importlib.util.find_spec("nodejs_wheel") else "",
-        }
     program = (
         "import importlib.util,json,sysconfig;"
         "p=importlib.util.find_spec('pyright');"
@@ -236,7 +264,7 @@ def fingerprint(repo_root: Path) -> str:
         if len(sites) != 1 or not sites[0].is_dir():
             raise UnsupportedInputsError("unsupported analysis environment layout")
         payload = {
-            "recipe": "pyright-1.1.411-v2",
+            "recipe": "pyright-1.1.411-v3",
             "source": _digest_files(root, sources=True),
             "analysis": _digest_files(sites[0], sources=True, workspace=root),
             "analysis_layout": sites[0].relative_to(root).as_posix(),
