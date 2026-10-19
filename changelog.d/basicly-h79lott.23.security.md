@@ -1,1 +1,0 @@
-- Preserve dotenv denials for read-only Codex judgments and project managed command rules into consumer repositories while retaining custom rules.

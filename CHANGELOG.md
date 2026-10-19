@@ -6,10 +6,26 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.26.2 - 2026-10-19
+
+Delta: v0.26.1..v0.26.2
+
 basicly 0.26.2 avoids Pyright input hashing when verification fails before reaching reusable checks. Consumer installs retain Codex command safeguards and a read-only reviewer profile, while preserving existing consumer network policy. General reuse of full verification remains follow-up work.
 
 - Verification cost: skip unused failure-path fingerprints without changing successful-run or borrowed-evidence validation (basicly-h79lott.22).
 - Consumer safeguards: retain managed command rules, read-only dotenv denials and portable settings; verify migration preserves consumer policy (basicly-h79lott.23).
+
+### Changed
+
+- Supersede the deferred Codex consent prototype with the current permission projector, retaining read-only dotenv protections and consumer command rules. (basicly-02nml8h.1)
+
+### Fixed
+
+- Avoid Pyright input fingerprinting before eligible checks are reached and after fresh failures; retain input-change protection for reused results. (basicly-h79lott.22)
+
+### Security
+
+- Preserve dotenv denials for read-only Codex judgments and project managed command rules into consumer repositories while retaining custom rules. (basicly-h79lott.23)
 
 ## v0.26.1 - 2026-10-18
 

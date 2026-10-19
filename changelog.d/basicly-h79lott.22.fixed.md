@@ -1,1 +1,0 @@
-- Avoid Pyright input fingerprinting before eligible checks are reached and after fresh failures; retain input-change protection for reused results.
