@@ -84,6 +84,8 @@ def execution_environment(environment: dict[str, str]) -> dict[str, str]:
         "LEFTHOOK",
         "BASICLY_FOREIGN_HOOK",
         "BASICLY_SECRET_EXCLUDE",
+        "BASICLY_FOLD_COMMAND",
+        "GIT_EXEC_PATH",
     }
     cleaned = {
         name: value
@@ -93,7 +95,12 @@ def execution_environment(environment: dict[str, str]) -> dict[str, str]:
         if name not in excluded and not name.startswith(("BASICLY_HOOK_", "LEFTHOOK_"))
     }
     if "PATH" in cleaned:
-        cleaned["PATH"] = os.pathsep.join(dict.fromkeys(cleaned["PATH"].split(os.pathsep)))
+        cleaned["PATH"] = os.pathsep.join(
+            entry
+            for entry in dict.fromkeys(cleaned["PATH"].split(os.pathsep))
+            if entry != environment.get("GIT_EXEC_PATH")
+        )
+    cleaned["NO_COLOR"] = "1"
     return cleaned
 
 
