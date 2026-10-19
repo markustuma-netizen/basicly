@@ -4,7 +4,7 @@ This is a walkthrough, not a reference. Follow it top to bottom on a **scratch
 git repo** and you will end with one unit of work filed, built in its own
 worktree, merged, and closed by the harness — one sitting, no agent spend.
 Every command and every quoted output below was executed against a fresh repo on
-basicly 0.26.5 in a real terminal, with that repo's generated bead-id prefix swapped for
+basicly 0.26.6 in a real terminal, with that repo's generated bead-id prefix swapped for
 `myrepo`, absolute paths written as `/path/to/...`, and `...` marking an elided line.
 
 When you want to look something up rather than learn the shape, stop here and
@@ -33,7 +33,7 @@ Every command below is written as bare `basicly`. Run it as the pinned form so
 you always get the version you chose:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.5/basicly-0.26.5-py3-none-any.whl basicly <args>
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.6/basicly-0.26.6-py3-none-any.whl basicly <args>
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -47,7 +47,7 @@ uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.5/basicly
 From the repo root:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.5/basicly-0.26.5-py3-none-any.whl basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.6/basicly-0.26.6-py3-none-any.whl basicly install
 ```
 
 It ends with:
@@ -185,8 +185,8 @@ When a reader opens the repo, I want a one line getting started note, so I can r
 ```
 
 ```text
-created: myrepo-v31r
-myrepo-v31r is not ready: it owes ## Confirmation Plan; claim refuses it
+created: myrepo-lcwg
+myrepo-lcwg is not ready: it owes ## Confirmation Plan; claim refuses it
 ...
 ```
 
@@ -197,8 +197,8 @@ conversation references and a check for each criterion. Write the agreement on t
 first:
 
 ```sh
-python3 .basicly/core/kit/tracker/cli.py comment .basicly/ledger myrepo-v31r 'Agreed: one line in NOTES.md that points a reader at basicly status.'
-python3 .basicly/core/kit/tracker/cli.py show .basicly/ledger myrepo-v31r
+python3 .basicly/core/kit/tracker/cli.py comment .basicly/ledger myrepo-lcwg 'Agreed: one line in NOTES.md that points a reader at basicly status.'
+python3 .basicly/core/kit/tracker/cli.py show .basicly/ledger myrepo-lcwg
 ```
 
 `show` lists the comment with its sequence number in `comment_log`:
@@ -221,7 +221,7 @@ an acceptance criterion word for word, with the command that proves it and the r
 expect:
 
 ```sh
-python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-v31r --evidence '{"invest": {"independent": "No other record touches NOTES.md.", "negotiable": "The wording of the note is open.", "valuable": "A reader finds the first command without reading the tree.", "estimable": "One line in one file.", "small": "One commit.", "testable": "grep counts the line."}, "conversation": [3], "checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "expected": "1"}]}'
+python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-lcwg --evidence '{"invest": {"independent": "No other record touches NOTES.md.", "negotiable": "The wording of the note is open.", "valuable": "A reader finds the first command without reading the tree.", "estimable": "One line in one file.", "small": "One commit.", "testable": "grep counts the line."}, "conversation": [3], "checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "expected": "1"}]}'
 ```
 
 ```text
@@ -230,7 +230,7 @@ python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-v31r --ev
   "blocking": [],
   ...
   "owed": [],
-  "record": "myrepo-v31r",
+  "record": "myrepo-lcwg",
   "remedy": "",
   "schema": "basicly.tracker.review.v1"
 }
@@ -239,15 +239,15 @@ python3 .basicly/core/kit/tracker/cli.py review .basicly/ledger myrepo-v31r --ev
 Check the gate agrees:
 
 ```sh
-basicly policy dor myrepo-v31r
+basicly policy dor myrepo-lcwg
 ```
 
 ```text
-DoR: READY (myrepo-v31r)
+DoR: READY (myrepo-lcwg)
 ```
 
 If it says `NOT READY` it names what is missing.
-Add a missing section with `basicly tracker write -- update myrepo-v31r -d '...'`, and a
+Add a missing section with `basicly tracker write -- update myrepo-lcwg -d '...'`, and a
 missing field with `--acceptance '...'` or `--requirements '...'`. A change to either one
 makes the review stale, so record the review again after it.
 
@@ -256,9 +256,9 @@ commit that changes files outside the ledger unless you hold the record it names
 claim the record, then commit:
 
 ```sh
-basicly tracker write -- update myrepo-v31r --status in_progress
+basicly tracker write -- update myrepo-lcwg --status in_progress
 git add -A
-git commit -m "chore: install basicly (myrepo-v31r)"
+git commit -m "chore: install basicly (myrepo-lcwg)"
 ```
 
 Lefthook should report each managed dispatcher as successful.
@@ -266,18 +266,18 @@ Lefthook should report each managed dispatcher as successful.
 ## Step 4 — ask the loop where the bead stands
 
 ```sh
-basicly loop status myrepo-v31r
+basicly loop status myrepo-lcwg
 ```
 
 ```text
-issue:       myrepo-v31r (task, in_progress)
+issue:       myrepo-lcwg (task, in_progress)
 phase:       intake
 worktree:    (none)
 gates:       advance BLOCKED
   missing:   verify
 checkpoints: (none)
 rework:      verify=0
-ready set:   myrepo-v31r
+ready set:   myrepo-lcwg
 blocked:     (none)
 ```
 
@@ -290,7 +290,7 @@ including one that starts after a crash or on a different machine.
 One command drives a whole phase *boundary*, resolving what it may on the way:
 
 ```sh
-basicly loop run myrepo-v31r --work-type task --runner manual
+basicly loop run myrepo-lcwg --work-type task --runner manual
 ```
 
 `--work-type task` is your call, and it decides the shape of everything after:
@@ -307,15 +307,15 @@ answers it:
 
 ```text
 override: runner.default=manual
-Created worktree 'myrepo-v31r'
-  path:   /path/to/myrepo.worktrees/myrepo-v31r
-  branch: harness/myrepo-v31r  (base main @ 92871cf)
+Created worktree 'myrepo-lcwg'
+  path:   /path/to/myrepo.worktrees/myrepo-lcwg
+  branch: harness/myrepo-lcwg  (base main @ a9e6c07)
   .basicly/ledger/redirect: tracker shared with the base checkout
   hooks: post-merge, pre-commit, commit-msg, pre-push — repository-local Lefthook hooks installed
   ...
 [blocked] intake -> intake: recorded work type 'task'; classify checkpoint awaiting approval
-checkpoint classify: APPROVED (myrepo-v31r)
-[blocked] classify -> classify: worktree 'myrepo-v31r' provisioned; awaiting the agent's work
+checkpoint classify: APPROVED (myrepo-lcwg)
+[blocked] classify -> classify: worktree 'myrepo-lcwg' provisioned; awaiting the agent's work
 ```
 
 A checkpoint is a *human* decision, and running the command yourself at a terminal **is**
@@ -340,10 +340,10 @@ Three things just happened that are worth understanding:
 ## Step 6 — do the work, and commit it on the branch
 
 ```sh
-cd ../myrepo.worktrees/myrepo-v31r
+cd ../myrepo.worktrees/myrepo-lcwg
 printf '# Notes\n\nRun `basicly status` to see what the harness installed.\n' > NOTES.md
 git add NOTES.md
-git commit -m "docs: add a getting started note (myrepo-v31r)"
+git commit -m "docs: add a getting started note (myrepo-lcwg)"
 grep -c "basicly status" NOTES.md
 ```
 
@@ -360,8 +360,8 @@ worktree strands the merge:
 
 ```sh
 cd ../../myrepo
-python3 .basicly/core/kit/tracker/cli.py confirm .basicly/ledger myrepo-v31r --evidence '{"checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "result": "1", "exit_code": 0}]}'
-basicly loop run myrepo-v31r --runner manual
+python3 .basicly/core/kit/tracker/cli.py confirm .basicly/ledger myrepo-lcwg --evidence '{"checks": [{"criterion": "Given a reader who opens the repo when they read NOTES.md then a one line getting started note is present", "command": ["grep", "-c", "basicly status", "NOTES.md"], "result": "1", "exit_code": 0}]}'
+basicly loop run myrepo-lcwg --runner manual
 ```
 
 `confirm` records the result of each planned check; the loop requires actual confirmation
@@ -371,10 +371,10 @@ the worktree is not the shared one.
 ```text
 override: runner.default=manual
   ...
-Cleaned up worktree 'myrepo-v31r' (worktree + branch + metadata).
-[merged] build -> verify: merged harness/myrepo-v31r @ 61b6552c7072 (1 commit(s)) into main @ 00360fa; landing 0.9s (tracker-commit 0.6s, merge 0.2s)
+Cleaned up worktree 'myrepo-lcwg' (worktree + branch + metadata).
+[merged] build -> verify: merged harness/myrepo-lcwg @ a282943b3af5 (1 commit(s)) into main @ fec4200; landing 0.9s (tracker-commit 0.6s, merge 0.2s)
 [blocked] verify -> verify: ship checkpoint awaiting human approval
-checkpoint ship: APPROVED (myrepo-v31r)
+checkpoint ship: APPROVED (myrepo-lcwg)
 [tore-down] ship -> done: worktree torn down and issue closed; cost rollup recorded; the curator bound no claims; tracker state committed
 ```
 
@@ -402,12 +402,12 @@ git log --oneline -6
 ```
 
 ```text
-8dc7f43 chore(tracker): close the shipped track (myrepo-v31r)
-00360fa chore(worktree): merge a harness worktree back to its base
-61b6552 docs: add a getting started note (myrepo-v31r)
-ac4235a chore(tracker): sync tracker state for the harness loop (myrepo-v31r)
-92871cf chore(tracker): record the claim before provisioning (myrepo-v31r)
-63b5920 chore: install basicly (myrepo-v31r)
+26acd58 chore(tracker): close the shipped track (myrepo-lcwg)
+fec4200 chore(worktree): merge a harness worktree back to its base
+81572d9 chore(tracker): sync tracker state for the harness loop (myrepo-lcwg)
+a282943 docs: add a getting started note (myrepo-lcwg)
+a9e6c07 chore(tracker): record the claim before provisioning (myrepo-lcwg)
+0d91a14 chore: install basicly (myrepo-lcwg)
 ```
 
 You wrote two of those six — the install commit and the change itself. The
@@ -416,15 +416,15 @@ landing, and the close, which is why you never `git add .basicly/ledger` yoursel
 loop-tracked work.
 
 ```sh
-basicly loop status myrepo-v31r
+basicly loop status myrepo-lcwg
 ```
 
 The fields that moved since Step 4:
 
 ```text
-issue:       myrepo-v31r (task, closed)
+issue:       myrepo-lcwg (task, closed)
 phase:       done
-worktree:    myrepo-v31r on harness/myrepo-v31r
+worktree:    myrepo-lcwg on harness/myrepo-lcwg
 gates:       advance ALLOWED
   passed:    verify
 checkpoints: classify, ship
