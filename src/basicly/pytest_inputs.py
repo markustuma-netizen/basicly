@@ -71,14 +71,30 @@ def _dependency(root: Path, workspace: Path | None = None) -> str:
 
 
 def execution_environment(environment: dict[str, str]) -> dict[str, str]:
-    excluded = {"SHLVL", "_", "BR_AGENT_NAME", "AI_AGENT", "CLAUDECODE", "PYTEST_CURRENT_TEST"}
-    return {
+    excluded = {
+        "SHLVL",
+        "_",
+        "PWD",
+        "OLDPWD",
+        "BR_AGENT_NAME",
+        "AI_AGENT",
+        "CLAUDECODE",
+        "PYTEST_CURRENT_TEST",
+        "UV_RUN_RECURSION_DEPTH",
+        "LEFTHOOK",
+        "BASICLY_FOREIGN_HOOK",
+        "BASICLY_SECRET_EXCLUDE",
+    }
+    cleaned = {
         name: value
         for name, value in checkout.sanitised_colour_env(
             checkout.sanitised_git_env(environment)
         ).items()
-        if name not in excluded
+        if name not in excluded and not name.startswith(("BASICLY_HOOK_", "LEFTHOOK_"))
     }
+    if "PATH" in cleaned:
+        cleaned["PATH"] = os.pathsep.join(dict.fromkeys(cleaned["PATH"].split(os.pathsep)))
+    return cleaned
 
 
 def fingerprint(repo_root: Path) -> str:
