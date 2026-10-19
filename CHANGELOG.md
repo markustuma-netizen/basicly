@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+This patch prevents the opted-in offline pytest suite from rerunning just because an agent tool call rotates its transport context. It also preserves inherited settings for checks that have not opted into this recipe.
+
+- **Verification reuse:** remove changing proxy URLs and tool-call identifiers from the actual opted-in test environment and its proof, so equivalent tracker-only pushes can reuse the passing code suite (basicly-isc0ko7).
+- **Compatibility and safety:** ordinary checks retain their environment; source, runtime and retained environment changes still run fresh, while live-ledger checks always execute (basicly-isc0ko7).
+
 ## v0.26.6 - 2026-10-19
 
 Delta: v0.26.5..v0.26.6
