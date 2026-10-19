@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly 0.26.4 avoids redundant compiler work between verification and pre-push when a compatible project engine and profitable passing evidence are available. The opted-in Pyright recipe fingerprints the controlled environment it actually executes, so changing hook metadata and host proxy settings no longer invalidate equivalent work. Cheap checks keep fresh execution. General test-suite and cross-checkout verification reuse remain open.
+
+- **Verification cost** — `basicly-89tsbqu` connects cache-enabled native pre-push hooks to trusted engine evidence, retains changed-input failures and engine-free operation, and avoids resolving unrelated PATH directories.
+
 ## v0.26.3 - 2026-10-19
 
 Delta: v0.26.2..v0.26.3
