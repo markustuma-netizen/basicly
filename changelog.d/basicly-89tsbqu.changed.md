@@ -1,1 +1,0 @@
-- Cache-enabled pre-push hooks reuse the existing engine's verified Pyright evidence when available and compatible, while engine-free consumers retain fresh checks and failed verification still blocks the push.
