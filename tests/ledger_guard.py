@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import stat
 import sys
 import threading
 import warnings
@@ -19,10 +20,50 @@ _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
 _LOCK = threading.Lock()
 _WATCHES: list[Watch] = []
 _ANNOUNCED: set[str] = set()
+_CACHE: dict[Path, tuple[tuple[int, ...], bytes]] = {}
+_CACHE_BYTES = 64 * 1024 * 1024
+_CACHE_FILES = 64
 
 
 class LedgerChangedWarning(UserWarning):
     pass
+
+
+def _cache_identity(state: os.stat_result, platform_name: str) -> tuple[int, ...] | None:
+    if platform_name != "posix" or not stat.S_ISREG(state.st_mode) or state.st_ctime_ns % 1000 == 0:
+        return None
+    return (
+        state.st_dev,
+        state.st_ino,
+        state.st_mode,
+        state.st_size,
+        state.st_mtime_ns,
+        state.st_ctime_ns,
+    )
+
+
+def _read_ledger(path: Path) -> bytes:
+    before = _cache_identity(path.stat(), os.name)
+    if before is not None:
+        with _LOCK:
+            cached = _CACHE.get(path)
+            if cached is not None and cached[0] == before:
+                return cached[1]
+    content = path.read_bytes()
+    if (
+        before is not None
+        and before == _cache_identity(path.stat(), os.name)
+        and len(content) <= _CACHE_BYTES
+    ):
+        with _LOCK:
+            _CACHE.pop(path, None)
+            while (
+                len(_CACHE) >= _CACHE_FILES
+                or sum(len(held[1]) for held in _CACHE.values()) + len(content) > _CACHE_BYTES
+            ):
+                _CACHE.pop(next(iter(_CACHE)))
+            _CACHE[path] = before, content
+    return content
 
 
 def _key(path: str | os.PathLike[str]) -> str:
@@ -58,7 +99,7 @@ class Watch:
         self._prefixes = tuple({_key(root), _key(root.resolve())})
         self._opened: set[str] = set()
         self._before = (
-            {path: path.read_bytes() for path in sorted(root.glob(LOG_GLOB))}
+            {path: _read_ledger(path) for path in sorted(root.glob(LOG_GLOB))}
             if root.is_dir()
             else {}
         )
@@ -70,7 +111,7 @@ class Watch:
     def close(self) -> None:
 
         self.written = tuple(sorted(self._opened))
-        changed = [path for path, held in self._before.items() if path.read_bytes() != held]
+        changed = [path for path, held in self._before.items() if _read_ledger(path) != held]
         if self.root.is_dir():
             changed += [
                 path for path in sorted(self.root.glob(LOG_GLOB)) if path not in self._before

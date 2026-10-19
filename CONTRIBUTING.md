@@ -79,7 +79,7 @@ uv run basicly skills-check   # fail when a projected SKILL.md is missing or sta
 Run these locally before pushing — CI runs the same set:
 
 ```sh
-uv run pytest -q                # test suite
+uv run pytest -q -n 4           # test suite
 uv run ruff check               # lint
 uv run ruff format --check      # formatting
 uv run basicly check            # generated agent files in sync

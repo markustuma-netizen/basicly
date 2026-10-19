@@ -1,0 +1,1 @@
+- Reduce this repository’s test guard CPU and ledger reads through bounded process-local reuse of unchanged POSIX file observations, retaining write audits and conservative fallbacks; align local full-test instructions with the existing four-worker gate.
