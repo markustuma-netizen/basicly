@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import subprocess
 from pathlib import Path
 
@@ -99,3 +100,17 @@ def test_empty_launcher_runs_fresh_instead_of_crashing(
     inputs, reason = verify._inputs(tmp_path, "pytest")
     assert inputs == ""
     assert "empty pytest launcher" in reason
+
+
+def test_hook_dispatch_and_nested_uv_environment_do_not_change_execution_inputs() -> None:
+    base = {"PATH": os.pathsep.join(["venv", "tools"]), "CUSTOM": "kept"}
+    nested = {
+        **base,
+        "PATH": os.pathsep.join(["venv", "venv", "tools"]),
+        "UV_RUN_RECURSION_DEPTH": "3",
+        "BASICLY_HOOK_RESULT": "temporary",
+        "BASICLY_HOOK_SPECS": "dispatcher",
+        "LEFTHOOK_VERBOSE": "1",
+        "PWD": "shell",
+    }
+    assert pytest_inputs.execution_environment(base) == pytest_inputs.execution_environment(nested)

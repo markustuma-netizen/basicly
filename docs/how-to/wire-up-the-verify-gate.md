@@ -285,7 +285,10 @@ live ledger, including documentation, test fixtures and configuration. It also
 includes supplied Lefthook archives, Node dependencies, the pytest launcher,
 Python executable, installed Python packages, standard library, environment,
 Git configuration, tags and the resolved Git, uv, Node and shell executables. Inputs must stay unchanged until verification ends.
-Only a passing complete verification saves evidence.
+Only a passing complete verification saves evidence. The controlled pytest
+environment removes hook-dispatch and nested-launch bookkeeping and deduplicates
+PATH entries before both hashing and execution. Material environment changes
+still invalidate evidence.
 
 This recipe supports the reviewed POSIX launcher using the current interpreter;
 unsupported launchers, protected inputs, missing files and changed inputs execute
