@@ -40,13 +40,30 @@ def test_guid_migration_preserves_network_policy_and_removes_only_owned_tables(
     codex_permissions.sync_permissions(repo, user_config=user)
     settings = permissions_tests._config(repo)
     assert settings["default_permissions"] == "basicly-workspace"
-    assert set(settings["permissions"]) == {"basicly-workspace", "consumer"}
+    assert set(settings["permissions"]) == {"basicly-workspace", "basicly-read-only", "consumer"}
     assert settings["permissions"]["basicly-workspace"]["network"] == {
         "enabled": True,
         "allow_local_binding": True,
         "domains": {"localhost": "allow"},
     }
-    assert set(tomllib.loads(user.read_text())["permissions"]) == {"basicly-workspace"}
+    local_profiles = tomllib.loads(user.read_text())["permissions"]
+    assert set(local_profiles) == {"basicly-workspace", "basicly-read-only"}
+    readonly = settings["permissions"]["basicly-read-only"]
+    assert readonly == {
+        "extends": ":read-only",
+        "filesystem": {
+            "glob_scan_max_depth": 16,
+            ":workspace_roots": {
+                ".env": "deny",
+                ".env.*": "deny",
+                "**/.env": "deny",
+                "**/.env.*": "deny",
+            },
+        },
+        "network": {"enabled": False},
+    }
+    assert local_profiles["basicly-read-only"] == readonly
+    assert settings["permissions"]["consumer"] == {"extends": ":read-only"}
     assert codex_permissions.sync_permissions(repo, user_config=user) == []
 
 

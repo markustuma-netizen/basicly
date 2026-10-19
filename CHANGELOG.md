@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly 0.26.2 avoids Pyright input hashing when verification fails before reaching reusable checks. Consumer installs retain Codex command safeguards and a read-only reviewer profile, while preserving existing consumer network policy. General reuse of full verification remains follow-up work.
+
+- Verification cost: skip unused failure-path fingerprints without changing successful-run or borrowed-evidence validation (basicly-h79lott.22).
+- Consumer safeguards: retain managed command rules, read-only dotenv denials and portable settings; verify migration preserves consumer policy (basicly-h79lott.23).
+
 ## v0.26.1 - 2026-10-18
 
 Delta: v0.26.0..v0.26.1
