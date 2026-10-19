@@ -4,7 +4,7 @@ This is a walkthrough, not a reference. Follow it top to bottom on a **scratch
 git repo** and you will end with one unit of work filed, built in its own
 worktree, merged, and closed by the harness — one sitting, no agent spend.
 Every command and quoted output below was checked against a fresh repo using
-basicly 0.26.9 in a terminal. Bead ids, commit hashes and paths are normalized
+basicly 0.26.9 in a real terminal. Bead ids, commit hashes and paths are normalized
 for readability. `...` marks omitted output.
 
 When you want to look something up rather than learn the shape, stop here and
