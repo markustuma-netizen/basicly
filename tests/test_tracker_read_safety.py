@@ -7,6 +7,8 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+import pytest
+
 from basicly import __version__, owned_store, state, tracker, tracker_query
 from tests import flipped_tracker
 
@@ -114,6 +116,7 @@ def test_items_read_path_runs_no_repository_code(tmp_path: Path) -> None:
     assert _ran(markers), "the planted kit never ran, so its absence above proves nothing"
 
 
+@pytest.mark.live_ledger
 def test_items_json_is_normalized_and_small(work_repo: Path) -> None:
     every = [arg for status in CONTRACT_STATUSES for arg in ("--status", status)]
 

@@ -7,6 +7,8 @@ import tomllib
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 from basicly import config, release, tracker
 from tests import flipped_tracker
 
@@ -84,6 +86,7 @@ def test_the_gate_is_wired_as_a_verify_check() -> None:
     assert wired[0]["modes"] == ["fast", "full"]
 
 
+@pytest.mark.live_ledger
 def test_every_frozen_entry_names_a_record_this_tracker_holds() -> None:
     config.load_tracker_mode(REPO_ROOT)
     held = {str(record.get("id")) for record in tracker.all_records(REPO_ROOT)}

@@ -217,7 +217,8 @@ Enable the repository-local cache explicitly:
 cache = true
 ```
 
-Checks still need the reviewed `reuse = "pyright"` recipe above. The cache is
+Checks need a reviewed reuse recipe: `reuse = "pyright"` above, or the
+ledger-independent pytest recipe below. The cache is
 bounded and stored in ignored `.basicly/usage/verify-cache.json`. The CLI and
 loop use the same cache. With caching enabled, pre-push uses the engine available
 in the project's environment when its full check commands and fail-fast setting
@@ -228,7 +229,7 @@ reuse for cheaper checks. This cost hint never establishes a passing result.
 An unavailable or incompatible engine keeps fresh native execution; a failed
 engine verification blocks the push without a fallback rerun. Consumer hooks
 still work without an installed engine. The persistent cache does not transfer
-between checkout paths or cache the test suite.
+between checkout paths.
 
 The opted-in Pyright recipe executes with a controlled environment: home,
 temporary-directory, locale, Python, Node and Pyright
@@ -259,6 +260,39 @@ This command leaves existing cache evidence intact. Reused outcomes name the
 original run and its compiler duration; their current execution duration is zero.
 The run's total duration includes fingerprinting and checks that ran freshly.
 Compiler reuse does not establish faster tests or constant-time repository scaling.
+
+### Reuse the code test suite across tracker updates
+
+This repository opts its code suite into `reuse = "pytest"` with this exact
+reviewed full-mode command:
+
+```toml
+[[verify.checks]]
+name = "pytest"
+command = ["pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger"]
+reuse = "pytest"
+modes = ["full"]
+```
+
+Its repository-copy fixture uses a fixed ledger under `tests/fixtures/work_repo/ledger`.
+Tests that read the current ledger carry `live_ledger` and run in the separate,
+uncached `pytest-live-ledger` check. The test guard refuses a live-ledger file
+open by an unmarked test. The union of both commands retains the entire suite.
+Run the ordinary `pytest` command to execute both groups together.
+
+The pytest proof includes tracked and nonignored untracked files outside the
+live ledger, including documentation, test fixtures and configuration. It also
+includes supplied Lefthook archives, Node dependencies, the pytest launcher,
+Python executable, installed Python packages, standard library, environment,
+Git configuration, tags and the resolved Git, uv, Node and shell executables. Inputs must stay unchanged until verification ends.
+Only a passing complete verification saves evidence.
+
+This recipe supports the reviewed POSIX launcher using the current interpreter;
+unsupported launchers, protected inputs, missing files and changed inputs execute
+fresh. It is opt-in and requires a ledger-independent suite plus fresh ledger
+checks. A different pytest command executes fresh. Consumers without an engine
+continue through the native fresh-check fallback. `--no-cache` forces execution.
+Documentation changes invalidate this proof because tests read documentation.
 
 `.basicly/usage/verify-run.json` records the run identity, duration, disposition,
 source run and input fingerprint. `.basicly/usage/landing-timings.json` records

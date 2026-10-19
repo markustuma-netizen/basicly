@@ -904,6 +904,7 @@ def _size_violations(completed: dict[str, int], failed: dict[str, int], ceiling:
     return violations
 
 
+@pytest.mark.live_ledger
 def test_the_ceiling_separates_the_sizes_that_completed_from_the_sizes_that_failed() -> None:
     samples = _recorded_lane_sizes(REPO_ROOT, _UNMEASURED_HISTORICAL_DISPATCHES)
     assert (
@@ -916,11 +917,13 @@ def test_the_ceiling_separates_the_sizes_that_completed_from_the_sizes_that_fail
     )
 
 
+@pytest.mark.live_ledger
 def test_the_recorded_failures_are_visible_to_the_ceiling_gate() -> None:
     samples = _recorded_lane_sizes(REPO_ROOT, _UNMEASURED_HISTORICAL_DISPATCHES)
     assert _recorded_estimates(samples, run_record.FAILED)
 
 
+@pytest.mark.live_ledger
 def test_no_lane_this_engine_completed_is_refused_by_the_band() -> None:
 
     sizing = _sizing(
@@ -1919,6 +1922,7 @@ def _record_spend_pair(  # noqa: PLR0913 — one parameter per seeded record fie
     run_record.record(repo, bead_id, record)
 
 
+@pytest.mark.live_ledger
 def test_the_spend_gate_measures_a_populated_ledger() -> None:
 
     accuracy = decompose.spend_accuracy(REPO_ROOT, load_sizing_config(REPO_ROOT))

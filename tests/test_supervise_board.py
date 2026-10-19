@@ -323,3 +323,6 @@ def test_a_state_the_schema_does_not_permit_is_dropped_rather_than_published(
     assert "state" not in card
     assert "state_detail" not in card
     assert board_schema.verdict(work_repo, _document(work_repo)).exit_code == 0
+
+
+pytestmark = pytest.mark.live_ledger

@@ -100,6 +100,7 @@ def test_9_when_the_work_will_be_done() -> None:
     assert "forecast" in page(), "no lane says which bound will end it"
 
 
+@pytest.mark.live_ledger
 def test_every_unanswered_question_still_names_an_open_record() -> None:
 
     for question, record in UNANSWERED.items():

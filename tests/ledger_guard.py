@@ -11,6 +11,8 @@ from pathlib import Path
 
 import pytest
 
+_NATIVE_PATH = type(Path())
+
 LOG_GLOB = "events-*.jsonl"
 
 _WRITE_MODES = frozenset("wax+")
@@ -19,6 +21,7 @@ _WRITE_FLAGS = os.O_WRONLY | os.O_RDWR | os.O_APPEND | os.O_CREAT | os.O_TRUNC
 
 _LOCK = threading.Lock()
 _WATCHES: list[Watch] = []
+_READ_GUARDS: list[tuple[str, str]] = []
 _ANNOUNCED: set[str] = set()
 _CACHE: dict[Path, tuple[tuple[int, ...], bytes]] = {}
 _CACHE_BYTES = 64 * 1024 * 1024
@@ -68,7 +71,7 @@ def _read_ledger(path: Path) -> bytes:
 
 def _key(path: str | os.PathLike[str]) -> str:
 
-    return os.path.normcase(os.path.normpath(Path(path).absolute()))
+    return os.path.normcase(_NATIVE_PATH(path).absolute())
 
 
 def _writes(mode: object, flags: object) -> bool:
@@ -79,12 +82,20 @@ def _writes(mode: object, flags: object) -> bool:
 
 def _audit(event: str, args: tuple[object, ...]) -> None:
 
-    if event != "open" or not _WATCHES:
+    if event != "open":
         return
     path, mode, flags = args
-    if not isinstance(path, str | os.PathLike) or not _writes(mode, flags):
+    if not isinstance(path, str | os.PathLike):
         return
     opened = _key(path)
+    for prefix, node in _READ_GUARDS:
+        if any(
+            candidate == prefix or candidate.startswith(prefix + os.sep)
+            for candidate in (opened, os.path.normcase(os.path.realpath(path)))
+        ):
+            pytest.fail(f"{node} reads the live ledger; mark it live_ledger so it runs fresh")
+    if not _writes(mode, flags):
+        return
     with _LOCK:
         for watch in _WATCHES:
             watch.record(opened)
@@ -161,3 +172,13 @@ def report(watch: Watch) -> None:
 
 
 sys.addaudithook(_audit)
+
+
+@contextmanager
+def independent_of(root: Path, nodeid: str) -> Iterator[None]:
+    guard = (_key(root.resolve()), nodeid)
+    _READ_GUARDS.append(guard)
+    try:
+        yield
+    finally:
+        _READ_GUARDS.remove(guard)

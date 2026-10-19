@@ -815,8 +815,8 @@ def _parse_verify_check(entry: object) -> VerifyCheck:
         raise ValueError(f"verify check {name!r} 'fix_command' must be a non-empty list of strings")
 
     reuse = entry.get("reuse")
-    if reuse is not None and reuse != "pyright":
-        raise ValueError(f"verify check {name!r} 'reuse' must be 'pyright' or absent")
+    if reuse is not None and reuse not in ("pyright", "pytest"):
+        raise ValueError(f"verify check {name!r} 'reuse' must be 'pyright', 'pytest' or absent")
 
     return VerifyCheck(
         name=name.strip(),

@@ -111,6 +111,7 @@ def test_a_legacy_link_still_folds_and_a_new_one_is_refused(tmp_path: Path) -> N
         commands.create_child(ledger, outer, {"title": "new", "issue_type": "epic"})
 
 
+@pytest.mark.live_ledger
 def test_every_ledger_record_has_a_declared_type() -> None:
 
     found, quarantined = events.read_events(REPO_ROOT / ".basicly" / "ledger")

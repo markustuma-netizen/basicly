@@ -752,6 +752,7 @@ def test_ready_lanes_take_no_runner_for_a_deferred_lane(
     assert [lane.issue_id for lane in ready] == ["epic.1"]
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_runs_concurrently_up_to_the_cap(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -795,6 +796,7 @@ def _outcome(issue_id: str) -> supervise.LaneOutcome:
 _MANUAL_SPEC = runner.RunnerSpec("manual", runner.HANDOFF)
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_heartbeats_while_runners_execute(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -820,6 +822,7 @@ def test_dispatch_lanes_heartbeats_while_runners_execute(
     assert beats
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_lock_lost_cancels_lanes_not_yet_started(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1013,6 +1016,7 @@ def test_dispatch_lane_records_the_order_when_br_never_ranked_the_lane(
     assert captured["scheduler_policy"] == "tracker.scheduler.v1"
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_records_one_ranking_for_the_whole_pass(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1196,6 +1200,7 @@ def _never_recorded(*_a: object, **_k: object) -> None:
     raise AssertionError("a dispatch that never started recorded a run")
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_contains_a_lane_failure_to_its_outcome(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1220,6 +1225,7 @@ def test_dispatch_lanes_contains_a_lane_failure_to_its_outcome(
     assert outcomes[1].detail == "test"
 
 
+@pytest.mark.live_ledger
 def test_a_dispatch_lost_to_tracker_storage_is_marked_transient(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2445,6 +2451,7 @@ def test_carried_forward_carries_only_the_held_lanes() -> None:
     assert supervise.carried_forward(routed) == frozenset({"epic.2"})
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_skips_a_carried_lane(monkeypatch: pytest.MonkeyPatch) -> None:
     _patch_readiness(monkeypatch, ranked=((1, "epic.1"), (2, "epic.2")))
     monkeypatch.setattr(supervise.runner, "select_runner", lambda *_a, **_k: _MANUAL_SPEC)
@@ -2806,6 +2813,7 @@ def _granted(level: str, budget: int | None, spent: int) -> policy.SpendStatus:
     )
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_still_starts_a_lane_when_the_grant_budget_is_spent(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -2853,6 +2861,7 @@ def test_dispatch_lanes_admits_a_grant_still_inside_its_budget(
     assert [o.issue_id for o in outcomes] == ["epic.1"]
 
 
+@pytest.mark.live_ledger
 def test_dispatch_lanes_reads_the_ceiling_when_no_admission_is_passed(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

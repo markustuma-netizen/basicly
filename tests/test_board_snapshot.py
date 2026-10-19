@@ -114,6 +114,7 @@ def test_the_ledger_is_folded_once_and_no_subprocess_is_spawned(
     assert document["graph"]["edges"]
 
 
+@pytest.mark.live_ledger
 def test_a_build_on_this_repos_corpus_stays_under_the_cap() -> None:
     samples = []
     for _ in range(5):

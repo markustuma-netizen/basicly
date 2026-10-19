@@ -33,6 +33,7 @@ def _run(root: Path, mode: str) -> int:
     return claims.main([mode, "--root", str(root)])
 
 
+@pytest.mark.live_ledger
 def test_check_passes_on_the_committed_tree(capsys: pytest.CaptureFixture[str]) -> None:
     assert _run(REPO, "--check") == 0
     captured = capsys.readouterr()
@@ -285,3 +286,6 @@ def test_prose_reworded_past_the_anchor_fails_loudly_rather_than_asserting_nothi
     err = capsys.readouterr().err
     assert "[skill-work-types]" in err
     assert "anchor 'leaf types' not found" in err
+
+
+pytestmark = pytest.mark.live_ledger

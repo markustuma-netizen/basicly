@@ -214,6 +214,7 @@ def test_an_absent_roster_document_fails_rather_than_agreeing_with_nothing(
     assert f"{gate.ROSTER_DOC}: missing" in err
 
 
+@pytest.mark.live_ledger
 def test_the_retired_family_has_rows_and_no_producer_in_this_repository() -> None:
 
     declared = gate.declared_families(REPO_ROOT)

@@ -36,7 +36,7 @@ def temp_copy(tmp_path: Path, live: Path) -> tuple[Path, Path]:
 
 @pytest.fixture
 def live_copy(tmp_path: Path, request: pytest.FixtureRequest) -> tuple[Path, Path]:
-    return temp_copy(tmp_path, Path(request.config.rootpath) / ".basicly" / "ledger")
+    return temp_copy(tmp_path, Path(request.config.rootpath) / "tests/fixtures/board/ledger")
 
 
 APPEND_SCRIPT = (
@@ -321,3 +321,16 @@ def test_coarse_change_timestamps_do_not_enable_cached_observations(
         "os.stat_result", SimpleNamespace(st_mode=log.stat().st_mode, st_ctime_ns=timestamp)
     )
     assert ledger_guard._cache_identity(state, "posix") is None
+
+
+def test_a_reusable_test_cannot_read_its_live_ledger(tmp_path: Path) -> None:
+    ledger = tmp_path / "ledger"
+    ledger.mkdir()
+    path = ledger / "events-0001.jsonl"
+    path.write_text("fixture\n")
+    with (
+        ledger_guard.independent_of(ledger, "reusable-test"),
+        pytest.raises(pytest.fail.Exception, match="mark it live_ledger"),
+    ):
+        path.read_text()
+    assert path.read_text() == "fixture\n"

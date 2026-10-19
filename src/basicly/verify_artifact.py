@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Protocol, runtime_checkable
 
-from .verify_receipt import CheckReceipt
+from .verify_receipt import CachedCheck, CheckReceipt
 
 RUN_ARTIFACT = Path(".basicly/usage/verify-run.json")
 
@@ -195,3 +195,30 @@ def write_run_artifact(repo_root: Path, report: RunVerdict) -> Path | None:
     except OSError:
         return None
     return path
+
+
+def cached_result(
+    name: str, command: tuple[str, ...], identity: tuple[str, str], cached: tuple[CachedCheck, ...]
+) -> CheckResult | None:
+    mode, inputs = identity
+    previous = next(
+        (
+            entry
+            for entry in cached
+            if (entry.name, entry.command, entry.mode, entry.inputs)
+            == (name, command, mode, inputs)
+        ),
+        None,
+    )
+    if previous is None:
+        return None
+    return CheckResult(
+        name,
+        "pass",
+        0,
+        command=command,
+        reused_from=previous.origin,
+        reuse_reason="matching local cache inputs",
+        source_duration_s=previous.duration_s,
+        input_fingerprint=inputs,
+    )

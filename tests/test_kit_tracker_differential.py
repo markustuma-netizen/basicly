@@ -247,6 +247,7 @@ def test_each_query_reports_its_own_disagreement(
     assert report.refusals == []
 
 
+@pytest.mark.live_ledger
 def test_a_reimport_of_the_tracker_own_export_is_refused_across_the_whole_history() -> None:
 
     text = tracker_corpus.snapshot_text()

@@ -87,8 +87,14 @@ def test_the_work_repo_fixture_copies_the_tracked_files_but_the_test_suite(
     tracked = {
         name
         for name in listing.stdout.split("\0")
-        if name and name.split("/", 1)[0] not in WORK_REPO_LEFT_OUT
+        if name
+        and name.split("/", 1)[0] not in WORK_REPO_LEFT_OUT
+        and not name.startswith(".basicly/ledger/")
     }
+    tracked.update(
+        f".basicly/ledger/{path.name}"
+        for path in (REPO_ROOT / "tests/fixtures/work_repo/ledger").iterdir()
+    )
     copied = {
         path.relative_to(work_repo).as_posix() for path in work_repo.rglob("*") if path.is_file()
     }
