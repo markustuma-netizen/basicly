@@ -9,7 +9,15 @@ import pytest
 from basicly import pyright_inputs, verify
 from basicly.config import VerifyCheck, VerifyConfig
 
-COMMAND = ("pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger")
+COMMAND = (
+    "pytest",
+    "-q",
+    "-n",
+    "4",
+    "--durations=25",
+    "-m",
+    "not live_ledger and not fresh_runtime",
+)
 
 
 def _config() -> VerifyConfig:

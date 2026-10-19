@@ -269,14 +269,15 @@ reviewed full-mode command:
 ```toml
 [[verify.checks]]
 name = "pytest"
-command = ["pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger"]
+command = ["pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger and not fresh_runtime"]
 reuse = "pytest"
 modes = ["full"]
 ```
 
 Its repository-copy fixture uses a fixed ledger under `tests/fixtures/work_repo/ledger`.
 Tests that read the current ledger carry `live_ledger` and run in the separate,
-uncached `pytest-live-ledger` check. The test guard refuses a live-ledger file
+uncached `pytest-live-ledger` check. Packaging tests carry `fresh_runtime` and
+run in that same mandatory fresh group, with inherited proxy settings. The test guard refuses a live-ledger file
 open by an unmarked test. The union of both commands retains the entire suite.
 Run the ordinary `pytest` command to execute both groups together.
 
@@ -289,13 +290,16 @@ Only a passing complete verification saves evidence. The controlled pytest
 environment removes hook-dispatch, per-tool call identifiers, nested-launch
 bookkeeping and proxy URL variables (`*_PROXY`, case-insensitive, except
 `NO_PROXY`). It deduplicates PATH entries before both hashing and execution.
-This recipe is for a suite that does not need external network access; local
+The cached suite sets `UV_OFFLINE=1` and is for tests that do not need external
+network access; local
 HTTP tests still run. Proxy values can rotate on every agent tool call, so
 removing them from the actual test environment prevents false cache misses.
 `NO_PROXY`, certificate settings, Python options and other material environment
 inputs remain part of the proof. Remove `reuse = "pytest"` for a suite that
 needs inherited proxy settings: ordinary checks keep their inherited environment.
-Unsupported commands and modes also retain their ordinary environment.
+Unsupported commands and modes also retain their ordinary environment. The
+previous command selecting only `not live_ledger` now runs fresh; update it to
+the two-marker expression above after classifying external-runtime tests.
 
 This recipe supports the reviewed POSIX launcher using the current interpreter;
 unsupported launchers, protected inputs, missing files and changed inputs execute

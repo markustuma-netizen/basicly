@@ -262,6 +262,9 @@ def _see(repo: Path, mode: Mode, record: str, banner: Path) -> None:
     assert imported["fields"]["title"] == BEANS["demo-aa01"], f"see: {imported}"
 
 
+pytestmark = pytest.mark.fresh_runtime
+
+
 @pytest.mark.parametrize("machine", [False, True], ids=["sandbox", "machine"])
 def test_a_customer_installs_configures_uses_and_sees_the_tracker_from_the_built_packages(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, machine: bool

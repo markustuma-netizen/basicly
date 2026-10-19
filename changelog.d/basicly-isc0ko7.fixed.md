@@ -1,0 +1,1 @@
+- Keep all package-building tests fresh with inherited proxy settings, alongside live-ledger checks. The cached pytest group explicitly disables uv network access and excludes external-runtime tests, so rotating agent transport cannot invalidate trusted code results or break build dependency resolution.

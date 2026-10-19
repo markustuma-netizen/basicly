@@ -12,7 +12,15 @@ from pathlib import Path
 from . import checkout, pyright_inputs
 from .runner import sanitised_project_env
 
-_COMMAND = ("pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger")
+_COMMAND = (
+    "pytest",
+    "-q",
+    "-n",
+    "4",
+    "--durations=25",
+    "-m",
+    "not live_ledger and not fresh_runtime",
+)
 
 
 def supported_command(command: tuple[str, ...], mode: str) -> bool:
@@ -103,6 +111,7 @@ def execution_environment(environment: dict[str, str]) -> dict[str, str]:
             for entry in dict.fromkeys(cleaned["PATH"].split(os.pathsep))
             if entry != environment.get("GIT_EXEC_PATH")
         )
+    cleaned["UV_OFFLINE"] = "1"
     cleaned["NO_COLOR"] = "1"
     return cleaned
 

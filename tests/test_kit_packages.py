@@ -9,6 +9,9 @@ from pathlib import Path
 import pytest
 import yaml
 
+pytestmark = pytest.mark.fresh_runtime
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = REPO_ROOT / "packages"
 CATALOG = REPO_ROOT / ".basicly" / "core" / "kit"

@@ -9,6 +9,9 @@ import pytest
 
 from tests.tracker_process_fixture import INVEST
 
+pytestmark = pytest.mark.fresh_runtime
+
+
 REPO_ROOT = Path(__file__).resolve().parent.parent
 PACKAGES = REPO_ROOT / "packages"
 KITS = ("comments", "tracker", "tier")

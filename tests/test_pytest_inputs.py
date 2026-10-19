@@ -63,7 +63,15 @@ def test_protected_inventory_is_refused_before_opening(
 
 
 def test_only_the_reviewed_full_suite_command_is_eligible() -> None:
-    command = ("pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger")
+    command = (
+        "pytest",
+        "-q",
+        "-n",
+        "4",
+        "--durations=25",
+        "-m",
+        "not live_ledger and not fresh_runtime",
+    )
     assert pytest_inputs.supported_command(command, "full")
     assert not pytest_inputs.supported_command(command, "fast")
     assert not pytest_inputs.supported_command(("pytest", "-q"), "full")
@@ -76,6 +84,7 @@ def test_execution_and_proof_share_the_scrubbed_environment() -> None:
         "PATH": "tools",
         "CUSTOM": "kept",
         "NO_COLOR": "1",
+        "UV_OFFLINE": "1",
     }
 
 
@@ -163,7 +172,7 @@ def test_rotating_tool_transport_is_absent_from_the_actual_pytest_environment(na
     base = {"PATH": "tools", "NO_PROXY": "localhost", "CUSTOM": "kept"}
     before = {**base, name: "transport-before"}
     after = {**base, name: "transport-after"}
-    expected = {**base, "NO_COLOR": "1"}
+    expected = {**base, "NO_COLOR": "1", "UV_OFFLINE": "1"}
     assert pytest_inputs.execution_environment(before) == expected
     assert pytest_inputs.execution_environment(after) == expected
     assert before[name] == "transport-before"
@@ -175,3 +184,9 @@ def test_rotating_tool_transport_is_absent_from_the_actual_pytest_environment(na
 def test_material_pytest_environment_inputs_are_preserved(name: str) -> None:
     assert pytest_inputs.execution_environment({name: "before"})[name] == "before"
     assert pytest_inputs.execution_environment({name: "after"})[name] == "after"
+
+
+def test_previous_command_is_fresh_and_cached_execution_forces_uv_offline() -> None:
+    previous = ("pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger")
+    assert not pytest_inputs.supported_command(previous, "full")
+    assert pytest_inputs.execution_environment({"UV_OFFLINE": "0"})["UV_OFFLINE"] == "1"

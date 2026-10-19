@@ -11,6 +11,9 @@ import pytest
 
 from tests.tracker_process_fixture import INVEST
 
+pytestmark = pytest.mark.fresh_runtime
+
+
 PACKAGE = Path(__file__).parent.parent / "packages" / "basicly-tracker"
 
 

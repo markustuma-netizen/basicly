@@ -875,6 +875,6 @@ name = "pytest"
 # rather than in a CI-only flag because the number it answers - which tests are slow, and
 # on which platform - is one no local run can produce for another. windows-latest took
 # 5h57m against ubuntu's 113s and no log said which test spent it (basicly-t31pvf).
-command = ["pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger"]
+command = ["pytest", "-q", "-n", "4", "--durations=25", "-m", "not live_ledger and not fresh_runtime"]
 reuse = "pytest"
 modes = ["full"]

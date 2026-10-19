@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+pytestmark = pytest.mark.fresh_runtime
+
 
 @pytest.mark.parametrize("dirty", [False, True])
 def test_distributions_bundle_verified_assets_and_sdist_rebuilds_offline(

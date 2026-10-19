@@ -40,7 +40,10 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-markers = ["live_ledger: assertions whose input includes the changing repository ledger"]
+markers = [
+  "live_ledger: assertions whose input includes the changing repository ledger",
+  "fresh_runtime: packaging checks that resolve build dependencies outside the cached runtime",
+]
 pythonpath = ["src", "."]
 addopts = ["--import-mode=importlib"]
 # Keep tmp dirs only where they are still needed — a failing test's artifacts.
