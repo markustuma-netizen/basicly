@@ -185,6 +185,15 @@ def test_runtime_changes_change_identity(runtime: Path, changed: str) -> None:
     assert pyright_inputs._runtime(runtime) != before
 
 
+def test_shared_compiler_runtime_matches_across_virtual_environment_boundaries(
+    runtime: Path,
+) -> None:
+    pyright_inputs.os.environ["VIRTUAL_ENV"] = str(runtime / ".venv")
+    origin = pyright_inputs._runtime(runtime)
+
+    assert pyright_inputs._runtime(runtime.parent / "sibling") == origin
+
+
 @pytest.mark.parametrize("override", ["PYTHONPATH", "NODE_OPTIONS", "PYRIGHT_PYTHON_FORCE_VERSION"])
 def test_runtime_overrides_refuse_reuse(runtime: Path, override: str) -> None:
     pyright_inputs.os.environ[override] = "unsupported"

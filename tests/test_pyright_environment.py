@@ -70,6 +70,21 @@ def test_other_checks_keep_their_original_environment(
     assert observed == [environment]
 
 
+def test_compiler_execution_does_not_depend_on_the_callers_virtual_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    monkeypatch.setattr(pyright_inputs.shutil, "which", lambda tool, **_kw: str(binary / tool))
+    original = {"PATH": str(binary), "HOME": str(tmp_path)}
+    marked = {**original, "VIRTUAL_ENV": str(tmp_path / ".venv")}
+    sibling = tmp_path / "sibling"
+
+    assert pyright_inputs.execution_environment(tmp_path, marked) == original
+    assert pyright_inputs.execution_environment(sibling, marked) == original
+    assert marked["VIRTUAL_ENV"] == str(tmp_path / ".venv")
+
+
 def test_unsupported_platform_keeps_the_fresh_execution_environment(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

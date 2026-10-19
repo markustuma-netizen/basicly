@@ -227,14 +227,20 @@ without a predicted saving, it keeps fresh execution instead of paying to prove
 reuse for cheaper checks. This cost hint never establishes a passing result.
 An unavailable or incompatible engine keeps fresh native execution; a failed
 engine verification blocks the push without a fallback rerun. Consumer hooks
-still work without an installed engine. This does not share evidence between
-different checkout paths or cache the test suite.
+still work without an installed engine. The persistent cache does not transfer
+between checkout paths or cache the test suite.
 
 The opted-in Pyright recipe executes with a controlled environment: home,
-temporary-directory, locale, virtual-environment, Python, Node and Pyright
+temporary-directory, locale, Python, Node and Pyright
 variables, plus a PATH limited to the resolved compiler and Node directories.
 The fingerprint covers that actual environment. Hook metadata and changing host
-proxy variables never reach this compiler execution. Other checks retain their
+proxy variables never reach this compiler execution. The ambient `VIRTUAL_ENV`
+marker is also removed: the reviewed launcher selects the compiler interpreter,
+and the project explicitly selects its analysis environment through `.venv`.
+This lets one landing transfer receipts between equivalent checkouts using the
+same compiler runtime, even when the harness scrubs that marker at the checkout
+boundary. Different analysis environments or compiler runtimes still run fresh.
+The persistent cache remains local to each checkout. Other checks retain their
 inherited environment. Remove `reuse = "pyright"` if a custom compiler setup
 requires the full inherited environment.
 An engine or repository identity change, corrupt cache, unsupported input or
