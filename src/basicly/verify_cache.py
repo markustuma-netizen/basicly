@@ -98,22 +98,26 @@ def read(root: Path) -> tuple[tuple[CachedCheck, ...], str]:
         return checks, ""
 
 
-def _encoded(root: Path, checks: tuple[CachedCheck, ...]) -> str:
+def _encoded(root: Path, checks: tuple[CachedCheck, ...], overhead_s: float) -> str:
     if not (root / CACHE_PATH).resolve().is_relative_to(root.resolve()):
         raise ValueError("cache destination leaves this repository")
-    payload = json.dumps({"identity": _identity(root), "checks": [asdict(c) for c in checks]})
+    payload = json.dumps({
+        "identity": _identity(root),
+        "checks": [asdict(c) for c in checks],
+        "overhead_s": overhead_s,
+    })
     if len(payload.encode()) > _MAX_BYTES:
         raise ValueError("cache exceeds size limit")
     return payload + "\n"
 
 
-def write(root: Path, checks: tuple[CachedCheck, ...]) -> None:
+def write(root: Path, checks: tuple[CachedCheck, ...], *, overhead_s: float) -> None:
     if not checks or len(checks) > _MAX_CHECKS:
         return
     path = root / CACHE_PATH
     temporary = path.with_name(f"{path.name}.{uuid.uuid4().hex}.tmp")
     try:
-        payload = _encoded(root, checks)
+        payload = _encoded(root, checks, overhead_s)
         path.parent.mkdir(parents=True, exist_ok=True)
         marker = path.parent / ".gitignore"
         if not marker.exists():

@@ -374,13 +374,21 @@ def run_checks(repo_root: Path, mode: str, *, scope_to_diff: bool = False) -> in
 
 
 def load_fail_fast(repo_root: Path) -> bool:
+    return _boolean_option(repo_root, "fail_fast")
+
+
+def load_cache(repo_root: Path) -> bool:
+    return _boolean_option(repo_root, "cache")
+
+
+def _boolean_option(repo_root: Path, name: str) -> bool:
     enabled = False
     for _, document in _documents(repo_root):
         section = document.get("verify", {})
-        if isinstance(section, dict) and "fail_fast" in section:
-            enabled = section["fail_fast"]
+        if isinstance(section, dict) and name in section:
+            enabled = section[name]
     if not isinstance(enabled, bool):
-        raise SystemExit("verify.fail_fast must be true or false")
+        raise SystemExit(f"verify.{name} must be true or false")
     return enabled
 
 

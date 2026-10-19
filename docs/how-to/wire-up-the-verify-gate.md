@@ -219,7 +219,24 @@ cache = true
 
 Checks still need the reviewed `reuse = "pyright"` recipe above. The cache is
 bounded and stored in ignored `.basicly/usage/verify-cache.json`. The CLI and
-loop use the same cache. Standalone hooks without the engine keep fresh execution.
+loop use the same cache. With caching enabled, pre-push uses the engine available
+in the project's environment when its full check commands and fail-fast setting
+match the native hook. It revalidates inputs before reusing compiler evidence.
+The hook compares recorded compiler time with recorded verification overhead;
+without a predicted saving, it keeps fresh execution instead of paying to prove
+reuse for cheaper checks. This cost hint never establishes a passing result.
+An unavailable or incompatible engine keeps fresh native execution; a failed
+engine verification blocks the push without a fallback rerun. Consumer hooks
+still work without an installed engine. This does not share evidence between
+different checkout paths or cache the test suite.
+
+The opted-in Pyright recipe executes with a controlled environment: home,
+temporary-directory, locale, virtual-environment, Python, Node and Pyright
+variables, plus a PATH limited to the resolved compiler and Node directories.
+The fingerprint covers that actual environment. Hook metadata and changing host
+proxy variables never reach this compiler execution. Other checks retain their
+inherited environment. Remove `reuse = "pyright"` if a custom compiler setup
+requires the full inherited environment.
 An engine or repository identity change, corrupt cache, unsupported input or
 changed fingerprint runs the compiler freshly. Only stable, successful
 verification writes cache entries. Isolated engine installations fingerprint
