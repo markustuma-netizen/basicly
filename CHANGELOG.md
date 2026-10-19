@@ -6,7 +6,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+This release makes the cached pytest group independent of rotating agent transport while keeping package builds and live-ledger checks fresh. It includes the fixes from the withheld v0.26.7 candidate; no checks are removed.
+
+- **Less repeated work:** reuse trusted offline code-suite results across tracker-only native pushes and separate agent tool calls (basicly-isc0ko7).
+- **A tested boundary:** all 80 packaging cases run freshly with inherited proxy settings; the cached group disables uv network access. Ordinary checks keep their environment (basicly-isc0ko7).
+
 ## v0.26.7 - 2026-10-19
+
+This candidate was withheld by the publication gate. Its changes ship in v0.26.8.
 
 Delta: v0.26.6..v0.26.7
 
