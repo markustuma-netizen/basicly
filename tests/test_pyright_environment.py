@@ -79,10 +79,29 @@ def test_compiler_execution_does_not_depend_on_the_callers_virtual_environment(
     original = {"PATH": str(binary), "HOME": str(tmp_path)}
     marked = {**original, "VIRTUAL_ENV": str(tmp_path / ".venv")}
     sibling = tmp_path / "sibling"
+    sibling.mkdir()
+    for root in (tmp_path, sibling):
+        (root / "pyproject.toml").write_text(
+            '[tool.pyright]\nvenvPath="."\nvenv=".venv"\n', encoding="utf-8"
+        )
 
     assert pyright_inputs.execution_environment(tmp_path, marked) == original
     assert pyright_inputs.execution_environment(sibling, marked) == original
     assert marked["VIRTUAL_ENV"] == str(tmp_path / ".venv")
+
+
+@pytest.mark.parametrize("configuration", [None, "invalid", '[tool.pyright]\nvenv="other"\n'])
+def test_unreviewed_analysis_configuration_keeps_the_ambient_virtual_environment(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, configuration: str | None
+) -> None:
+    binary = tmp_path / "bin"
+    binary.mkdir()
+    monkeypatch.setattr(pyright_inputs.shutil, "which", lambda tool, **_kw: str(binary / tool))
+    if configuration is not None:
+        (tmp_path / "pyproject.toml").write_text(configuration, encoding="utf-8")
+    environment = {"PATH": str(binary), "VIRTUAL_ENV": str(tmp_path / ".venv")}
+
+    assert pyright_inputs.execution_environment(tmp_path, environment) == environment
 
 
 def test_unsupported_platform_keeps_the_fresh_execution_environment(

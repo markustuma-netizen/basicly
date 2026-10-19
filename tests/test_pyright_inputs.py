@@ -188,10 +188,16 @@ def test_runtime_changes_change_identity(runtime: Path, changed: str) -> None:
 def test_shared_compiler_runtime_matches_across_virtual_environment_boundaries(
     runtime: Path,
 ) -> None:
+    sibling = runtime.parent / "sibling"
+    sibling.mkdir()
+    for root in (runtime, sibling):
+        (root / "pyproject.toml").write_text(
+            '[tool.pyright]\nvenvPath="."\nvenv=".venv"\n', encoding="utf-8"
+        )
     pyright_inputs.os.environ["VIRTUAL_ENV"] = str(runtime / ".venv")
     origin = pyright_inputs._runtime(runtime)
 
-    assert pyright_inputs._runtime(runtime.parent / "sibling") == origin
+    assert pyright_inputs._runtime(sibling) == origin
 
 
 @pytest.mark.parametrize("override", ["PYTHONPATH", "NODE_OPTIONS", "PYRIGHT_PYTHON_FORCE_VERSION"])

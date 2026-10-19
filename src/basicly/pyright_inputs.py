@@ -148,6 +148,7 @@ def execution_environment(root: Path, environment: Mapping[str, str]) -> dict[st
         "LANG",
         "LANGUAGE",
         "TZ",
+        "VIRTUAL_ENV",
         "__PYVENV_LAUNCHER__",
     }
     env = {
@@ -170,6 +171,12 @@ def execution_environment(root: Path, environment: Mapping[str, str]) -> dict[st
     env["PATH"] = os.pathsep.join(
         dict.fromkeys(str(Path(path).resolve()) for path in paths if path in directories)
     )
+    if "VIRTUAL_ENV" in env:
+        try:
+            _configuration(root)
+        except OSError, ValueError, TypeError, AttributeError:
+            return env
+        del env["VIRTUAL_ENV"]
     return env
 
 

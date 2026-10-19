@@ -235,8 +235,9 @@ temporary-directory, locale, Python, Node and Pyright
 variables, plus a PATH limited to the resolved compiler and Node directories.
 The fingerprint covers that actual environment. Hook metadata and changing host
 proxy variables never reach this compiler execution. The ambient `VIRTUAL_ENV`
-marker is also removed: the reviewed launcher selects the compiler interpreter,
-and the project explicitly selects its analysis environment through `.venv`.
+marker is also removed when the project explicitly selects its reviewed analysis
+environment through `.venv`; the reviewed launcher selects the compiler interpreter.
+Unsupported configurations keep the marker and run fresh.
 This lets one landing transfer receipts between equivalent checkouts using the
 same compiler runtime, even when the harness scrubs that marker at the checkout
 boundary. Different analysis environments or compiler runtimes still run fresh.
