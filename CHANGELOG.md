@@ -6,6 +6,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+basicly 0.26.3 reduces redundant ledger reads in this repository's development tests and makes mechanical pre-commit fixes reach the actual validated commit. Local full-test instructions now select the existing four-worker gate. General reuse of passing full verification remains follow-up work.
+
+- Development checks: reuse unchanged supported ledger observations while retaining write audits and conservative fallbacks; align local test instructions with the canonical worker count (basicly-h79lott.24).
+- Commit correctness: include clean tracked generated files changed by auto-fixers, preserve unstaged working edits, and publish no fixes after failed checks (basicly-h79lott.25).
+
 ## v0.26.2 - 2026-10-19
 
 Delta: v0.26.1..v0.26.2
