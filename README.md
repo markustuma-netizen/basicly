@@ -207,9 +207,11 @@ diagnoses a missing uv before it bites at commit time. The harness loop
 ledger this repository owns and commits, so there is no binary to install and no
 version to pin.
 
-Codex users can run `basicly permissions-build --codex-user` to project the
-shared permission profile and register `<repo>.worktrees` in their machine-local
-configuration. See [Configure Codex permissions for sibling worktrees](docs/how-to/configure-codex-permissions.md).
+basicly writes no Codex permission policy. `basicly install` removes the profiles,
+the selection and the command rules that an earlier version generated, and Codex
+then runs on its own defaults. `basicly permissions-build --codex-user` also cleans
+the machine-local Codex configuration. See
+[Remove the generated Codex permission policy](docs/how-to/configure-codex-permissions.md).
 
 ## How it works
 

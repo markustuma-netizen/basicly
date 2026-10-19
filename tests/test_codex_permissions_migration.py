@@ -6,88 +6,108 @@ from pathlib import Path
 import pytest
 
 from basicly import codex_permissions
-from tests import test_codex_permissions as permissions_tests
+from tests.test_codex_permissions import (
+    GENERATED_USER_CONFIG,
+    config,
+    generated,
+    repo,
+)
+
+LEGACY_PROFILE = codex_permissions.PROFILE_NAME + "-" + "a" * 32
 
 
 @pytest.mark.parametrize("quote", ['"', "'"])
-def test_guid_migration_preserves_network_policy_and_removes_only_owned_tables(
+def test_a_legacy_guid_profile_and_its_selection_are_removed(tmp_path: Path, quote: str) -> None:
+    root = repo(tmp_path / "app")
+    generated(
+        root,
+        "default_permissions = "
+        + quote
+        + LEGACY_PROFILE
+        + quote
+        + "\n[permissions."
+        + LEGACY_PROFILE
+        + ']\nextends = "basicly-workspace"\n[permissions.'
+        + LEGACY_PROFILE
+        + ".network]\nenabled = true\n"
+        + '[permissions.consumer]\nextends = ":read-only"\n',
+    )
+
+    codex_permissions.remove_permissions(root)
+
+    assert tomllib.loads(config(root).read_text(encoding="utf-8")) == {
+        "permissions": {"consumer": {"extends": ":read-only"}}
+    }
+
+
+def test_a_legacy_guid_profile_with_consumer_fields_is_removed_too(tmp_path: Path) -> None:
+    root = repo(tmp_path / "app")
+    generated(
+        root,
+        "[permissions." + LEGACY_PROFILE + ']\nextends = "consumer"\nnetwork = "kept"\n',
+    )
+
+    codex_permissions.remove_permissions(root)
+
+    assert not config(root).exists()
+
+
+def test_user_configuration_cleanup_is_optional_and_keeps_a_backup(tmp_path: Path) -> None:
+    root = repo(tmp_path / "app")
+    generated(root)
+    user = tmp_path / "codex" / "config.toml"
+    user.parent.mkdir()
+    before = 'model = "consumer-model"\n' + GENERATED_USER_CONFIG
+    user.write_text(before, encoding="utf-8")
+
+    assert user not in codex_permissions.remove_permissions(root)
+    assert user.read_text(encoding="utf-8") == before
+
+    assert user in codex_permissions.remove_permissions(root, user_config=user)
+
+    assert tomllib.loads(user.read_text(encoding="utf-8")) == {
+        "model": "consumer-model",
+        "default_permissions": ":workspace",
+    }
+    backups = list((user.parent / "permission-backups").glob("*.toml"))
+    assert len(backups) == 1
+    assert backups[0].read_text(encoding="utf-8") == before
+    assert codex_permissions.remove_permissions(root, user_config=user) == []
+
+
+def test_a_user_configuration_holding_only_the_policy_is_removed_after_its_backup(
     tmp_path: Path,
-    quote: str,
 ) -> None:
-    repo = permissions_tests._repo(tmp_path / "app")
-    target = repo / codex_permissions.CONFIG_PATH
-    target.parent.mkdir()
-    legacy = "basicly-workspace-" + "a" * 32
-    target.write_text(
-        "default_permissions=" + quote + legacy + quote + "\n"
-        '[permissions.basicly-workspace]\nextends=":workspace"\n'
-        "[permissions." + legacy + ']\nextends="basicly-workspace"\n'
-        "[permissions." + legacy + ".network]\nenabled=true\nallow_local_binding=true\n"
-        "[permissions." + legacy + '.network.domains]\nlocalhost="allow"\n'
-        '[permissions.consumer]\nextends=":read-only"\n'
-    )
-    user = tmp_path / "user.toml"
+    root = repo(tmp_path / "app")
+    user = tmp_path / "codex" / "config.toml"
+    user.parent.mkdir()
     user.write_text(
-        'default_permissions=":workspace"\n'
-        "[permissions." + legacy + ']\nextends=":workspace"\n'
-        "[permissions."
-        + legacy
-        + ".workspace_roots]\n"
-        + '"'
-        + (tmp_path / "app.worktrees").as_posix()
-        + '"=true\n'
+        GENERATED_USER_CONFIG.replace(":workspace", codex_permissions.PROFILE_NAME, 1),
+        encoding="utf-8",
     )
-    codex_permissions.sync_permissions(repo, user_config=user)
-    settings = permissions_tests._config(repo)
-    assert settings["default_permissions"] == "basicly-workspace"
-    assert set(settings["permissions"]) == {"basicly-workspace", "basicly-read-only", "consumer"}
-    assert settings["permissions"]["basicly-workspace"]["network"] == {
-        "enabled": True,
-        "allow_local_binding": True,
-        "domains": {"localhost": "allow"},
-    }
-    local_profiles = tomllib.loads(user.read_text())["permissions"]
-    assert set(local_profiles) == {"basicly-workspace", "basicly-read-only"}
-    readonly = settings["permissions"]["basicly-read-only"]
-    assert readonly == {
-        "extends": ":read-only",
-        "filesystem": {
-            "glob_scan_max_depth": 16,
-            ":workspace_roots": {
-                ".env": "deny",
-                ".env.*": "deny",
-                "**/.env": "deny",
-                "**/.env.*": "deny",
-            },
-        },
-        "network": {"enabled": False},
-    }
-    assert local_profiles["basicly-read-only"] == readonly
-    assert settings["permissions"]["consumer"] == {"extends": ":read-only"}
-    assert codex_permissions.sync_permissions(repo, user_config=user) == []
+
+    codex_permissions.remove_permissions(root, user_config=user)
+
+    assert not user.exists()
+    assert len(list((user.parent / "permission-backups").glob("*.toml"))) == 1
 
 
-def test_guid_with_consumer_fields_is_refused_without_removing_it(tmp_path: Path) -> None:
-    repo = permissions_tests._repo(tmp_path / "app")
-    target = repo / codex_permissions.CONFIG_PATH
-    target.parent.mkdir()
-    legacy = "basicly-workspace-" + "a" * 32
-    text = "[permissions." + legacy + ']\nextends="consumer"\n'
-    target.write_text(text)
-    with pytest.raises(ValueError, match="consumer"):
-        codex_permissions.sync_permissions(repo)
-    assert target.read_text() == text
+def test_a_symlinked_user_config_is_refused_before_the_project_is_touched(
+    tmp_path: Path,
+) -> None:
+    root = repo(tmp_path / "app")
+    target = generated(root)
+    before = target.read_text(encoding="utf-8")
+    real = tmp_path / "real.toml"
+    real.write_text(GENERATED_USER_CONFIG, encoding="utf-8")
+    link = tmp_path / "link.toml"
+    try:
+        link.symlink_to(real)
+    except OSError:
+        pytest.skip("this platform does not let the test user create a symlink")
 
+    with pytest.raises(ValueError, match="symlinked"):
+        codex_permissions.remove_permissions(root, user_config=link)
 
-def test_guid_migration_preserves_following_array_tables(tmp_path: Path) -> None:
-    repo = permissions_tests._repo(tmp_path / "app")
-    target = repo / codex_permissions.CONFIG_PATH
-    target.parent.mkdir()
-    legacy = "basicly-workspace-" + "a" * 32
-    target.write_text(
-        "[permissions."
-        + legacy
-        + ']\nextends="basicly-workspace"\n[[consumer_entries]]\nvalue="retained"\n'
-    )
-    codex_permissions.sync_permissions(repo)
-    assert permissions_tests._config(repo)["consumer_entries"] == [{"value": "retained"}]
+    assert target.read_text(encoding="utf-8") == before
+    assert real.read_text(encoding="utf-8") == GENERATED_USER_CONFIG

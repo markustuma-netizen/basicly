@@ -1,69 +1,51 @@
-# Configure Codex workspace permissions
+# Remove the generated Codex permission policy
 
-`basicly install` projects a shared `basicly-workspace` policy into
-`.codex/config.toml`. Commit that file with the repository. The policy extends
-Codex's `:workspace` protections with ordinary Git metadata writes enabled, denies dotenv reads, and defaults to
-`on-request` with `auto_review`. It leaves network permissions inherited.
-Existing explicit profile, approval and reviewer choices are preserved.
+Earlier versions of basicly projected a `basicly-workspace` profile, a
+`basicly-read-only` judgment profile and managed command-prefix rules into a
+repository. basicly no longer writes them. Codex runs on its own defaults, and
+you choose your own permission settings.
 
-There is one named permission profile: `basicly-workspace`. Old generated GUID
-profiles are migrated into it. Consumer profile choices remain unchanged.
+`basicly install` and `basicly permissions-build` remove what an earlier version
+wrote:
 
-To keep automatic access to sibling worktrees, register the local path as part
-of installation:
+- the `basicly-workspace` and `basicly-read-only` profiles in `.codex/config.toml`;
+- an old generated GUID profile, named `basicly-workspace-<32 hex digits>`;
+- `default_permissions`, but only when it names one of those profiles;
+- the generated `on-request` approval policy and `auto_review` reviewer, when a generated profile or selection exists;
+- the managed rule lines in `.codex/rules/consent-floor.rules`.
 
-```sh
-basicly install --codex-user
-basicly permissions-check --codex-user
-```
+The command deletes a file when nothing is left in it. It repeats without a
+further change, and `basicly permissions-check` then reports nothing.
 
-For an existing installation:
+## What stays
+
+Every other setting stays. This includes a profile you wrote yourself, a
+`default_permissions` that names a Codex preset such as `:workspace` or
+`:read-only`, consumer approval settings, `[features]` and a rule
+line you added to `consent-floor.rules` yourself.
+
+A file that basicly cannot change safely is refused and left alone. The check
+names it. Reconcile that file by hand.
+
+## The machine-local configuration
 
 ```sh
 basicly permissions-build --codex-user
 basicly permissions-check --codex-user
 ```
 
-Repeat registration on each machine after cloning or renaming a checkout. The
-installer resolves the main checkout through Git and adds its sibling
-`<repo>.worktrees` directory as a relative `workspace_roots` entry in the project's
-profile. Linked checkouts resolve the same main sibling directory. Future worktrees
-under it need no additional registration. Each repository has its own project
-entry; the global profile contains no union of unrelated sibling directories.
+The flag also cleans `$CODEX_HOME/config.toml`, or `~/.codex/config.toml` when
+`CODEX_HOME` is unset. basicly copies the file into a private
+`permission-backups` directory beside it before it changes it. Without the flag,
+the user configuration is not read and not changed.
 
-Registration makes the named policy discoverable in `$CODEX_HOME/config.toml`,
-or `~/.codex/config.toml` when `CODEX_HOME` is unset. It preserves existing user
-defaults and unrelated settings, creates private backups of changed user files,
-and supplies `:workspace` as the user default only when none exists. Ordinary
-installation does not modify the user configuration. No global review supplement
-or command approval rules are installed. A legacy profile with consumer additions
-or another repository's grant is refused instead of silently deleting those fields.
+## Choose your own policy
 
-If the project explicitly selects `:workspace`, `:read-only`, or another profile,
-basicly preserves that selection. Local registration does not switch it. Select
-`basicly-workspace` to use its sibling grants. Legacy sandbox settings
-and conflicting settings in the shared base are refused before registration;
-reconcile them rather than combining the old sandbox system with profiles.
+Codex applies its own default when `default_permissions` is absent. To pin a
+policy, write your own selection or your own profile into `.codex/config.toml`
+and commit it. basicly leaves it in place.
 
-Codex loads trusted project configuration. A clone may need the client's repository
-trust confirmation. Client and managed settings can override the declared policy.
-A configuration check establishes the files, not an existing session's settings;
-inspect that session's persisted `turn_context` to verify the selected profile and
-reviewer. Changing the files does not prove that a live session adopted them. A loaded Codex
-thread can retain its earlier configuration and ignore resume overrides. Select
-`basicly-workspace` in the permission picker and verify a sibling write and a local
-HTTP server in that thread. If selection rejects a profile that configuration
-reading lists, unload the idle thread and resume the same thread with the profile;
-then repeat the runtime checks. Do not keep trying broader permission modes.
-
-Basicly's default headless Codex runner inherits the project's policy. Explicit
-runner overrides remain available. Decision-only runs select Codex's read-only
-profile and disallow approval escalation.
-
-Ordinary Git add, commit and push can write repository metadata. Linked-checkout
-registration includes explicit relative roots for its shared and private Git
-metadata; this prevents Codex from remasking the linked Git directory read-only.
-Existing explicit consumer Git read protections are preserved. Destructive commands
-still require explicit confirmation under the repository instructions and approval
-policy. Nested `.git/hooks` read masks are not emitted because `.git` is a file in
-a linked checkout and the sandbox cannot create children below that file.
+A decision-only dispatch is the one exception. basicly passes
+`-c default_permissions=":read-only"` on the argv of that run, so a judging run
+cannot write. That is a Codex preset, not a basicly profile, and it is not
+written to any file.
