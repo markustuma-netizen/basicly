@@ -1894,11 +1894,13 @@ def _repo_specs() -> dict[str, RunnerSpec]:
     return {spec.name: spec for spec in load_runner_config(REPO_ROOT).specs}
 
 
+@pytest.mark.live_ledger
 def test_no_recorded_occupancy_exceeds_its_runners_declared_window() -> None:
 
     assert runner.window_violations(run_record.dispatch_history(REPO_ROOT), _repo_specs()) == []
 
 
+@pytest.mark.live_ledger
 def test_the_ledger_holds_occupancy_the_stale_declaration_called_impossible() -> None:
 
     measured = [

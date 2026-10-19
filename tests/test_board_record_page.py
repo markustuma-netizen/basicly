@@ -232,6 +232,7 @@ def test_a_clipped_row_carries_the_untruncated_title(doc: dict[str, Any]) -> Non
     assert f"{long_title}</td>" not in drawn, "the column is not clipping at all"
 
 
+@pytest.mark.live_ledger
 def test_the_rework_count_is_the_engines_own_count(work_repo: Path) -> None:
 
     gathered = board_facts.details(work_repo)
@@ -258,6 +259,7 @@ def test_mode_a_writes_a_page_the_walls_own_link_resolves_to(tmp_path: Path) -> 
     assert 'href="../board.html"' in landed.read_text(encoding="utf-8")
 
 
+@pytest.mark.live_ledger
 def test_the_server_answers_from_the_document_it_is_serving() -> None:
 
     board = board_serve.Board(REPO_ROOT, build=dict)

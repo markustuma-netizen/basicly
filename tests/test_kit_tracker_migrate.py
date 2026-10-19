@@ -83,6 +83,7 @@ def _kinds(minted: list[Any]) -> dict[str, int]:
     return counts
 
 
+@pytest.mark.live_ledger
 def test_the_live_trackers_records_and_edges_all_arrive_with_import_provenance(
     tmp_path: Path,
 ) -> None:

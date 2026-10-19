@@ -52,6 +52,7 @@ layers =
     config
     lane_split
     lane_log
+    pytest_inputs
     pyright_inputs
     claude_settings | codex_hooks | codex_permissions | runner
     context_window

@@ -111,3 +111,6 @@ def test_a_trailing_word_is_judged_against_what_the_command_accepts(
     )
 
     assert (_run(work_repo, "--check") == 1) is flagged, invocation
+
+
+pytestmark = pytest.mark.live_ledger

@@ -68,7 +68,7 @@ def test_verify_cache_defaults_to_fresh(tmp_path: Path) -> None:
     assert not load_verify_config(tmp_path).cache
 
 
-@pytest.mark.parametrize("recipe", ["pyright", None])
+@pytest.mark.parametrize("recipe", ["pyright", "pytest", None])
 def test_verify_reuse_recipe_is_explicit(tmp_path: Path, recipe: str | None) -> None:
     setting = f'reuse = "{recipe}"\n' if recipe else ""
     (tmp_path / CONFIG_FILE).write_text(
@@ -563,6 +563,7 @@ def test_a_role_the_catalog_does_not_declare_falls_back_rather_than_failing() ->
     assert resolution.model == _OBSERVED_LANE_MODEL
 
 
+@pytest.mark.live_ledger
 def test_the_ledger_holds_the_metered_dispatches_that_named_no_model() -> None:
 
     metered = [

@@ -4,6 +4,8 @@ import importlib.util
 import sys
 from pathlib import Path
 
+import pytest
+
 from basicly import merge
 
 
@@ -54,6 +56,7 @@ def test_validate_rejects_missing_issue_id() -> None:
     assert "does not reference a tracked issue id" in error
 
 
+@pytest.mark.live_ledger
 def test_validate_rejects_unknown_issue_id() -> None:
     module = _load_tracker_commit_msg_module()
     is_valid, error = module.validate("feat(basicly): add hook (basicly-zzz)", {"basicly-idr"})
@@ -61,6 +64,7 @@ def test_validate_rejects_unknown_issue_id() -> None:
     assert "unknown issue id" in error
 
 
+@pytest.mark.live_ledger
 def test_an_unknown_id_names_the_unstaged_ledger_first_with_the_command_that_stages_it() -> None:
     module = _load_tracker_commit_msg_module()
     _, error = module.validate("feat(basicly): add hook (basicly-zzz)", {"basicly-idr"})

@@ -7,7 +7,8 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TYPE_CHECKING
+
+import pytest
 
 from basicly import cli, decompose, loop, loop_state, supervise, working_set
 from basicly.config import (
@@ -22,9 +23,6 @@ from basicly.loop import AdvanceResult, Inputs
 from basicly.loop_state import NodeState, RankedNode, WorktreeBinding
 from basicly.policy import GateStatus, Grant, SpendStatus
 from basicly.runner import HEADLESS
-
-if TYPE_CHECKING:
-    import pytest
 
 
 def _node_state(**overrides: object) -> NodeState:
@@ -610,6 +608,7 @@ def test_preflight_sizes_each_candidate_when_none_is_dispatchable_yet(
     assert "REFUSED - too large, split it" in out
 
 
+@pytest.mark.live_ledger
 def test_preflight_distinguishes_an_admitted_candidate_from_a_refused_one(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -629,6 +628,7 @@ def test_preflight_distinguishes_an_admitted_candidate_from_a_refused_one(
     assert "REFUSED" not in out
 
 
+@pytest.mark.live_ledger
 def test_preflight_separates_an_under_floor_lane_from_one_inside_the_band(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -648,6 +648,7 @@ def test_preflight_separates_an_under_floor_lane_from_one_inside_the_band(
     assert "3512 tok  in band" not in out
 
 
+@pytest.mark.live_ledger
 def test_preflight_leaves_a_deferred_candidate_out_of_the_band_table(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
@@ -673,6 +674,7 @@ def test_preflight_leaves_a_deferred_candidate_out_of_the_band_table(
     assert "REFUSED" not in out
 
 
+@pytest.mark.live_ledger
 def test_preflight_flags_a_candidate_whose_scope_matched_no_file(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

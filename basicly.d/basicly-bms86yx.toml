@@ -1,0 +1,4 @@
+[[verify.checks]]
+name = "pytest-live-ledger"
+command = ["pytest", "-q", "-n", "4", "-m", "live_ledger"]
+modes = ["full"]

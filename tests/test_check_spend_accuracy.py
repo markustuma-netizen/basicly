@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from types import ModuleType
 
+import pytest
+
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = REPO_ROOT / ".scripts" / "check_spend_accuracy.py"
 
@@ -53,6 +55,7 @@ def test_a_count_that_disagrees_with_the_table_is_a_finding() -> None:
     assert [f.subject for f in findings] == ["pyproject.toml"]
 
 
+@pytest.mark.live_ledger
 def test_the_live_tree_passes_and_measures_a_populated_ledger(capsys) -> None:
     assert gate.main([]) == 0
     out = capsys.readouterr().out

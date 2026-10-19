@@ -3,14 +3,11 @@ from __future__ import annotations
 import importlib.util
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
 
+import pytest
 import yaml
 
 from tests.doc_blocks import block_body, cells
-
-if TYPE_CHECKING:
-    import pytest
 
 REPO = Path(__file__).resolve().parents[1]
 ARCHITECTURE_MD = "docs/architecture/architecture.md"
@@ -211,3 +208,6 @@ def test_a_row_naming_a_closed_record_is_refused_as_already_held(
 
     assert _run(work_repo, "--check") == 1
     assert "basicly-askx4j, which is closed" in capsys.readouterr().err
+
+
+pytestmark = pytest.mark.live_ledger

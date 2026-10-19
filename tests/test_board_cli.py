@@ -136,6 +136,7 @@ def test_the_command_group_lives_in_its_own_module_and_cli_keeps_only_the_wiring
     assert "board_schema" not in source
 
 
+@pytest.mark.live_ledger
 def test_mode_a_writes_the_page_and_the_contract_beside_it(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

@@ -4,6 +4,8 @@ import collections
 from pathlib import Path
 from typing import Any
 
+import pytest
+
 from basicly import tracker
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -82,6 +84,7 @@ def test_the_surviving_edge_carries_the_stronger_provenance_label(tmp_path: Path
     assert len(kit.views_from_events(collected)[CHILD].dependencies) == 1
 
 
+@pytest.mark.live_ledger
 def test_the_committed_ledger_folds_every_stated_relation_to_one_row() -> None:
 
     kit = _kit()

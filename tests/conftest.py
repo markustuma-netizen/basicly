@@ -147,7 +147,11 @@ def _reset_process_globals():
 def _the_live_ledger_is_never_written(request: pytest.FixtureRequest) -> Iterator[None]:
 
     with ledger_guard.watching(LIVE_LEDGER, request.node.nodeid) as watch:
-        yield
+        if request.node.get_closest_marker("live_ledger"):
+            yield
+        else:
+            with ledger_guard.independent_of(LIVE_LEDGER, request.node.nodeid):
+                yield
     ledger_guard.report(watch)
 
 
@@ -178,15 +182,22 @@ WORK_REPO_LEFT_OUT = ("tests",)
 
 
 @pytest.fixture
-def work_repo(tmp_path: Path, _tracked_repo_files: tuple[Path, ...]) -> Path:
+def work_repo(
+    tmp_path: Path, _tracked_repo_files: tuple[Path, ...], request: pytest.FixtureRequest
+) -> Path:
 
     work = tmp_path / "repo"
     for relative in _tracked_repo_files:
-        if relative.parts[0] in WORK_REPO_LEFT_OUT:
+        if relative.parts[0] in WORK_REPO_LEFT_OUT or (
+            relative.parts[:2] == (".basicly", "ledger")
+            and not request.node.get_closest_marker("live_ledger")
+        ):
             continue
         destination = work / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO_ROOT / relative, destination)
+    if not request.node.get_closest_marker("live_ledger"):
+        shutil.copytree(REPO_ROOT / "tests/fixtures/work_repo/ledger", work / ".basicly/ledger")
     artifacts = REPO_ROOT / "build/lefthook"
     if artifacts.is_dir():
         shutil.copytree(artifacts, work / "build/lefthook")

@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from . import (
     affected,
     pyright_inputs,
+    pytest_inputs,
     tracker,
     tracker_paths,
     usage,
@@ -24,6 +25,7 @@ from .verify_artifact import (
     CheckResult,
     VerifyReport,
     blocked_result,
+    cached_result,
     receipt_result,
     write_run_artifact,
 )
@@ -200,6 +202,8 @@ def _spawn(
     env = sanitised_project_env(affected.environment(repo_root), repo_root)
     if controlled:
         env = pyright_inputs.execution_environment(repo_root, env)
+    if pytest_inputs.supported_command(tuple(command), "full"):
+        env = pytest_inputs.execution_environment(env)
     if capture:
         return subprocess.run(  # noqa: S603 — repo-declared argv, list form, no shell
             command, cwd=repo_root, env=env, check=False, capture_output=True, text=True
@@ -221,68 +225,59 @@ def _spawn(
     return subprocess.CompletedProcess(list(command), proc.returncode, "".join(kept), "")
 
 
-def _inputs(repo_root: Path) -> tuple[str, str]:
+def _inputs(repo_root: Path, recipe: str = "pyright") -> tuple[str, str]:
     try:
-        return pyright_inputs.fingerprint(repo_root), ""
+        provider = pytest_inputs if recipe == "pytest" else pyright_inputs
+        return provider.fingerprint(repo_root), ""
     except pyright_inputs.UnsupportedInputsError as exc:
         return "", str(exc)
 
 
-def _cached_result(
-    check: VerifyCheck, mode: str, inputs: str, cached: tuple[verify_cache.CachedCheck, ...]
-) -> CheckResult | None:
-    previous = next(
-        (
-            entry
-            for entry in cached
-            if (entry.name, entry.command, entry.mode, entry.inputs)
-            == (check.name, check.command, mode, inputs)
-        ),
-        None,
-    )
-    if previous is None:
-        return None
-    return CheckResult(
-        check.name,
-        "pass",
-        0,
-        command=check.command,
-        reused_from=previous.origin,
-        reuse_reason="matching local cache inputs",
-        source_duration_s=previous.duration_s,
-        input_fingerprint=inputs,
-    )
+def _proof_inputs(root: Path, recipe: str, proofs: dict[str, tuple[str, str]]) -> tuple[str, str]:
+    if recipe not in proofs:
+        proofs[recipe] = _inputs(root, recipe)
+    return proofs[recipe]
 
 
 def _refresh_unstable_results(
-    repo_root: Path, mode: str, config: VerifyConfig, results: list[CheckResult], reason: str
+    repo_root: Path,
+    mode: str,
+    config: VerifyConfig,
+    results: list[CheckResult],
+    reason: tuple[str, str],
 ) -> None:
     blocked_by = next((r.name for r in results if config.fail_fast and r.status == "fail"), "")
+    recipe, explanation = reason
     for index, (check, result) in enumerate(zip(config.for_mode(mode), results, strict=True)):
-        if not result.reused_from:
+        if not result.reused_from or check.reuse != recipe:
             continue
         if blocked_by:
             results[index] = blocked_result(check.name, check.command, blocked_by)
             continue
         results[index] = replace(
             run_check(check, repo_root, mode),
-            reuse_reason=reason or "inputs changed during verification",
+            reuse_reason=explanation or "inputs changed during verification",
         )
         if config.fail_fast and results[index].status == "fail":
             blocked_by = check.name
 
 
 def _finish_input_proof(
-    repo_root: Path, mode: str, config: VerifyConfig, results: list[CheckResult], before: str
+    repo_root: Path,
+    mode: str,
+    config: VerifyConfig,
+    results: list[CheckResult],
+    proof: tuple[str, str],
 ) -> bool:
+    recipe, before = proof
     if not before or (
         not all(r.status == "pass" for r in results) and not any(r.reused_from for r in results)
     ):
         return False
-    after, reason = _inputs(repo_root)
+    after, reason = _inputs(repo_root, recipe)
     if before == after:
         return True
-    _refresh_unstable_results(repo_root, mode, config, results, reason)
+    _refresh_unstable_results(repo_root, mode, config, results, (recipe, reason))
     return False
 
 
@@ -314,10 +309,11 @@ def run_verify(
     eligible = {
         check.name
         for check in checks
-        if check.reuse == "pyright" and supported_command(check.command, mode)
+        if (check.reuse == "pyright" and supported_command(check.command, mode))
+        or (check.reuse == "pytest" and pytest_inputs.supported_command(check.command, mode))
     }
     caching = config.cache and selection is None
-    proving = bool(eligible) and (capture_receipts or reuse is not None or caching)
+    proofs: dict[str, tuple[str, str]] = {}
     before, reason, cache_reason = "", "", ""
     cached: tuple[verify_cache.CachedCheck, ...] = ()
     results: list[CheckResult] = []
@@ -331,8 +327,8 @@ def run_verify(
             print(f"==> {check.name} NOT RUN: {result.detail}", flush=True)
             results.append(result)
             continue
-        if proving and check.name in eligible and not (before or reason):
-            before, reason = _inputs(repo_root)
+        if check.name in eligible and (capture_receipts or reuse is not None or caching):
+            before, reason = _proof_inputs(repo_root, check.reuse or "", proofs)
             cached, cache_reason = verify_cache.read(repo_root) if caching and before else ((), "")
         borrowed = (
             receipt_result(check.name, check.command, mode, before, reuse)
@@ -340,7 +336,7 @@ def run_verify(
             else None
         )
         if borrowed is None and check.name in eligible and before:
-            borrowed = _cached_result(check, mode, before, cached)
+            borrowed = cached_result(check.name, check.command, (mode, before), cached)
         if borrowed is not None:
             print(f"{check.name}: reused verified result from {borrowed.reused_from}", flush=True)
             results.append(borrowed)
@@ -363,16 +359,19 @@ def run_verify(
         results.append(result)
         if config.fail_fast and result.status == "fail":
             blocked_by = check.name
-    stable = _finish_input_proof(repo_root, mode, config, results, before)
+    stable = {
+        recipe: _finish_input_proof(repo_root, mode, config, results, (recipe, proof[0]))
+        for recipe, proof in proofs.items()
+    }
     run_id = uuid.uuid4().hex
     passed = all(r.status == "pass" for r in results)
     receipts = (
         tuple(
-            CheckReceipt(check.name, check.command, mode, before, run_id)
+            CheckReceipt(check.name, check.command, mode, proofs[check.reuse or ""][0], run_id)
             for check, result in zip(checks, results, strict=True)
-            if check.name in eligible
+            if check.name in eligible and stable.get(check.reuse or "", False)
         )
-        if capture_receipts and stable and passed
+        if capture_receipts and passed
         else ()
     )
     report = VerifyReport(
@@ -387,12 +386,12 @@ def run_verify(
                     check.name,
                     check.command,
                     mode,
-                    before,
+                    proofs[check.reuse or ""][0],
                     result.reused_from or run_id,
                     result.source_duration_s if result.reused_from else result.duration_s,
                 )
                 for check, result in zip(checks, results, strict=True)
-                if check.name in eligible
+                if check.name in eligible and stable.get(check.reuse or "", False)
             ),
             overhead_s=max(0, report.duration_s - sum(result.duration_s for result in results)),
         )

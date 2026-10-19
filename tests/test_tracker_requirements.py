@@ -145,6 +145,7 @@ def test_r5_the_gate_resolves_an_imported_slug_id_and_a_dotted_child() -> None:
     assert hook._candidate_ids("fix(x): a well-known problem", known) == set()
 
 
+@pytest.mark.live_ledger
 def test_r5_the_ids_this_repo_mints_carry_no_internal_hyphen() -> None:
 
     seen = set()

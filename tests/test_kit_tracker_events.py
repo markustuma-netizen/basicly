@@ -1064,6 +1064,7 @@ SPELLS_ITS_OWN_KIND = frozenset({"baseline.py"})
 _KIND_CONSTANT = re.compile(r"^KIND_[A-Z0-9_]+$")
 
 
+@pytest.mark.live_ledger
 def test_the_live_ledger_holds_no_kind_outside_the_closed_set() -> None:
 
     parsed, quarantined = events.read_events(REPO_ROOT / ".basicly" / "ledger")

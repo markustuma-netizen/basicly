@@ -5,24 +5,15 @@ import json
 import math
 import sys
 import uuid
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 from pathlib import Path
 
 from . import __version__
+from .verify_receipt import CachedCheck
 
 CACHE_PATH = Path(".basicly/usage/verify-cache.json")
 _MAX_BYTES = 2 * 1024 * 1024
 _MAX_CHECKS = 128
-
-
-@dataclass(frozen=True)
-class CachedCheck:
-    name: str
-    command: tuple[str, ...]
-    mode: str
-    inputs: str
-    origin: str
-    duration_s: float
 
 
 def _identity(root: Path) -> str:
@@ -33,7 +24,13 @@ def _identity(root: Path) -> str:
         "recipe": 1,
         "engine": {
             name: hashlib.sha256((source / name).read_bytes()).hexdigest()
-            for name in ("verify.py", "verify_cache.py", "verify_receipt.py", "pyright_inputs.py")
+            for name in (
+                "verify.py",
+                "verify_cache.py",
+                "verify_receipt.py",
+                "pyright_inputs.py",
+                "pytest_inputs.py",
+            )
         },
     }
     return hashlib.sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
