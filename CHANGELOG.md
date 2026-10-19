@@ -6,10 +6,18 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## v0.26.5 - 2026-10-19
+
+Delta: v0.26.4..v0.26.5
+
 basicly 0.26.5 preserves compiler receipts when equivalent landing environments differ only in the caller's virtual-environment marker. The supported compiler recipe removes that marker from its actual execution environment, allowing a landing to reuse evidence with the same compiler runtime and equivalent analysis inputs. Full test suites still execute freshly.
 
 - **Less duplicate compiler work** — `basicly-0vp15zd` reduced the repository-sized Linux compiler follow-up from 12.23s to 1.05s median across three warm samples, with total CPU falling from 17.81s to 1.02s. A separate control still executes, and changed source errors force fresh compiler failures.
 - **Compatibility controls** — `basicly-0vp15zd` preserves the original environment for missing, malformed or unsupported configurations. Five new regression cases cover the marker boundary and fresh fallback; persistent caches remain local to each checkout.
+
+### Fixed
+
+- Preserve compiler receipts across equivalent landing environments by removing the ambient virtual-environment marker from controlled compiler execution. Actual source, analysis environment and compiler runtime changes still force fresh checks. (basicly-0vp15zd)
 
 ## v0.26.4 - 2026-10-19
 

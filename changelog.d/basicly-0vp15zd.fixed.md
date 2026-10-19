@@ -1,1 +1,0 @@
-- Preserve compiler receipts across equivalent landing environments by removing the ambient virtual-environment marker from controlled compiler execution. Actual source, analysis environment and compiler runtime changes still force fresh checks.

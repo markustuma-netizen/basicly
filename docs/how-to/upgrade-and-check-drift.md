@@ -33,7 +33,7 @@ cannot grant itself access; you can also run the command from your own terminal.
 This retry keeps hooks, signing, loop checkpoints and dotenv protections active.
 It does not require changing a machine-wide permissions profile.
 
-### From v0.26.4: tracker compaction
+### From v0.26.5: tracker compaction
 
 Post-merge tracker hooks now report pending shards without folding, staging or creating
 commits. Re-running install replaces the managed hook behavior while preserving foreign
@@ -52,7 +52,7 @@ There is no `update` command. **Re-running install *is* the upgrade** — it is
 idempotent and converges the repo onto whatever version you pin:
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.4/basicly-0.26.4-py3-none-any.whl basicly install
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.5/basicly-0.26.5-py3-none-any.whl basicly install
 ```
 
 `uvx` is one of three ways to reach the same verb, not the command itself:
@@ -150,7 +150,7 @@ version to keep in step across a team.
 ## Uninstall
 
 ```sh
-uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.4/basicly-0.26.4-py3-none-any.whl basicly uninstall
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.5/basicly-0.26.5-py3-none-any.whl basicly uninstall
 ```
 
 This removes everything basicly manages — the managed core, install state,
