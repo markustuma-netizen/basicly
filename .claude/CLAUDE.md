@@ -137,7 +137,7 @@ uv run basicly hooks-build
 Test, whole suite then one file:
 
 ```sh
-uv run pytest -q
+uv run pytest -q -n 4
 uv run pytest tests/test_cli.py -q
 ```
 
