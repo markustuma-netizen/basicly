@@ -103,7 +103,10 @@ def test_empty_launcher_runs_fresh_instead_of_crashing(
     monkeypatch.setattr(pytest_inputs.shutil, "which", lambda *_a, **_kw: str(launcher))
     inputs, reason = verify._inputs(tmp_path, "pytest")
     assert inputs == ""
-    assert "empty pytest launcher" in reason
+    expected = (
+        "empty pytest launcher" if os.name == "posix" else "unsupported pytest launcher platform"
+    )
+    assert expected in reason
 
 
 def test_hook_dispatch_and_nested_uv_environment_do_not_change_execution_inputs() -> None:
