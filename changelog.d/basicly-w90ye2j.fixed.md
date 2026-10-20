@@ -1,1 +1,0 @@
-- Keep Codex shell tools available to repair a fresh clone's missing Lefthook runtime, print the repair steps, and teach agents to restore and verify it without disabling hooks; generated-file edits stay protected.
