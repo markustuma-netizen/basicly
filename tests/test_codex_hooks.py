@@ -2,10 +2,50 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from pathlib import Path
+
+import pytest
 
 from basicly import codex_hooks
 from basicly.hooks import HookSpec
+
+
+def test_native_guard_matcher_leaves_shell_tools_available_for_runtime_repair() -> None:
+    specs = [
+        HookSpec("guard", "guard.py", "pretooluse", manager="codex", matcher="apply_patch"),
+        HookSpec("orientation", "session.py", "sessionstart", manager="codex", matcher="*"),
+    ]
+    settings = codex_hooks.merge_hooks({}, specs, ".basicly/core/hooks")
+    matcher = settings["hooks"]["PreToolUse"][0]["matcher"]
+    assert matcher != "*"
+    assert re.fullmatch(matcher, "apply_patch")
+    for tool in ("exec_command", "write_stdin", "Bash"):
+        assert re.fullmatch(matcher, tool) is None
+    assert settings["hooks"]["SessionStart"][0]["matcher"] == "*"
+
+
+@pytest.mark.parametrize("unrestricted", ["", "*"])
+def test_unrestricted_handler_keeps_the_native_event_unrestricted(unrestricted: str) -> None:
+    specs = [
+        HookSpec("guard", "guard.py", "pretooluse", manager="codex", matcher="apply_patch"),
+        HookSpec("all", "all.py", "pretooluse", manager="codex", matcher=unrestricted),
+    ]
+    settings = codex_hooks.merge_hooks({}, specs, ".basicly/core/hooks")
+    assert settings["hooks"]["PreToolUse"][0]["matcher"] == "*"
+
+
+def test_native_event_runs_each_declared_tool_matcher() -> None:
+    specs = [
+        HookSpec("guard", "guard.py", "pretooluse", manager="codex", matcher="apply_patch"),
+        HookSpec("shell", "shell.py", "pretooluse", manager="codex", matcher="exec_command|Bash"),
+    ]
+    settings = codex_hooks.merge_hooks({}, specs, ".basicly/core/hooks")
+    matcher = settings["hooks"]["PreToolUse"][0]["matcher"]
+    assert matcher != "*"
+    for tool in ("apply_patch", "exec_command", "Bash"):
+        assert re.fullmatch(matcher, tool)
+    assert re.fullmatch(matcher, "write_stdin") is None
 
 
 def test_windows_command_carries_paths_and_event_without_cmd_shell_metacharacters() -> None:

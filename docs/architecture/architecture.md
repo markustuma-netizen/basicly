@@ -696,9 +696,9 @@ Measured from the projected files, and regenerated and gated on every commit:
 
 | Surface | size | cap | headroom | lines | line cap |
 | --- | --- | --- | --- | --- | --- |
-| `.claude/CLAUDE.md` (claude) | 11018 characters | 12000 | 982 | 173 | 200 |
-| `AGENTS.md` (codex) | 13897 bytes | 24576 | 10679 | 221 | 320 |
-| `.github/copilot-instructions.md` (copilot) | 11110 characters | 12000 | 890 | 174 | 200 |
+| `.claude/CLAUDE.md` (claude) | 11273 characters | 12000 | 727 | 174 | 200 |
+| `AGENTS.md` (codex) | 14152 bytes | 24576 | 10424 | 222 | 320 |
+| `.github/copilot-instructions.md` (copilot) | 11365 characters | 12000 | 635 | 175 | 200 |
 
 <!-- docs-claims:end always-on-sizes -->
 
@@ -1113,6 +1113,12 @@ therefore runs one dispatcher, which replays stdin to matcher-selected scripts.
 A private result file carries combined protocol output, stderr and the original
 status back to the outer launcher. Native projections contain launchers; the
 script list and matchers live in shared Lefthook configuration.
+
+Codex's native event matcher also carries the declared tool matchers, so the
+generated-file guard runs only for `apply_patch`. Shell tools remain available
+to prepare a fresh clone's ignored runtime. A missing executable reports
+`hooks-build --runtime-only` and `hooks-check`; the projected session instructions
+tell the agent to run those commands and retry without disabling hooks.
 
 Catalog lint uses an available engine or the installed version's release wheel.
 If that fallback lacks valid install state or cannot fetch its wheel, it refuses
