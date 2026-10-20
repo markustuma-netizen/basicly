@@ -50,10 +50,12 @@ def merge_hooks(settings: dict, specs: list[HookSpec], hooks_relpath: str) -> di
         else:
             section.pop(event, None)
     for stage in dict.fromkeys(spec.stage for spec in specs):
+        matchers = [spec.matcher for spec in specs if spec.stage == stage]
+        matcher = "*" if any(value in {"", "*"} for value in matchers) else "|".join(matchers)
         script = f'"$(git rev-parse --show-toplevel)/{runtime}"'
         command = f"uv run --no-project --no-python-downloads python {script} codex {stage}"
         section.setdefault(EVENTS[stage], []).append({
-            "matcher": "*",
+            "matcher": matcher,
             "hooks": [
                 {
                     "type": "command",

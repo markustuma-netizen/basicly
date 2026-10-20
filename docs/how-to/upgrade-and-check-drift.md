@@ -163,16 +163,32 @@ Code tasks and CI workflow — the last two only while still unedited.
 The tracker is not basicly's to delete: `.basicly/ledger/` and your record history stay
 either way.
 
-## Lefthook in CI checkouts
+## Lefthook after a clone
 
 Lefthook is installed at `.basicly/bin/lefthook` (`lefthook.exe` on Windows).
-The directory is ignored, so a fresh CI checkout restores the packaged runtime
+The directory is ignored, so a fresh checkout restores the packaged runtime
 before checking hook configuration:
 
 ```sh
 basicly hooks-build --runtime-only
 basicly hooks-check
 ```
+
+Use the repository's pinned basicly invocation if `basicly` is not on `PATH`:
+
+```sh
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.10/basicly-0.26.10-py3-none-any.whl basicly hooks-build --runtime-only
+uvx --from https://github.com/niksavis/basicly/releases/download/v0.26.10/basicly-0.26.10-py3-none-any.whl basicly hooks-check
+```
+
+In a basicly source checkout, use `uv run basicly` instead. Prepare the Lefthook
+archives as described in [Contributing](../../CONTRIBUTING.md#development-setup)
+first if the runtime command reports missing build artifacts.
+
+Codex's generated-file hook matches `apply_patch`, leaving shell tools available
+to run these repair commands. A missing runtime prints the repair steps, and the
+installed agent instructions tell the agent to run them and retry. Keep the hooks
+enabled: after setup, generated-file edits remain refused.
 
 The first command installs only the pinned executable and MIT license from the
 basicly package. It preserves hook configuration and does not activate Git hooks.
