@@ -6,6 +6,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+Fresh clones can recover their Codex hooks without turning them off. Shell tools remain available for runtime setup, and the agent receives the repair steps.
+
+- **Hook recovery:** scope the generated-file hook to patches, print runtime repair commands, and include recovery instructions in agent guidance (basicly-w90ye2j).
+
 ## v0.26.10 - 2026-10-19
 
 Delta: v0.26.9..v0.26.10
