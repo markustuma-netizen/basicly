@@ -22,6 +22,8 @@ def main(argv: list[str] | None = None) -> int:
         [sys.executable, str(_kit_cli()), "check", *paths],
         capture_output=True,
         text=True,
+        encoding="utf-8",
+        errors="replace",
         check=False,
     )
     if completed.returncode == 0:
