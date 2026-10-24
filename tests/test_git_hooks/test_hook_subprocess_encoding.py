@@ -31,7 +31,8 @@ def test_every_text_mode_subprocess_call_in_a_hook_declares_its_encoding() -> No
 
 
 def _load_identity_guard():
-    spec = importlib.util.spec_from_file_location("identity_guard_hook", HOOKS / "identity-guard.py")
+    script_path = HOOKS / "identity-guard.py"
+    spec = importlib.util.spec_from_file_location("identity_guard_hook", script_path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -39,7 +40,7 @@ def _load_identity_guard():
 
 
 def _git(repo: Path, *args: str) -> None:
-    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)  # noqa: S607
+    subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True)
 
 
 def test_identity_guard_reads_a_staged_utf8_diff_that_the_ansi_code_page_cannot_decode(
