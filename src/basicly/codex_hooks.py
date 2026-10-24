@@ -24,7 +24,7 @@ def windows_command(runtime: str, stage: str) -> str:
         "$start.FileName = 'uv'; "
         "$start.UseShellExecute = $false; "
         "$start.Arguments = 'run --no-project --no-python-downloads "
-        '--python ">=3.14" python "\' + '
+        "--python 3.14 python \"' + "
         f"$root + '/{relative}\" codex {stage}'; "
         "$process = [System.Diagnostics.Process]::Start($start); "
         "$process.WaitForExit(); exit $process.ExitCode "
@@ -55,8 +55,7 @@ def merge_hooks(settings: dict, specs: list[HookSpec], hooks_relpath: str) -> di
         matcher = "*" if any(value in {"", "*"} for value in matchers) else "|".join(matchers)
         script = f'"$(git rev-parse --show-toplevel)/{runtime}"'
         command = (
-            'uv run --no-project --no-python-downloads --python ">=3.14" python '
-            f"{script} codex {stage}"
+            f"uv run --no-project --no-python-downloads --python 3.14 python {script} codex {stage}"
         )
         section.setdefault(EVENTS[stage], []).append({
             "matcher": matcher,

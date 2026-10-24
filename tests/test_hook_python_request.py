@@ -3,10 +3,13 @@ from __future__ import annotations
 import base64
 from pathlib import Path
 
+import yaml
+
 from basicly import claude_settings, codex_hooks, lefthook_config
 from basicly.hooks import HookSpec
 
-REQUEST = '--python ">=3.14"'
+REQUEST = "--python 3.14"
+SHELL_METACHARACTERS = set("<>|&;`")
 SPEC = HookSpec("gate", "gate.py", "pre-commit", always_run=True)
 HOOKS_RELPATH = ".basicly/core/hooks"
 
@@ -19,6 +22,19 @@ def test_the_git_launcher_requests_the_supported_python() -> None:
 
 def test_the_lefthook_dispatcher_requests_the_supported_python() -> None:
     assert REQUEST in lefthook_config.managed_config([SPEC], HOOKS_RELPATH)
+
+
+def test_lefthook_run_lines_carry_no_shell_metacharacters() -> None:
+    config = yaml.safe_load(lefthook_config.managed_config([SPEC], HOOKS_RELPATH))
+    runs = [
+        command["run"]
+        for stage in config.values()
+        if isinstance(stage, dict)
+        for command in stage.get("commands", {}).values()
+    ]
+
+    assert runs
+    assert all(not SHELL_METACHARACTERS & set(run) for run in runs)
 
 
 def test_the_claude_hook_command_requests_the_supported_python() -> None:
